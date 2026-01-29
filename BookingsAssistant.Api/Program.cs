@@ -1,4 +1,6 @@
 using BookingsAssistant.Api.Data;
+using BookingsAssistant.Api.Services;
+using Microsoft.AspNetCore.DataProtection;
 using Microsoft.EntityFrameworkCore;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -6,6 +8,15 @@ var builder = WebApplication.CreateBuilder(args);
 // Add database
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
     options.UseSqlite(builder.Configuration.GetConnectionString("DefaultConnection")));
+
+// Add DataProtection for token encryption
+builder.Services.AddDataProtection()
+    .PersistKeysToFileSystem(new DirectoryInfo(
+        Path.Combine(builder.Environment.ContentRootPath, "keys")))
+    .SetApplicationName("BookingsAssistant");
+
+// Add token service
+builder.Services.AddScoped<ITokenService, TokenService>();
 
 // Add services
 builder.Services.AddControllers();

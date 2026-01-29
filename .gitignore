@@ -94,5 +94,8 @@ packages/
 # Entity Framework
 Migrations/*.Designer.cs
 
+# DataProtection keys
+keys/
+
 # Git worktrees
 .worktrees/
