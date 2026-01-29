@@ -18,6 +18,9 @@ builder.Services.AddDataProtection()
 // Add token service
 builder.Services.AddScoped<ITokenService, TokenService>();
 
+// Add Office 365 service
+builder.Services.AddScoped<IOffice365Service, Office365Service>();
+
 // Add services
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
