@@ -24,6 +24,9 @@ builder.Services.AddScoped<IOffice365Service, Office365Service>();
 // Add OSM service with HttpClient
 builder.Services.AddHttpClient<IOsmService, OsmService>();
 
+// Add linking service
+builder.Services.AddScoped<ILinkingService, LinkingService>();
+
 // Add services
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();

@@ -1,5 +1,8 @@
+using BookingsAssistant.Api.Data;
 using BookingsAssistant.Api.Models;
+using BookingsAssistant.Api.Services;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 
 namespace BookingsAssistant.Api.Controllers;
 
@@ -7,6 +10,15 @@ namespace BookingsAssistant.Api.Controllers;
 [Route("api/[controller]")]
 public class EmailsController : ControllerBase
 {
+    private readonly ILinkingService _linkingService;
+    private readonly ApplicationDbContext _context;
+
+    public EmailsController(ILinkingService linkingService, ApplicationDbContext context)
+    {
+        _linkingService = linkingService;
+        _context = context;
+    }
+
     [HttpGet]
     public ActionResult<List<EmailDto>> GetUnread()
     {
@@ -39,7 +51,7 @@ public class EmailsController : ControllerBase
     }
 
     [HttpGet("{id}")]
-    public ActionResult<EmailDetailDto> GetById(int id)
+    public async Task<ActionResult<EmailDetailDto>> GetById(int id)
     {
         // Mock data for now
         var email = new EmailDetailDto
@@ -53,21 +65,49 @@ public class EmailsController : ControllerBase
             IsRead = false,
             Body = "Hi, I'd like to confirm the details for booking #12345...",
             ExtractedBookingRef = "12345",
-            LinkedBookings = new List<BookingDto>
-            {
-                new BookingDto
-                {
-                    Id = 1,
-                    OsmBookingId = "12345",
-                    CustomerName = "John Smith",
-                    CustomerEmail = "john@scouts.org.uk",
-                    StartDate = new DateTime(2026, 3, 15),
-                    EndDate = new DateTime(2026, 3, 17),
-                    Status = "Provisional"
-                }
-            },
+            LinkedBookings = new List<BookingDto>(),
             RelatedEmails = new List<EmailDto>()
         };
+
+        // Fetch linked bookings using the linking service
+        var linkedBookingIds = await _linkingService.GetLinkedBookingIdsAsync(id);
+        if (linkedBookingIds.Any())
+        {
+            var linkedBookings = await _context.OsmBookings
+                .Where(b => linkedBookingIds.Contains(b.Id))
+                .Select(b => new BookingDto
+                {
+                    Id = b.Id,
+                    OsmBookingId = b.OsmBookingId,
+                    CustomerName = b.CustomerName,
+                    CustomerEmail = b.CustomerEmail,
+                    StartDate = b.StartDate,
+                    EndDate = b.EndDate,
+                    Status = b.Status
+                })
+                .ToListAsync();
+
+            email.LinkedBookings = linkedBookings;
+        }
+
+        // Fetch related emails (same sender, different ID)
+        var relatedEmails = await _context.EmailMessages
+            .Where(e => e.SenderEmail == email.SenderEmail && e.Id != id)
+            .OrderByDescending(e => e.ReceivedDate)
+            .Take(10) // Limit to 10 most recent
+            .Select(e => new EmailDto
+            {
+                Id = e.Id,
+                SenderEmail = e.SenderEmail,
+                SenderName = e.SenderName,
+                Subject = e.Subject,
+                ReceivedDate = e.ReceivedDate,
+                IsRead = e.IsRead,
+                ExtractedBookingRef = e.ExtractedBookingRef
+            })
+            .ToListAsync();
+
+        email.RelatedEmails = relatedEmails;
 
         return Ok(email);
     }
