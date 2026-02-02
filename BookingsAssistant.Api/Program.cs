@@ -18,8 +18,8 @@ builder.Services.AddDataProtection()
 // Add token service
 builder.Services.AddScoped<ITokenService, TokenService>();
 
-// Add Office 365 service
-builder.Services.AddScoped<IOffice365Service, Office365Service>();
+// Add Office 365 service with HttpClient
+builder.Services.AddHttpClient<IOffice365Service, Office365Service>();
 
 // Add OSM OAuth service with HttpClient
 builder.Services.AddHttpClient<IOsmAuthService, OsmAuthService>();
