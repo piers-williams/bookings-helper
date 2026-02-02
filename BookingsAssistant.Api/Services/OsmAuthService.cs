@@ -65,12 +65,20 @@ public class OsmAuthService : IOsmAuthService
             {
                 ["grant_type"] = "authorization_code",
                 ["code"] = code,
-                ["client_id"] = _clientId,
-                ["client_secret"] = _clientSecret,
                 ["redirect_uri"] = _redirectUri
             };
 
-            var response = await _httpClient.PostAsync("/oauth/token", new FormUrlEncodedContent(tokenRequest));
+            // Create request with Basic Authentication
+            var request = new HttpRequestMessage(HttpMethod.Post, "/oauth/token")
+            {
+                Content = new FormUrlEncodedContent(tokenRequest)
+            };
+
+            // Add Basic Authentication header
+            var credentials = Convert.ToBase64String(System.Text.Encoding.ASCII.GetBytes($"{_clientId}:{_clientSecret}"));
+            request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Basic", credentials);
+
+            var response = await _httpClient.SendAsync(request);
 
             if (!response.IsSuccessStatusCode)
             {
@@ -165,12 +173,20 @@ public class OsmAuthService : IOsmAuthService
             var tokenRequest = new Dictionary<string, string>
             {
                 ["grant_type"] = "refresh_token",
-                ["refresh_token"] = refreshToken,
-                ["client_id"] = _clientId,
-                ["client_secret"] = _clientSecret
+                ["refresh_token"] = refreshToken
             };
 
-            var response = await _httpClient.PostAsync("/oauth/token", new FormUrlEncodedContent(tokenRequest));
+            // Create request with Basic Authentication
+            var request = new HttpRequestMessage(HttpMethod.Post, "/oauth/token")
+            {
+                Content = new FormUrlEncodedContent(tokenRequest)
+            };
+
+            // Add Basic Authentication header
+            var credentials = Convert.ToBase64String(System.Text.Encoding.ASCII.GetBytes($"{_clientId}:{_clientSecret}"));
+            request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Basic", credentials);
+
+            var response = await _httpClient.SendAsync(request);
 
             if (!response.IsSuccessStatusCode)
             {
