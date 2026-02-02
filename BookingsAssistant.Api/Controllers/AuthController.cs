@@ -9,72 +9,82 @@ public class AuthController : ControllerBase
 {
     private readonly ITokenService _tokenService;
     private readonly IOsmAuthService _osmAuthService;
+    private readonly IOffice365Service _office365Service;
     private readonly ILogger<AuthController> _logger;
 
-    public AuthController(ITokenService tokenService, IOsmAuthService osmAuthService, ILogger<AuthController> logger)
+    public AuthController(
+        ITokenService tokenService,
+        IOsmAuthService osmAuthService,
+        IOffice365Service office365Service,
+        ILogger<AuthController> logger)
     {
         _tokenService = tokenService;
         _osmAuthService = osmAuthService;
+        _office365Service = office365Service;
         _logger = logger;
     }
 
     /// <summary>
     /// Initiates OAuth login flow with Microsoft Office 365.
-    /// This is a stub - will be implemented after Azure AD app registration.
+    /// Redirects to Microsoft login page.
     /// </summary>
     [HttpGet("login")]
     public IActionResult Login()
     {
-        _logger.LogInformation("Login endpoint called - OAuth flow not yet implemented");
-
-        // TODO: Implement OAuth flow after Azure AD app registration
-        // This will redirect to Microsoft login page
-        // return Challenge(new AuthenticationProperties { RedirectUri = "/api/auth/callback" }, "Microsoft");
-
-        return StatusCode(501, new
-        {
-            message = "OAuth login flow not yet implemented",
-            detail = "This endpoint will be implemented after Azure AD app is registered"
-        });
+        _logger.LogInformation("Office 365 login endpoint called");
+        var url = _office365Service.GetAuthorizationUrl();
+        return Redirect(url);
     }
 
     /// <summary>
     /// OAuth callback endpoint - receives authorization code from Microsoft.
-    /// This is a stub - will be implemented after Azure AD app registration.
     /// </summary>
     [HttpGet("callback")]
-    public IActionResult Callback([FromQuery] string? code)
+    public async Task<IActionResult> Callback([FromQuery] string code)
     {
-        _logger.LogInformation("Callback endpoint called with code: {HasCode}", !string.IsNullOrEmpty(code));
-
-        // TODO: Implement OAuth callback after Azure AD app registration
-        // This will exchange the code for access and refresh tokens
-        // Then save tokens using _tokenService.SaveTokensAsync()
-
-        return StatusCode(501, new
+        if (string.IsNullOrEmpty(code))
         {
-            message = "OAuth callback not yet implemented",
-            detail = "This endpoint will be implemented after Azure AD app is registered",
-            receivedCode = !string.IsNullOrEmpty(code)
-        });
+            _logger.LogWarning("Office 365 callback received without authorization code");
+            return BadRequest("Authorization code missing");
+        }
+
+        _logger.LogInformation("Office 365 callback endpoint called with code");
+
+        var userId = 1; // TODO: Get from authenticated user session
+        var success = await _office365Service.HandleCallbackAsync(code, userId);
+
+        if (success)
+        {
+            _logger.LogInformation("Office 365 OAuth authorization successful for user {UserId}", userId);
+            return Redirect("/"); // Redirect to dashboard
+        }
+        else
+        {
+            _logger.LogError("Office 365 OAuth authorization failed for user {UserId}", userId);
+            return BadRequest("OAuth authorization failed");
+        }
     }
 
     /// <summary>
-    /// Returns the current authentication status.
-    /// This is a stub - returns false until OAuth is implemented.
+    /// Returns the current Office 365 authentication status.
     /// </summary>
     [HttpGet("status")]
-    public IActionResult GetStatus()
+    public async Task<IActionResult> GetStatus()
     {
-        _logger.LogInformation("Status endpoint called");
+        _logger.LogInformation("Office 365 status endpoint called");
 
-        // TODO: Check if user has valid tokens
-        // For now, always return not authenticated
-        return Ok(new
+        var userId = 1; // TODO: Get from authenticated user
+        // Check if user has valid Office 365 token
+        try
         {
-            isAuthenticated = false,
-            message = "OAuth authentication not yet implemented"
-        });
+            await _office365Service.GetValidAccessTokenAsync(userId);
+            return Ok(new { authenticated = true });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogDebug(ex, "User {UserId} does not have valid Office 365 token", userId);
+            return Ok(new { authenticated = false });
+        }
     }
 
     /// <summary>
