@@ -29,9 +29,16 @@ public class AuthController : ControllerBase
     /// Redirects to Microsoft login page.
     /// </summary>
     [HttpGet("login")]
-    public IActionResult Login()
+    public IActionResult Login([FromQuery] bool adminConsent = false)
     {
-        _logger.LogInformation("Office 365 login endpoint called");
+        _logger.LogInformation("Office 365 login endpoint called (admin consent: {AdminConsent})", adminConsent);
+
+        if (adminConsent)
+        {
+            var adminUrl = _office365Service.GetAdminConsentUrl();
+            return Redirect(adminUrl);
+        }
+
         var url = _office365Service.GetAuthorizationUrl();
         return Redirect(url);
     }

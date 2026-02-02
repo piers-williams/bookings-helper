@@ -4,6 +4,7 @@ public interface IOffice365Service
 {
     // OAuth methods
     string GetAuthorizationUrl();
+    string GetAdminConsentUrl();
     Task<bool> HandleCallbackAsync(string code, int userId);
     Task<string> GetValidAccessTokenAsync(int userId);
 
