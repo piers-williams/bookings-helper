@@ -60,6 +60,19 @@ public class Office365Service : IOffice365Service
         return authUrl;
     }
 
+    public string GetAdminConsentUrl()
+    {
+        // Use 'organizations' instead of 'common' for admin consent
+        var adminConsentUrl = $"{_instance}organizations/v2.0/adminconsent?" +
+                              $"client_id={Uri.EscapeDataString(_clientId)}&" +
+                              $"redirect_uri={Uri.EscapeDataString(_redirectUri)}&" +
+                              $"scope={Uri.EscapeDataString(_scopes)}&" +
+                              $"state=admin_consent";
+
+        _logger.LogInformation("Generated Office 365 admin consent URL");
+        return adminConsentUrl;
+    }
+
     public async Task<bool> HandleCallbackAsync(string code, int userId)
     {
         try
