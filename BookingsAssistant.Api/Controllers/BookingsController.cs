@@ -12,42 +12,33 @@ public class BookingsController : ControllerBase
 {
     private readonly ILinkingService _linkingService;
     private readonly ApplicationDbContext _context;
+    private readonly IOsmService _osmService;
 
-    public BookingsController(ILinkingService linkingService, ApplicationDbContext context)
+    public BookingsController(ILinkingService linkingService, ApplicationDbContext context, IOsmService osmService)
     {
         _linkingService = linkingService;
         _context = context;
+        _osmService = osmService;
     }
 
     [HttpGet]
-    public ActionResult<List<BookingDto>> GetProvisional([FromQuery] string? status = "Provisional")
+    public async Task<ActionResult<List<BookingDto>>> GetProvisional([FromQuery] string? status = "Provisional")
     {
-        // Mock data for now
-        var bookings = new List<BookingDto>
+        try
         {
-            new BookingDto
-            {
-                Id = 1,
-                OsmBookingId = "12345",
-                CustomerName = "John Smith",
-                CustomerEmail = "john@scouts.org.uk",
-                StartDate = new DateTime(2026, 3, 15),
-                EndDate = new DateTime(2026, 3, 17),
-                Status = "Provisional"
-            },
-            new BookingDto
-            {
-                Id = 2,
-                OsmBookingId = "12346",
-                CustomerName = "Jane Doe",
-                CustomerEmail = "jane@school.ac.uk",
-                StartDate = new DateTime(2026, 4, 10),
-                EndDate = new DateTime(2026, 4, 12),
-                Status = "Provisional"
-            }
-        };
-
-        return Ok(bookings);
+            // Fetch real bookings from OSM API
+            var bookings = await _osmService.GetBookingsAsync(status ?? "Provisional");
+            return Ok(bookings);
+        }
+        catch (InvalidOperationException ex) when (ex.Message.Contains("OSM"))
+        {
+            // OAuth not configured or token expired
+            return Unauthorized(new { message = "OSM authentication required", detail = ex.Message });
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, new { message = "Error fetching bookings from OSM", detail = ex.Message });
+        }
     }
 
     [HttpGet("{id}")]
