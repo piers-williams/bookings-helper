@@ -58,7 +58,7 @@ public class OsmAuthService : IOsmAuthService
     {
         try
         {
-            _logger.LogInformation("Handling OSM OAuth callback for user {UserId}", userId);
+            _logger.LogInformation("Handling OSM OAuth callback for user {UserId} with code length {CodeLength}", userId, code?.Length ?? 0);
 
             // Exchange authorization code for tokens
             var tokenRequest = new Dictionary<string, string>
@@ -77,6 +77,9 @@ public class OsmAuthService : IOsmAuthService
             // Add Basic Authentication header
             var credentials = Convert.ToBase64String(System.Text.Encoding.ASCII.GetBytes($"{_clientId}:{_clientSecret}"));
             request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Basic", credentials);
+
+            _logger.LogInformation("Sending token request to OSM. Redirect URI: {RedirectUri}, ClientId length: {ClientIdLength}",
+                _redirectUri, _clientId.Length);
 
             var response = await _httpClient.SendAsync(request);
 
