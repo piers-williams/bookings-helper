@@ -23,7 +23,8 @@ public class ApplicationUser
 
     [MaxLength(255)]
     public string? OsmUsername { get; set; }
-    public string? OsmApiToken { get; set; }
+    public string? OsmAccessToken { get; set; }
+    public string? OsmRefreshToken { get; set; }
     public DateTime? OsmTokenExpiry { get; set; }
 
     public DateTime? LastSync { get; set; }

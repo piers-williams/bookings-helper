@@ -8,11 +8,13 @@ namespace BookingsAssistant.Api.Controllers;
 public class AuthController : ControllerBase
 {
     private readonly ITokenService _tokenService;
+    private readonly IOsmAuthService _osmAuthService;
     private readonly ILogger<AuthController> _logger;
 
-    public AuthController(ITokenService tokenService, ILogger<AuthController> logger)
+    public AuthController(ITokenService tokenService, IOsmAuthService osmAuthService, ILogger<AuthController> logger)
     {
         _tokenService = tokenService;
+        _osmAuthService = osmAuthService;
         _logger = logger;
     }
 
@@ -91,5 +93,68 @@ public class AuthController : ControllerBase
             message = "Logout successful",
             detail = "Token clearing not yet implemented"
         });
+    }
+
+    /// <summary>
+    /// Initiates OAuth login flow with OSM.
+    /// Redirects to OSM authorization page.
+    /// </summary>
+    [HttpGet("osm/login")]
+    public IActionResult OsmLogin()
+    {
+        _logger.LogInformation("OSM login endpoint called");
+        var url = _osmAuthService.GetAuthorizationUrl();
+        return Redirect(url);
+    }
+
+    /// <summary>
+    /// OAuth callback endpoint - receives authorization code from OSM.
+    /// </summary>
+    [HttpGet("osm/callback")]
+    public async Task<IActionResult> OsmCallback([FromQuery] string code)
+    {
+        if (string.IsNullOrEmpty(code))
+        {
+            _logger.LogWarning("OSM callback received without authorization code");
+            return BadRequest("Authorization code missing");
+        }
+
+        _logger.LogInformation("OSM callback endpoint called with code");
+
+        var userId = 1; // TODO: Get from authenticated user session
+        var success = await _osmAuthService.HandleCallbackAsync(code, userId);
+
+        if (success)
+        {
+            _logger.LogInformation("OSM OAuth authorization successful for user {UserId}", userId);
+            return Redirect("/"); // Redirect to dashboard
+        }
+        else
+        {
+            _logger.LogError("OSM OAuth authorization failed for user {UserId}", userId);
+            return BadRequest("OAuth authorization failed");
+        }
+    }
+
+    /// <summary>
+    /// Returns the current OSM authentication status.
+    /// </summary>
+    [HttpGet("osm/status")]
+    public async Task<IActionResult> OsmStatus()
+    {
+        _logger.LogInformation("OSM status endpoint called");
+
+        var userId = 1; // TODO: Get from authenticated user
+        // Check if user has valid OSM token
+        try
+        {
+            await _osmAuthService.GetValidAccessTokenAsync(userId);
+            return Ok(new { authenticated = true });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogDebug(ex, "User {UserId} does not have valid OSM token", userId);
+            return Ok(new { authenticated = false });
+        }
     }
 }

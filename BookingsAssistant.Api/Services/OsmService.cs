@@ -9,15 +9,17 @@ public class OsmService : IOsmService
     private readonly HttpClient _httpClient;
     private readonly IConfiguration _configuration;
     private readonly ILogger<OsmService> _logger;
+    private readonly IOsmAuthService _osmAuthService;
     private readonly string _baseUrl;
     private readonly string _campsiteId;
     private readonly string _sectionId;
 
-    public OsmService(HttpClient httpClient, IConfiguration configuration, ILogger<OsmService> logger)
+    public OsmService(HttpClient httpClient, IConfiguration configuration, ILogger<OsmService> logger, IOsmAuthService osmAuthService)
     {
         _httpClient = httpClient;
         _configuration = configuration;
         _logger = logger;
+        _osmAuthService = osmAuthService;
 
         _baseUrl = _configuration["Osm:BaseUrl"] ?? "https://www.onlinescoutmanager.co.uk";
         _campsiteId = _configuration["Osm:CampsiteId"] ?? throw new InvalidOperationException("OSM CampsiteId not configured");
@@ -25,8 +27,13 @@ public class OsmService : IOsmService
 
         _httpClient.BaseAddress = new Uri(_baseUrl);
 
-        // TODO: OAuth token management (Task 8) - for now, service will log warning
-        _logger.LogWarning("OSM service initialized without authentication. OAuth token management is pending.");
+        _logger.LogInformation("OSM service initialized with OAuth authentication support");
+    }
+
+    private async Task<string> GetAccessTokenAsync()
+    {
+        var userId = 1; // TODO: Get from authenticated user context
+        return await _osmAuthService.GetValidAccessTokenAsync(userId);
     }
 
     public async Task<List<BookingDto>> GetBookingsAsync(string status)
@@ -39,8 +46,11 @@ public class OsmService : IOsmService
 
             _logger.LogInformation("Fetching OSM bookings with mode: {Mode}", mode);
 
-            // TODO: Add Bearer token once OAuth is implemented
-            var response = await _httpClient.GetAsync(url);
+            // Get access token and make authenticated request
+            var token = await GetAccessTokenAsync();
+            var request = new HttpRequestMessage(HttpMethod.Get, url);
+            request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
+            var response = await _httpClient.SendAsync(request);
 
             // Log rate limiting headers
             HandleRateLimiting(response);
@@ -52,7 +62,7 @@ public class OsmService : IOsmService
 
                 if (response.StatusCode == System.Net.HttpStatusCode.Unauthorized)
                 {
-                    _logger.LogWarning("OSM API authentication required. OAuth token management is not yet implemented.");
+                    _logger.LogError("OSM API authentication failed. Token may be invalid or expired.");
                 }
 
                 return new List<BookingDto>();
@@ -94,9 +104,17 @@ public class OsmService : IOsmService
             var detailsUrl = $"/v3/campsites/{_campsiteId}/items?booking_id={osmBookingId}&mode=booking&audience=venue";
             var commentsUrl = $"/v3/comments/campsite_booking/{osmBookingId}/list?section_id={_sectionId}";
 
-            // TODO: Add Bearer token once OAuth is implemented
-            var detailsTask = _httpClient.GetAsync(detailsUrl);
-            var commentsTask = _httpClient.GetAsync(commentsUrl);
+            // Get access token and make authenticated requests
+            var token = await GetAccessTokenAsync();
+
+            var detailsRequest = new HttpRequestMessage(HttpMethod.Get, detailsUrl);
+            detailsRequest.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
+
+            var commentsRequest = new HttpRequestMessage(HttpMethod.Get, commentsUrl);
+            commentsRequest.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
+
+            var detailsTask = _httpClient.SendAsync(detailsRequest);
+            var commentsTask = _httpClient.SendAsync(commentsRequest);
 
             await Task.WhenAll(detailsTask, commentsTask);
 
@@ -119,7 +137,7 @@ public class OsmService : IOsmService
 
                 if (detailsResponse.StatusCode == System.Net.HttpStatusCode.Unauthorized)
                 {
-                    _logger.LogWarning("OSM API authentication required. OAuth token management is not yet implemented.");
+                    _logger.LogError("OSM API authentication failed for details. Token may be invalid or expired.");
                 }
             }
 
