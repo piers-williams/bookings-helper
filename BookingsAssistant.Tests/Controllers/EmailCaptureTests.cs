@@ -22,8 +22,9 @@ public class EmailCaptureTests : IClassFixture<WebApplicationFactory<Program>>
                     d => d.ServiceType == typeof(DbContextOptions<ApplicationDbContext>));
                 if (descriptor != null) services.Remove(descriptor);
 
+                var dbName = "TestDb_" + Guid.NewGuid();
                 services.AddDbContext<ApplicationDbContext>(options =>
-                    options.UseInMemoryDatabase("TestDb_" + Guid.NewGuid()));
+                    options.UseInMemoryDatabase(dbName));
             });
         });
     }
