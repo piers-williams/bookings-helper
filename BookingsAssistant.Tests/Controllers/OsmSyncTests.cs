@@ -13,7 +13,7 @@ namespace BookingsAssistant.Tests.Controllers;
 public class OsmSyncTests : IClassFixture<WebApplicationFactory<Program>>
 {
     private readonly WebApplicationFactory<Program> _factory;
-    private readonly FakeOsmService _fakeOsm = new();
+    private readonly FakeOsmService _fakeOsm = new(); // per-instance: xUnit creates a new OsmSyncTests for each test
 
     public OsmSyncTests(WebApplicationFactory<Program> factory)
     {
@@ -36,6 +36,10 @@ public class OsmSyncTests : IClassFixture<WebApplicationFactory<Program>>
         });
     }
 
+    /// <summary>
+    /// RED until Task 2 adds write-through behaviour to <c>GET /api/bookings</c>:
+    /// fetched bookings must be upserted into the database on every read.
+    /// </summary>
     [Fact]
     public async Task GetBookings_UpsertsFetchedBookingsToDatabase()
     {
@@ -56,6 +60,10 @@ public class OsmSyncTests : IClassFixture<WebApplicationFactory<Program>>
         Assert.Equal("Scouts UK", booking.CustomerName);
     }
 
+    /// <summary>
+    /// RED until Task 2 adds the <c>POST /api/bookings/sync</c> endpoint.
+    /// Verifies that an explicit sync call inserts new bookings and updates existing ones.
+    /// </summary>
     [Fact]
     public async Task SyncEndpoint_InsertsNewAndUpdatesExistingBookings()
     {
