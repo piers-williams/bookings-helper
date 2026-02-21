@@ -16,7 +16,7 @@ Manage scout campsite bookings from Online Scout Manager (OSM) and Office 365 Ca
 
 1. Navigate to **Settings** > **Add-ons** > **Add-on Store**
 2. Click the three dots menu (top right) and select **Repositories**
-3. Add this repository URL: `https://github.com/yourusername/bookings-assistant`
+3. Add this repository URL: `https://github.com/piers-williams/bookings-helper`
 4. Click **Add** and then **Close**
 
 ### 2. Install the Addon
@@ -166,7 +166,7 @@ View addon logs in Home Assistant:
 ## Support
 
 For issues and feature requests, please visit:
-https://github.com/yourusername/bookings-assistant/issues
+https://github.com/piers-williams/bookings-helper/issues
 
 ## License
 
