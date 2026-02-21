@@ -45,6 +45,16 @@ builder.Services.AddCors(options =>
               .AllowAnyHeader()
               .AllowCredentials();
     });
+
+    // Allow Chrome extension to call capture and booking-links endpoints.
+    // AllowAnyOrigin is acceptable: the backend runs on a private network
+    // and these endpoints only store/read local data.
+    options.AddPolicy("ExtensionCapture", policy =>
+    {
+        policy.AllowAnyOrigin()
+              .WithMethods("POST", "GET", "OPTIONS")
+              .AllowAnyHeader();
+    });
 });
 
 var app = builder.Build();

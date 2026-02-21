@@ -113,6 +113,7 @@ public class EmailsController : ControllerBase
     }
 
     [HttpPost("capture")]
+    [Microsoft.AspNetCore.Cors.EnableCors("ExtensionCapture")]
     public async Task<ActionResult<CaptureEmailResponse>> Capture([FromBody] CaptureEmailRequest request)
     {
         // Duplicate detection: same subject + sender + date already captured
