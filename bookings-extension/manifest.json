@@ -1,0 +1,33 @@
+{
+  "manifest_version": 3,
+  "name": "Bookings Assistant",
+  "version": "0.1.0",
+  "description": "Shows OSM booking context alongside OWA emails, and email context alongside OSM bookings.",
+  "permissions": ["storage"],
+  "host_permissions": [
+    "https://outlook.office365.com/*",
+    "https://www.onlinescoutmanager.co.uk/*"
+  ],
+  "content_scripts": [
+    {
+      "matches": ["https://outlook.office365.com/*"],
+      "js": ["content-owa.js"],
+      "css": ["sidebar.css"],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": ["https://www.onlinescoutmanager.co.uk/*"],
+      "js": ["content-osm.js"],
+      "css": ["sidebar.css"],
+      "run_at": "document_idle"
+    }
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "options_page": "options.html",
+  "action": {
+    "default_title": "Bookings Assistant",
+    "default_popup": "options.html"
+  }
+}

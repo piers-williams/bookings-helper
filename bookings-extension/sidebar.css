@@ -1,0 +1,137 @@
+#ba-sidebar {
+  position: fixed;
+  top: 0;
+  right: 0;
+  width: 280px;
+  height: 100vh;
+  background: #ffffff;
+  border-left: 1px solid #e0e0e0;
+  box-shadow: -2px 0 8px rgba(0,0,0,0.08);
+  z-index: 99999;
+  font-family: 'Segoe UI', sans-serif;
+  font-size: 13px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+#ba-sidebar-header {
+  padding: 10px 12px;
+  background: #0078d4;
+  color: white;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-weight: 600;
+  font-size: 13px;
+  flex-shrink: 0;
+}
+
+#ba-sidebar-header button {
+  background: none;
+  border: none;
+  color: white;
+  cursor: pointer;
+  font-size: 16px;
+  padding: 0;
+  line-height: 1;
+}
+
+#ba-sidebar-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 0;
+}
+
+.ba-section {
+  border-bottom: 1px solid #f0f0f0;
+  padding: 10px 12px;
+}
+
+.ba-section-title {
+  font-weight: 600;
+  font-size: 11px;
+  text-transform: uppercase;
+  color: #666;
+  margin-bottom: 6px;
+  letter-spacing: 0.5px;
+}
+
+.ba-booking-card {
+  background: #f8f8f8;
+  border-radius: 4px;
+  padding: 8px 10px;
+  margin-bottom: 6px;
+}
+
+.ba-booking-ref {
+  font-weight: 600;
+  color: #0078d4;
+}
+
+.ba-booking-name {
+  color: #333;
+}
+
+.ba-booking-dates {
+  font-size: 11px;
+  color: #666;
+  margin-top: 2px;
+}
+
+.ba-booking-status {
+  display: inline-block;
+  font-size: 10px;
+  padding: 1px 6px;
+  border-radius: 10px;
+  margin-top: 4px;
+  font-weight: 600;
+}
+
+.ba-status-provisional { background: #fff4ce; color: #9a6700; }
+.ba-status-confirmed { background: #dff6dd; color: #107c10; }
+.ba-status-cancelled { background: #fde7e9; color: #a4262c; }
+
+.ba-link-btn {
+  display: block;
+  width: 100%;
+  margin-top: 6px;
+  padding: 5px 10px;
+  background: #0078d4;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 12px;
+  text-align: center;
+}
+
+.ba-link-btn:hover { background: #106ebe; }
+.ba-link-btn.secondary { background: #f3f3f3; color: #333; border: 1px solid #ccc; }
+.ba-link-btn.secondary:hover { background: #e8e8e8; }
+
+.ba-loading { color: #666; font-style: italic; padding: 10px 12px; }
+.ba-error { color: #a4262c; padding: 10px 12px; font-size: 12px; }
+.ba-empty { color: #999; padding: 10px 12px; font-size: 12px; }
+
+.ba-email-item {
+  padding: 6px 0;
+  border-bottom: 1px solid #f0f0f0;
+}
+.ba-email-item:last-child { border-bottom: none; }
+.ba-email-subject { font-weight: 500; color: #333; }
+.ba-email-meta { font-size: 11px; color: #888; margin-top: 2px; }
+
+.ba-handle-btn {
+  margin: 10px 12px;
+  width: calc(100% - 24px);
+  padding: 7px 10px;
+  background: #6b21a8;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 600;
+}
+.ba-handle-btn:hover { background: #581c87; }
