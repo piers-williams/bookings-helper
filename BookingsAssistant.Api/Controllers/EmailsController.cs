@@ -111,4 +111,81 @@ public class EmailsController : ControllerBase
 
         return Ok(email);
     }
+
+    [HttpPost("capture")]
+    public async Task<ActionResult<CaptureEmailResponse>> Capture([FromBody] CaptureEmailRequest request)
+    {
+        // Duplicate detection: same subject + sender + date already captured
+        var existing = await _context.EmailMessages.FirstOrDefaultAsync(e =>
+            e.Subject == request.Subject &&
+            e.SenderEmail == request.SenderEmail &&
+            e.ReceivedDate == request.ReceivedDate);
+
+        int emailId;
+        if (existing != null)
+        {
+            emailId = existing.Id;
+        }
+        else
+        {
+            var email = new BookingsAssistant.Api.Data.Entities.EmailMessage
+            {
+                MessageId = Guid.NewGuid().ToString(),
+                Subject = request.Subject,
+                SenderEmail = request.SenderEmail,
+                SenderName = request.SenderName,
+                ReceivedDate = request.ReceivedDate,
+                IsRead = false,
+                LastFetched = DateTime.UtcNow
+            };
+            _context.EmailMessages.Add(email);
+            await _context.SaveChangesAsync();
+            emailId = email.Id;
+
+            await _linkingService.CreateAutoLinksForEmailAsync(emailId, request.Subject, request.BodyText);
+        }
+
+        // Fetch linked bookings
+        var linkedBookingIds = await _linkingService.GetLinkedBookingIdsAsync(emailId);
+        var linkedBookings = await _context.OsmBookings
+            .Where(b => linkedBookingIds.Contains(b.Id))
+            .Select(b => new BookingDto
+            {
+                Id = b.Id,
+                OsmBookingId = b.OsmBookingId,
+                CustomerName = b.CustomerName,
+                CustomerEmail = b.CustomerEmail,
+                StartDate = b.StartDate,
+                EndDate = b.EndDate,
+                Status = b.Status
+            })
+            .ToListAsync();
+
+        // Suggested bookings: match by sender email if no auto-links found
+        var suggestedBookings = new List<BookingDto>();
+        if (!linkedBookings.Any())
+        {
+            suggestedBookings = await _context.OsmBookings
+                .Where(b => b.CustomerEmail == request.SenderEmail)
+                .Select(b => new BookingDto
+                {
+                    Id = b.Id,
+                    OsmBookingId = b.OsmBookingId,
+                    CustomerName = b.CustomerName,
+                    CustomerEmail = b.CustomerEmail,
+                    StartDate = b.StartDate,
+                    EndDate = b.EndDate,
+                    Status = b.Status
+                })
+                .ToListAsync();
+        }
+
+        return Ok(new CaptureEmailResponse
+        {
+            EmailId = emailId,
+            AutoLinked = linkedBookings.Any(),
+            LinkedBookings = linkedBookings,
+            SuggestedBookings = suggestedBookings
+        });
+    }
 }
