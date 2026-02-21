@@ -13,12 +13,15 @@ public class BookingsController : ControllerBase
     private readonly ILinkingService _linkingService;
     private readonly ApplicationDbContext _context;
     private readonly IOsmService _osmService;
+    private readonly ILogger<BookingsController> _logger;
 
-    public BookingsController(ILinkingService linkingService, ApplicationDbContext context, IOsmService osmService)
+    public BookingsController(ILinkingService linkingService, ApplicationDbContext context,
+        IOsmService osmService, ILogger<BookingsController> logger)
     {
         _linkingService = linkingService;
         _context = context;
         _osmService = osmService;
+        _logger = logger;
     }
 
     [HttpGet]
@@ -26,18 +29,55 @@ public class BookingsController : ControllerBase
     {
         try
         {
-            // Fetch real bookings from OSM API
             var bookings = await _osmService.GetBookingsAsync(status ?? "Provisional");
+
+            // Write-through: persist to DB as a side effect so email linking works
+            if (bookings.Any())
+            {
+                try { await UpsertBookingsAsync(bookings); }
+                catch (Exception ex) { _logger.LogError(ex, "Failed to cache bookings from OSM"); }
+            }
+
             return Ok(bookings);
         }
         catch (InvalidOperationException ex) when (ex.Message.Contains("OSM"))
         {
-            // OAuth not configured or token expired
             return Unauthorized(new { message = "OSM authentication required", detail = ex.Message });
         }
         catch (Exception ex)
         {
             return StatusCode(500, new { message = "Error fetching bookings from OSM", detail = ex.Message });
+        }
+    }
+
+    [HttpPost("sync")]
+    [Microsoft.AspNetCore.Cors.EnableCors("ExtensionCapture")]
+    public async Task<ActionResult<SyncResult>> Sync()
+    {
+        try
+        {
+            // Fetch provisional and confirmed in parallel
+            var provisionalTask = _osmService.GetBookingsAsync("provisional");
+            var confirmedTask = _osmService.GetBookingsAsync("confirmed");
+            await Task.WhenAll(provisionalTask, confirmedTask);
+
+            // Merge, deduplicating by OsmBookingId (provisional wins if duplicated)
+            var allBookings = provisionalTask.Result
+                .Concat(confirmedTask.Result)
+                .GroupBy(b => b.OsmBookingId)
+                .Select(g => g.First())
+                .ToList();
+
+            var result = await UpsertBookingsAsync(allBookings);
+            return Ok(result);
+        }
+        catch (InvalidOperationException ex) when (ex.Message.Contains("OSM"))
+        {
+            return Unauthorized(new { message = "OSM authentication required", detail = ex.Message });
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(502, new { message = "Error syncing bookings from OSM", detail = ex.Message });
         }
     }
 
@@ -71,7 +111,6 @@ public class BookingsController : ControllerBase
             LinkedEmails = new List<EmailDto>()
         };
 
-        // Fetch linked emails using the linking service
         var linkedEmailIds = await _linkingService.GetLinkedEmailIdsAsync(id);
         if (linkedEmailIds.Any())
         {
@@ -117,5 +156,45 @@ public class BookingsController : ControllerBase
             .ToListAsync();
 
         return Ok(emails);
+    }
+
+    private async Task<SyncResult> UpsertBookingsAsync(List<BookingDto> bookings)
+    {
+        var osmIds = bookings.Select(b => b.OsmBookingId).ToList();
+        var existing = await _context.OsmBookings
+            .Where(b => osmIds.Contains(b.OsmBookingId))
+            .ToDictionaryAsync(b => b.OsmBookingId);
+
+        int added = 0, updated = 0;
+
+        foreach (var booking in bookings)
+        {
+            if (existing.TryGetValue(booking.OsmBookingId, out var entity))
+            {
+                entity.CustomerName = booking.CustomerName;
+                entity.StartDate = booking.StartDate;
+                entity.EndDate = booking.EndDate;
+                entity.Status = booking.Status;
+                entity.LastFetched = DateTime.UtcNow;
+                updated++;
+            }
+            else
+            {
+                _context.OsmBookings.Add(new Data.Entities.OsmBooking
+                {
+                    OsmBookingId = booking.OsmBookingId,
+                    CustomerName = booking.CustomerName,
+                    StartDate = booking.StartDate,
+                    EndDate = booking.EndDate,
+                    Status = booking.Status,
+                    LastFetched = DateTime.UtcNow
+                });
+                added++;
+            }
+        }
+
+        await _context.SaveChangesAsync();
+        _logger.LogInformation("OSM sync: {Added} added, {Updated} updated", added, updated);
+        return new SyncResult { Added = added, Updated = updated };
     }
 }
