@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Bookings Assistant Settings</title>
+  <style>
+    body { font-family: sans-serif; padding: 16px; min-width: 300px; }
+    label { display: block; margin-bottom: 4px; font-weight: bold; font-size: 13px; }
+    input { width: 100%; box-sizing: border-box; padding: 6px 8px; border: 1px solid #ccc; border-radius: 4px; font-size: 13px; }
+    button { margin-top: 12px; padding: 6px 16px; background: #0078d4; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 13px; }
+    button:hover { background: #106ebe; }
+    #status { margin-top: 8px; font-size: 12px; color: green; }
+    .hint { font-size: 11px; color: #666; margin-top: 4px; }
+  </style>
+</head>
+<body>
+  <h3 style="margin-top:0">Bookings Assistant</h3>
+  <label for="backendUrl">Backend URL</label>
+  <input type="text" id="backendUrl" placeholder="http://192.168.1.50:5000">
+  <div class="hint">The address of the Bookings Assistant backend on your network.</div>
+  <button id="save">Save</button>
+  <div id="status"></div>
+  <script src="options.js"></script>
+</body>
+</html>
