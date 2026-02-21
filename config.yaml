@@ -18,6 +18,8 @@ options:
   osm_base_url: "https://www.onlinescoutmanager.co.uk"
   osm_campsite_id: "219"
   osm_section_id: "56710"
+  osm_client_id: ""
+  osm_client_secret: ""
 schema:
   azure_client_id: str
   azure_client_secret: password
@@ -25,4 +27,6 @@ schema:
   osm_base_url: url
   osm_campsite_id: str
   osm_section_id: str
+  osm_client_id: str
+  osm_client_secret: password
 image: ghcr.io/piers-williams/bookings-assistant-{arch}
