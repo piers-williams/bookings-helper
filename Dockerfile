@@ -47,7 +47,7 @@ COPY --from=backend-build /bookings-extension.zip ./wwwroot/bookings-extension.z
 RUN mkdir -p /data /app/keys
 
 # Set environment variables
-ENV ASPNETCORE_URLS=http://+:5000
+ENV ASPNETCORE_URLS=https://+:5000
 ENV ConnectionStrings__DefaultConnection="Data Source=/data/bookings.db"
 
 # Expose port

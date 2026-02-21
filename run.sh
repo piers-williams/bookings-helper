@@ -14,6 +14,10 @@ export Osm__SectionId="${OSM_SECTION_ID}"
 export Osm__ClientId="${OSM_CLIENT_ID}"
 export Osm__ClientSecret="${OSM_CLIENT_SECRET}"
 
+export ASPNETCORE_URLS="https://+:5000"
+export Kestrel__Certificates__Default__Path="/ssl/fullchain.pem"
+export Kestrel__Certificates__Default__KeyPath="/ssl/privkey.pem"
+
 bashio::log.info "Starting Bookings Assistant..."
 bashio::log.info "OSM Base URL: ${OSM_BASE_URL}"
 bashio::log.info "OSM Campsite ID: ${OSM_CAMPSITE_ID}"
