@@ -99,3 +99,12 @@ keys/
 
 # Git worktrees
 .worktrees/
+
+# Local dev / exploratory work
+test-imap/
+draft-process.md
+draft-process.pdf
+process.md
+nul
+.claude/
+.devcontainer/

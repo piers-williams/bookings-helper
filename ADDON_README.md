@@ -163,6 +163,10 @@ View addon logs in Home Assistant:
 - Verify `/data` volume is mounted correctly
 - Check Home Assistant addon data directory permissions
 
+## Security Model
+
+This addon is designed to run exclusively on a private Home Assistant network. The API endpoints have **no authentication** — any device on the same network can read bookings data and trigger syncs. Do not expose port 8099 to the internet.
+
 ## Support
 
 For issues and feature requests, please visit:
