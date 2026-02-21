@@ -1,7 +1,7 @@
 name: Bookings Assistant
 version: 0.1.0
 slug: bookings-assistant
-description: Manage scout campsite bookings from OSM and Office 365
+description: Manage scout campsite bookings from OSM
 url: https://github.com/piers-williams/bookings-helper
 arch:
   - amd64
@@ -12,18 +12,12 @@ ports_description:
 map:
   - data:rw
 options:
-  azure_client_id: ""
-  azure_client_secret: ""
-  azure_redirect_uri: ""
   osm_base_url: "https://www.onlinescoutmanager.co.uk"
   osm_campsite_id: "219"
   osm_section_id: "56710"
   osm_client_id: ""
   osm_client_secret: ""
 schema:
-  azure_client_id: str
-  azure_client_secret: password
-  azure_redirect_uri: str
   osm_base_url: url
   osm_campsite_id: str
   osm_section_id: str
