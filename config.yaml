@@ -5,7 +5,6 @@ description: Manage scout campsite bookings from OSM and Office 365
 url: https://github.com/piers-williams/bookings-helper
 arch:
   - amd64
-  - aarch64
 ports:
   5000/tcp: 8099
 ports_description:
