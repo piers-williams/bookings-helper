@@ -59,10 +59,11 @@ builder.Services.AddCors(options =>
 
 var app = builder.Build();
 
-// Seed database with mock data for Phase 1
+// Apply migrations and seed database
 using (var scope = app.Services.CreateScope())
 {
     var context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+    await context.Database.MigrateAsync();
     await DbSeeder.SeedAsync(context);
 }
 
