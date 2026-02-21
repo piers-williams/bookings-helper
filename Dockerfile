@@ -46,12 +46,18 @@ COPY --from=backend-build /bookings-extension.zip ./wwwroot/bookings-extension.z
 # Create directories for SQLite database and DataProtection keys
 RUN mkdir -p /data /app/keys
 
+# Install jq for reading HA addon options at runtime
+RUN apt-get update -qq && apt-get install -y --no-install-recommends jq && rm -rf /var/lib/apt/lists/*
+
+# Copy entrypoint script
+COPY entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
+
 # Set environment variables
-ENV ASPNETCORE_URLS=https://+:5000
 ENV ConnectionStrings__DefaultConnection="Data Source=/data/bookings.db"
 
 # Expose port
 EXPOSE 5000
 
 # Entry point
-ENTRYPOINT ["dotnet", "BookingsAssistant.Api.dll"]
+ENTRYPOINT ["/entrypoint.sh"]
