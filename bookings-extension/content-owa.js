@@ -33,42 +33,48 @@
   }
 
   // --- Email extraction from OWA DOM ---
+  // Selectors verified against outlook.cloud.microsoft (Feb 2026).
+  // IDs like CONV_xxx_SUBJECT and MSG_xxx_FROM are dynamic but the suffix is stable.
 
   function extractEmail() {
-    // OWA renders the reading pane in a div with role="main" or similar.
-    // We target the most stable selectors available.
     const subject = getTextBySelectors([
+      '[id$="_SUBJECT"] span',
       '[data-testid="ConversationSubject"]',
-      '.allowTextSelection.customScrollBar .ms-font-xxl',
-      'div[aria-label] h1',
     ]);
 
-    const sender = getTextBySelectors([
+    // FROM element contains "Name<email@domain>" in a single span
+    const fromRaw = getTextBySelectors([
+      '[id$="_FROM"] > span > div > span',
+      '[id$="_FROM"] span',
       '[data-testid="SenderName"]',
-      '.allowTextSelection .ms-Persona-primaryText',
-      '[aria-label="From"] .ms-Persona-primaryText',
     ]);
+    const { name: senderName, email: senderEmail } = parseFromText(fromRaw);
 
-    const senderEmail = getAttributeBySelectors([
-      '[data-testid="SenderEmail"]',
-      '[aria-label="From"] [title]',
-    ], 'title') || extractEmailFromText(sender);
-
-    // Body text — strip HTML
+    // Body — try stable suffix pattern first, fall back to #focused reading pane
     const bodyEl = document.querySelector(
-      '[data-testid="messageBody"], .ReadingPaneContent, [aria-label="Message body"]'
+      '[id$="_BODY"], #focused > div:nth-child(3), #focused'
     );
     const bodyText = bodyEl ? bodyEl.innerText.substring(0, 5000) : '';
 
-    if (!subject && !sender) return null;
+    if (!subject && !senderName) return null;
 
     return {
       subject: subject || '(No Subject)',
-      senderName: sender || '',
+      senderName: senderName || '',
       senderEmail: senderEmail || '',
       bodyText,
-      receivedDate: new Date().toISOString(), // OWA date not easily extracted; use now as fallback
+      receivedDate: new Date().toISOString(),
     };
+  }
+
+  // Parse "Display Name<email@domain>" or plain email into name + email parts
+  function parseFromText(text) {
+    if (!text) return { name: '', email: '' };
+    const match = text.match(/^(.+?)\s*<([\w.+\-]+@[\w.\-]+)>/);
+    if (match) return { name: match[1].trim(), email: match[2] };
+    const emailOnly = text.match(/([\w.+\-]+@[\w.\-]+)/);
+    if (emailOnly) return { name: text.replace(emailOnly[0], '').trim(), email: emailOnly[1] };
+    return { name: text, email: '' };
   }
 
   function getTextBySelectors(selectors) {
@@ -77,20 +83,6 @@
       if (el && el.textContent.trim()) return el.textContent.trim();
     }
     return null;
-  }
-
-  function getAttributeBySelectors(selectors, attr) {
-    for (const sel of selectors) {
-      const el = document.querySelector(sel);
-      if (el && el.getAttribute(attr)) return el.getAttribute(attr);
-    }
-    return null;
-  }
-
-  function extractEmailFromText(text) {
-    if (!text) return '';
-    const match = text.match(/[\w.+-]+@[\w-]+\.[\w.]+/);
-    return match ? match[0] : '';
   }
 
   // --- Change detection ---

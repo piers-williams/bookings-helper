@@ -6,11 +6,15 @@
   "permissions": ["storage"],
   "host_permissions": [
     "https://outlook.office365.com/*",
+    "https://outlook.cloud.microsoft/*",
     "https://www.onlinescoutmanager.co.uk/*"
   ],
   "content_scripts": [
     {
-      "matches": ["https://outlook.office365.com/*"],
+      "matches": [
+        "https://outlook.office365.com/*",
+        "https://outlook.cloud.microsoft/*"
+      ],
       "js": ["content-owa.js"],
       "css": ["sidebar.css"],
       "run_at": "document_idle"
