@@ -25,6 +25,11 @@ RUN dotnet restore BookingsAssistant.Api/BookingsAssistant.Api.csproj
 COPY BookingsAssistant.Api/ ./BookingsAssistant.Api/
 RUN dotnet publish BookingsAssistant.Api/BookingsAssistant.Api.csproj -c Release -o out
 
+# Package Chrome extension as a zip for download
+RUN apt-get update -qq && apt-get install -y --no-install-recommends zip
+COPY bookings-extension/ ./bookings-extension/
+RUN zip -r /bookings-extension.zip bookings-extension/
+
 # Stage 3: Runtime
 FROM mcr.microsoft.com/dotnet/aspnet:8.0 AS runtime
 WORKDIR /app
@@ -34,6 +39,9 @@ COPY --from=backend-build /app/out ./
 
 # Copy frontend build to wwwroot
 COPY --from=frontend-build /app/frontend/dist ./wwwroot
+
+# Copy Chrome extension zip into wwwroot for download
+COPY --from=backend-build /bookings-extension.zip ./wwwroot/bookings-extension.zip
 
 # Create directories for SQLite database and DataProtection keys
 RUN mkdir -p /data /app/keys
