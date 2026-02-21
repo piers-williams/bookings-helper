@@ -83,6 +83,7 @@ public class OsmSyncTests : IClassFixture<WebApplicationFactory<Program>>
             await db.SaveChangesAsync();
         }
 
+        // Provisional has the existing booking (now "Confirmed" status) + new booking
         _fakeOsm.BookingsToReturn = new List<BookingDto>
         {
             new() { OsmBookingId = "55002", CustomerName = "Updated Name",
@@ -91,6 +92,14 @@ public class OsmSyncTests : IClassFixture<WebApplicationFactory<Program>>
             new() { OsmBookingId = "55003", CustomerName = "New Group",
                     StartDate = DateTime.UtcNow.AddDays(20), EndDate = DateTime.UtcNow.AddDays(22),
                     Status = "Provisional" }
+        };
+
+        // Confirmed list contains the same 55002 but with DIFFERENT name — dedup should prefer provisional (first)
+        _fakeOsm.ConfirmedBookingsToReturn = new List<BookingDto>
+        {
+            new() { OsmBookingId = "55002", CustomerName = "Confirmed Name (should be ignored)",
+                    StartDate = DateTime.UtcNow.AddDays(5), EndDate = DateTime.UtcNow.AddDays(7),
+                    Status = "Confirmed" }
         };
 
         var client = _factory.CreateClient();
@@ -116,8 +125,19 @@ public class OsmSyncTests : IClassFixture<WebApplicationFactory<Program>>
     {
         public List<BookingDto> BookingsToReturn { get; set; } = new();
 
+        /// <summary>
+        /// When set, returned for status=="confirmed". Falls back to BookingsToReturn when null.
+        /// Allows deduplication logic to be tested with distinct lists per status.
+        /// </summary>
+        public List<BookingDto>? ConfirmedBookingsToReturn { get; set; }
+
         public Task<List<BookingDto>> GetBookingsAsync(string status)
-            => Task.FromResult(BookingsToReturn);
+        {
+            if (ConfirmedBookingsToReturn != null &&
+                status.Equals("confirmed", StringComparison.OrdinalIgnoreCase))
+                return Task.FromResult(ConfirmedBookingsToReturn);
+            return Task.FromResult(BookingsToReturn);
+        }
 
         public Task<(string FullDetails, List<CommentDto> Comments)> GetBookingDetailsAsync(string osmBookingId)
             => Task.FromResult((string.Empty, new List<CommentDto>()));

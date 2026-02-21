@@ -140,6 +140,9 @@ public class BookingsController : ControllerBase
     public async Task<ActionResult<List<EmailDto>>> GetLinks(int id)
     {
         var linkedEmailIds = await _linkingService.GetLinkedEmailIdsAsync(id);
+        if (!linkedEmailIds.Any())
+            return Ok(new List<EmailDto>());
+
         var emails = await _context.EmailMessages
             .Where(e => linkedEmailIds.Contains(e.Id))
             .OrderByDescending(e => e.ReceivedDate)
@@ -175,11 +178,14 @@ public class BookingsController : ControllerBase
                 entity.StartDate = booking.StartDate;
                 entity.EndDate = booking.EndDate;
                 entity.Status = booking.Status;
+                // CustomerEmail not updated here — populated only via per-booking detail fetch (future phase)
                 entity.LastFetched = DateTime.UtcNow;
                 updated++;
             }
             else
             {
+                // CustomerEmail is intentionally null here: the OSM list API returns group_name but
+                // not email. It will be populated in a future phase via per-booking detail fetching.
                 _context.OsmBookings.Add(new Data.Entities.OsmBooking
                 {
                     OsmBookingId = booking.OsmBookingId,
