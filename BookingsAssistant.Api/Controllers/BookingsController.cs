@@ -95,4 +95,27 @@ public class BookingsController : ControllerBase
 
         return Ok(booking);
     }
+
+    [HttpGet("{id}/links")]
+    [Microsoft.AspNetCore.Cors.EnableCors("ExtensionCapture")]
+    public async Task<ActionResult<List<EmailDto>>> GetLinks(int id)
+    {
+        var linkedEmailIds = await _linkingService.GetLinkedEmailIdsAsync(id);
+        var emails = await _context.EmailMessages
+            .Where(e => linkedEmailIds.Contains(e.Id))
+            .OrderByDescending(e => e.ReceivedDate)
+            .Select(e => new EmailDto
+            {
+                Id = e.Id,
+                SenderEmail = e.SenderEmail,
+                SenderName = e.SenderName,
+                Subject = e.Subject,
+                ReceivedDate = e.ReceivedDate,
+                IsRead = e.IsRead,
+                ExtractedBookingRef = e.ExtractedBookingRef
+            })
+            .ToListAsync();
+
+        return Ok(emails);
+    }
 }
