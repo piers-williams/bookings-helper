@@ -56,14 +56,20 @@ public class BookingsController : ControllerBase
     {
         try
         {
-            // Fetch provisional and confirmed in parallel
+            // Fetch all booking statuses in parallel
             var provisionalTask = _osmService.GetBookingsAsync("provisional");
-            var confirmedTask = _osmService.GetBookingsAsync("confirmed");
-            await Task.WhenAll(provisionalTask, confirmedTask);
+            var confirmedTask   = _osmService.GetBookingsAsync("confirmed");
+            var futureTask      = _osmService.GetBookingsAsync("future");
+            var pastTask        = _osmService.GetBookingsAsync("past");
+            var cancelledTask   = _osmService.GetBookingsAsync("cancelled");
+            await Task.WhenAll(provisionalTask, confirmedTask, futureTask, pastTask, cancelledTask);
 
             // Merge, deduplicating by OsmBookingId (provisional wins if duplicated)
             var allBookings = provisionalTask.Result
                 .Concat(confirmedTask.Result)
+                .Concat(futureTask.Result)
+                .Concat(pastTask.Result)
+                .Concat(cancelledTask.Result)
                 .GroupBy(b => b.OsmBookingId)
                 .Select(g => g.First())
                 .ToList();
