@@ -59,12 +59,69 @@ builder.Services.AddCors(options =>
 
 var app = builder.Build();
 
-// Apply migrations and seed database
+// Apply migrations, seed database, and attempt initial OSM sync
 using (var scope = app.Services.CreateScope())
 {
     var context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
     await context.Database.MigrateAsync();
     await DbSeeder.SeedAsync(context);
+
+    // If OSM tokens are already stored (e.g. after addon update), sync on startup
+    try
+    {
+        var osmAuth = scope.ServiceProvider.GetRequiredService<IOsmAuthService>();
+        await osmAuth.GetValidAccessTokenAsync(1); // throws if no token
+
+        var logger = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
+        logger.LogInformation("OSM tokens found — running startup sync...");
+
+        var osmService = scope.ServiceProvider.GetRequiredService<IOsmService>();
+        var tasks = await Task.WhenAll(
+            osmService.GetBookingsAsync("provisional"),
+            osmService.GetBookingsAsync("confirmed"),
+            osmService.GetBookingsAsync("future"),
+            osmService.GetBookingsAsync("past"),
+            osmService.GetBookingsAsync("cancelled"));
+
+        var allBookings = tasks.SelectMany(b => b)
+            .GroupBy(b => b.OsmBookingId)
+            .Select(g => g.First())
+            .ToList();
+
+        var existing = await context.OsmBookings
+            .ToDictionaryAsync(b => b.OsmBookingId);
+
+        foreach (var booking in allBookings)
+        {
+            if (existing.TryGetValue(booking.OsmBookingId, out var entity))
+            {
+                entity.CustomerName = booking.CustomerName;
+                entity.StartDate    = booking.StartDate;
+                entity.EndDate      = booking.EndDate;
+                entity.Status       = booking.Status;
+                entity.LastFetched  = DateTime.UtcNow;
+            }
+            else
+            {
+                context.OsmBookings.Add(new BookingsAssistant.Api.Data.Entities.OsmBooking
+                {
+                    OsmBookingId = booking.OsmBookingId,
+                    CustomerName = booking.CustomerName,
+                    StartDate    = booking.StartDate,
+                    EndDate      = booking.EndDate,
+                    Status       = booking.Status,
+                    LastFetched  = DateTime.UtcNow
+                });
+            }
+        }
+
+        await context.SaveChangesAsync();
+        logger.LogInformation("Startup OSM sync complete: {Count} bookings", allBookings.Count);
+    }
+    catch (Exception)
+    {
+        // No tokens yet or sync failed — user needs to authenticate via /api/auth/osm/login
+    }
 }
 
 // Configure middleware

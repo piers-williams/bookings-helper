@@ -120,7 +120,8 @@ public class AuthController : ControllerBase
     public IActionResult OsmLogin()
     {
         _logger.LogInformation("OSM login endpoint called");
-        var url = _osmAuthService.GetAuthorizationUrl();
+        var redirectUri = $"{Request.Scheme}://{Request.Host}/api/auth/osm/callback";
+        var url = _osmAuthService.GetAuthorizationUrl(redirectUri);
         return Redirect(url);
     }
 
@@ -139,7 +140,8 @@ public class AuthController : ControllerBase
         _logger.LogInformation("OSM callback endpoint called with code");
 
         var userId = 1; // TODO: Get from authenticated user session
-        var success = await _osmAuthService.HandleCallbackAsync(code, userId);
+        var redirectUri = $"{Request.Scheme}://{Request.Host}/api/auth/osm/callback";
+        var success = await _osmAuthService.HandleCallbackAsync(code, userId, redirectUri);
 
         if (success)
         {

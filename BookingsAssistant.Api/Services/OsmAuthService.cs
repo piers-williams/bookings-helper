@@ -17,7 +17,6 @@ public class OsmAuthService : IOsmAuthService
     private readonly string _baseUrl;
     private readonly string _clientId;
     private readonly string _clientSecret;
-    private readonly string _redirectUri;
     private readonly string _scopes;
 
     public OsmAuthService(
@@ -36,25 +35,24 @@ public class OsmAuthService : IOsmAuthService
         _baseUrl = _configuration["Osm:BaseUrl"] ?? "https://www.onlinescoutmanager.co.uk";
         _clientId = _configuration["Osm:ClientId"] ?? throw new InvalidOperationException("OSM ClientId not configured");
         _clientSecret = _configuration["Osm:ClientSecret"] ?? throw new InvalidOperationException("OSM ClientSecret not configured");
-        _redirectUri = _configuration["Osm:RedirectUri"] ?? throw new InvalidOperationException("OSM RedirectUri not configured");
         _scopes = _configuration["Osm:Scopes"] ?? "section:campsite_bookings:read section:campsite_bookings:write";
 
         _httpClient.BaseAddress = new Uri(_baseUrl);
     }
 
-    public string GetAuthorizationUrl()
+    public string GetAuthorizationUrl(string redirectUri)
     {
         var authUrl = $"{_baseUrl}/oauth/authorize?" +
                       $"response_type=code&" +
                       $"client_id={Uri.EscapeDataString(_clientId)}&" +
-                      $"redirect_uri={Uri.EscapeDataString(_redirectUri)}&" +
+                      $"redirect_uri={Uri.EscapeDataString(redirectUri)}&" +
                       $"scope={Uri.EscapeDataString(_scopes)}";
 
         _logger.LogInformation("Generated OSM authorization URL");
         return authUrl;
     }
 
-    public async Task<bool> HandleCallbackAsync(string code, int userId)
+    public async Task<bool> HandleCallbackAsync(string code, int userId, string redirectUri)
     {
         try
         {
@@ -65,7 +63,7 @@ public class OsmAuthService : IOsmAuthService
             {
                 ["grant_type"] = "authorization_code",
                 ["code"] = code,
-                ["redirect_uri"] = _redirectUri
+                ["redirect_uri"] = redirectUri
             };
 
             // Create request with Basic Authentication
@@ -79,7 +77,7 @@ public class OsmAuthService : IOsmAuthService
             request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Basic", credentials);
 
             _logger.LogInformation("Sending token request to OSM. Redirect URI: {RedirectUri}, ClientId length: {ClientIdLength}",
-                _redirectUri, _clientId.Length);
+                redirectUri, _clientId.Length);
 
             var response = await _httpClient.SendAsync(request);
 

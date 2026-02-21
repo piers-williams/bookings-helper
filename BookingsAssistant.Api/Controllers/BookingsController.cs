@@ -25,29 +25,28 @@ public class BookingsController : ControllerBase
     }
 
     [HttpGet]
-    public async Task<ActionResult<List<BookingDto>>> GetProvisional([FromQuery] string? status = "Provisional")
+    public async Task<ActionResult<List<BookingDto>>> GetAll([FromQuery] string? status = null)
     {
-        try
-        {
-            var bookings = await _osmService.GetBookingsAsync(status ?? "Provisional");
+        var query = _context.OsmBookings.AsQueryable();
 
-            // Write-through: persist to DB as a side effect so email linking works
-            if (bookings.Any())
+        if (!string.IsNullOrEmpty(status))
+            query = query.Where(b => b.Status.ToLower() == status.ToLower());
+
+        var bookings = await query
+            .OrderBy(b => b.StartDate)
+            .Select(b => new BookingDto
             {
-                try { await UpsertBookingsAsync(bookings); }
-                catch (Exception ex) { _logger.LogError(ex, "Failed to cache bookings from OSM"); }
-            }
+                Id = b.Id,
+                OsmBookingId = b.OsmBookingId,
+                CustomerName = b.CustomerName,
+                CustomerEmail = b.CustomerEmail,
+                StartDate = b.StartDate,
+                EndDate = b.EndDate,
+                Status = b.Status
+            })
+            .ToListAsync();
 
-            return Ok(bookings);
-        }
-        catch (InvalidOperationException ex) when (ex.Message.Contains("OSM"))
-        {
-            return Unauthorized(new { message = "OSM authentication required", detail = ex.Message });
-        }
-        catch (Exception ex)
-        {
-            return StatusCode(500, new { message = "Error fetching bookings from OSM", detail = ex.Message });
-        }
+        return Ok(bookings);
     }
 
     [HttpPost("sync")]
