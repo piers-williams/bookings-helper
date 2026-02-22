@@ -1,12 +1,11 @@
 import axios from 'axios';
 import type {
-  Email,
   EmailDetail,
   Booking,
   BookingDetail,
-  Comment,
   Link,
-  CreateLinkRequest
+  CreateLinkRequest,
+  BookingStats
 } from '../types';
 
 const apiClient = axios.create({
@@ -16,13 +15,8 @@ const apiClient = axios.create({
   },
 });
 
-// Emails API
+// Emails API (capture/detail only — no unread list endpoint)
 export const emailsApi = {
-  getUnread: async (): Promise<Email[]> => {
-    const response = await apiClient.get<Email[]>('/emails/unread');
-    return response.data;
-  },
-
   getById: async (id: number): Promise<EmailDetail> => {
     const response = await apiClient.get<EmailDetail>(`/emails/${id}`);
     return response.data;
@@ -31,22 +25,19 @@ export const emailsApi = {
 
 // Bookings API
 export const bookingsApi = {
-  getProvisional: async (status?: string): Promise<Booking[]> => {
+  getAll: async (status?: string): Promise<Booking[]> => {
     const params = status ? { status } : {};
-    const response = await apiClient.get<Booking[]>('/bookings/provisional', { params });
+    const response = await apiClient.get<Booking[]>('/bookings', { params });
+    return response.data;
+  },
+
+  getStats: async (): Promise<BookingStats> => {
+    const response = await apiClient.get<BookingStats>('/bookings/stats');
     return response.data;
   },
 
   getById: async (id: number): Promise<BookingDetail> => {
     const response = await apiClient.get<BookingDetail>(`/bookings/${id}`);
-    return response.data;
-  },
-};
-
-// Comments API
-export const commentsApi = {
-  getNew: async (): Promise<Comment[]> => {
-    const response = await apiClient.get<Comment[]>('/comments/new');
     return response.data;
   },
 };
@@ -69,10 +60,10 @@ export const linksApi = {
   },
 };
 
-// Sync API
+// Sync API — endpoint is POST /api/bookings/sync
 export const syncApi = {
-  sync: async (): Promise<{ success: boolean; message: string }> => {
-    const response = await apiClient.post<{ success: boolean; message: string }>('/sync');
+  sync: async (): Promise<{ added: number; updated: number; total: number }> => {
+    const response = await apiClient.post<{ added: number; updated: number; total: number }>('/bookings/sync');
     return response.data;
   },
 };

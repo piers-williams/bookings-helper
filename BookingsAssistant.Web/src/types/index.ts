@@ -71,3 +71,11 @@ export interface CreateLinkRequest {
   emailMessageId: number;
   osmBookingId: number;
 }
+
+export interface BookingStats {
+  onSiteNow: number;
+  arrivingThisWeek: number;
+  arrivingNext30Days: number;
+  provisional: number;
+  lastSynced: string | null;
+}

@@ -23,7 +23,7 @@ export default function EmailDetail() {
         setEmail(emailData);
 
         // Fetch all bookings for the modal
-        const bookingsData = await bookingsApi.getProvisional();
+        const bookingsData = await bookingsApi.getAll();
         setAllBookings(bookingsData);
       } catch (err) {
         setError('Failed to load email details');
