@@ -49,6 +49,36 @@ public class BookingsController : ControllerBase
         return Ok(bookings);
     }
 
+    [HttpGet("stats")]
+    public async Task<ActionResult<BookingStatsDto>> GetStats()
+    {
+        var today = DateTime.UtcNow.Date;
+
+        var stats = new BookingStatsDto
+        {
+            OnSiteNow = await _context.OsmBookings
+                .CountAsync(b => b.Status == "Confirmed"
+                              && b.StartDate < today.AddDays(1)
+                              && b.EndDate >= today),
+            ArrivingThisWeek = await _context.OsmBookings
+                .CountAsync(b => b.StartDate >= today
+                              && b.StartDate < today.AddDays(8)
+                              && b.Status != "Cancelled"
+                              && b.Status != "Past"),
+            ArrivingNext30Days = await _context.OsmBookings
+                .CountAsync(b => b.StartDate >= today
+                              && b.StartDate < today.AddDays(31)
+                              && b.Status != "Cancelled"
+                              && b.Status != "Past"),
+            Provisional = await _context.OsmBookings
+                .CountAsync(b => b.Status == "Provisional"),
+            LastSynced = await _context.OsmBookings
+                .MaxAsync(b => (DateTime?)b.LastFetched)
+        };
+
+        return Ok(stats);
+    }
+
     [HttpPost("sync")]
     [Microsoft.AspNetCore.Cors.EnableCors("ExtensionCapture")]
     public async Task<ActionResult<SyncResult>> Sync()

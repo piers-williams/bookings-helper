@@ -57,7 +57,8 @@ var app = builder.Build();
 using (var scope = app.Services.CreateScope())
 {
     var context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-    await context.Database.MigrateAsync();
+    if (context.Database.ProviderName != "Microsoft.EntityFrameworkCore.InMemory")
+        await context.Database.MigrateAsync();
     await DbSeeder.SeedAsync(context);
 
     // If OSM tokens are already stored (e.g. after addon update), sync on startup
