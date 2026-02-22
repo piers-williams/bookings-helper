@@ -10,9 +10,13 @@ builder.Services.AddDbContext<ApplicationDbContext>(options =>
     options.UseSqlite(builder.Configuration.GetConnectionString("DefaultConnection")));
 
 // Add DataProtection for token encryption
+// Persist keys to the HA data volume (/data) so they survive container updates.
+// Falls back to /app/keys in development where /data is not mounted.
+var keysDir = Directory.Exists("/data")
+    ? "/data/keys"
+    : Path.Combine(builder.Environment.ContentRootPath, "keys");
 builder.Services.AddDataProtection()
-    .PersistKeysToFileSystem(new DirectoryInfo(
-        Path.Combine(builder.Environment.ContentRootPath, "keys")))
+    .PersistKeysToFileSystem(new DirectoryInfo(keysDir))
     .SetApplicationName("BookingsAssistant");
 
 // Add OSM OAuth service with HttpClient
