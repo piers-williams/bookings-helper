@@ -35,6 +35,7 @@ public class HashingService : IHashingService
 
     public string HashValue(string value)
     {
+        ArgumentNullException.ThrowIfNull(value);
         var normalized = value.ToLowerInvariant().Trim();
         var passwordBytes = Encoding.UTF8.GetBytes(normalized);
         var hash = Rfc2898DeriveBytes.Pbkdf2(

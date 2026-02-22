@@ -19,8 +19,9 @@ public class HashingServiceTests
     [Fact]
     public void HashValue_IsDeterministic()
     {
-        var svc = Create();
-        Assert.Equal(svc.HashValue("test@example.com"), svc.HashValue("test@example.com"));
+        var svc1 = Create();
+        var svc2 = Create();
+        Assert.Equal(svc1.HashValue("test@example.com"), svc2.HashValue("test@example.com"));
     }
 
     [Fact]
