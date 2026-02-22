@@ -28,6 +28,9 @@ builder.Services.AddHttpClient<IOsmService, OsmService>();
 // Add linking service
 builder.Services.AddScoped<ILinkingService, LinkingService>();
 
+// Add hashing service (singleton — loaded once at startup with the secret)
+builder.Services.AddSingleton<IHashingService, HashingService>();
+
 // Add services
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
