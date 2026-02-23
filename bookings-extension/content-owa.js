@@ -64,6 +64,7 @@
       senderEmail: senderEmail || '',
       bodyText,
       receivedDate: new Date().toISOString(),
+      candidateNames: extractCandidateNames(bodyText, senderName || ''),
     };
   }
 
@@ -75,6 +76,32 @@
     const emailOnly = text.match(/([\w.+\-]+@[\w.\-]+)/);
     if (emailOnly) return { name: text.replace(emailOnly[0], '').trim(), email: emailOnly[1] };
     return { name: text, email: '' };
+  }
+
+  function extractCandidateNames(bodyText, senderName) {
+    const candidates = new Set();
+
+    if (senderName && senderName.length >= 2)
+      candidates.add(senderName.trim());
+
+    const signOffRe = /^(kind\s+regards|best\s+regards|many\s+thanks|best\s+wishes|yours\s+sincerely|yours\s+faithfully|regards|thanks|cheers|sincerely|best),?\s*$/i;
+    const lines = bodyText.split(/\r?\n/);
+
+    for (let i = 0; i < lines.length; i++) {
+      if (signOffRe.test(lines[i].trim())) {
+        let collected = 0;
+        for (let j = i + 1; j < lines.length && collected < 3; j++) {
+          const line = lines[j].trim();
+          if (line.length >= 2 && line.length < 100) {
+            candidates.add(line);
+            collected++;
+          }
+        }
+        break;
+      }
+    }
+
+    return [...candidates];
   }
 
   function getTextBySelectors(selectors) {
@@ -190,7 +217,7 @@
         <div><span class="ba-booking-ref">#${booking.osmBookingId}</span> \u00B7 <span class="ba-booking-name">${booking.customerName}</span></div>
         <div class="ba-booking-dates">${start}${end ? ' \u2013 ' + end : ''}</div>
         <div><span class="ba-booking-status ${statusClass}">${booking.status}</span></div>
-        ${isSuggested ? '<div style="font-size:11px;color:#666;margin-top:4px">Matched by sender email</div>' : ''}
+        ${isSuggested ? '<div style="font-size:11px;color:#666;margin-top:4px">Possible match</div>' : ''}
       </div>
     `;
   }
