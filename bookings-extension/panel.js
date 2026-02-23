@@ -1,0 +1,137 @@
+(function () {
+  'use strict';
+
+  // --- Compact / full toggle ---
+
+  const COMPACT_KEY = 'ba-compact';
+  let isCompact = sessionStorage.getItem(COMPACT_KEY) === 'true';
+
+  function applyCompactState() {
+    const sidebar = document.getElementById('ba-sidebar');
+    const toggleBtn = document.getElementById('ba-toggle');
+    if (isCompact) {
+      sidebar.classList.add('ba-compact');
+      toggleBtn.textContent = '\u203a';
+      toggleBtn.title = 'Expand';
+    } else {
+      sidebar.classList.remove('ba-compact');
+      toggleBtn.textContent = '\u2039';
+      toggleBtn.title = 'Compact';
+    }
+  }
+
+  document.getElementById('ba-toggle').addEventListener('click', () => {
+    isCompact = !isCompact;
+    sessionStorage.setItem(COMPACT_KEY, String(isCompact));
+    applyCompactState();
+  });
+
+  applyCompactState();
+
+  // --- Refresh button ---
+
+  document.getElementById('ba-refresh').addEventListener('click', () => {
+    chrome.runtime.sendMessage({ type: 'REFRESH_EMAIL' });
+    showLoading();
+  });
+
+  // --- Background communication ---
+
+  // Tell background we're ready — it will reply with the last cached result
+  chrome.runtime.sendMessage({ type: 'PANEL_READY' });
+
+  // Listen for results relayed from background
+  chrome.runtime.onMessage.addListener((message) => {
+    if (message.type === 'EMAIL_RESPONSE') {
+      renderResponse(message.response, message.email);
+    }
+  });
+
+  // --- Rendering ---
+
+  function setStatusChip(text) {
+    document.getElementById('ba-status-chip').textContent = text;
+  }
+
+  function showLoading() {
+    document.getElementById('ba-sidebar-body').innerHTML =
+      '<div class="ba-loading">Loading booking context...</div>';
+    setStatusChip('\u27f3');
+  }
+
+  function showError(msg) {
+    document.getElementById('ba-sidebar-body').innerHTML =
+      `<div class="ba-error">${msg}</div>`;
+    setStatusChip('\u26a0');
+  }
+
+  function renderResponse(response, email) {
+    if (!response || response.error) {
+      if (response && response.error === 'not_configured') {
+        document.getElementById('ba-sidebar-body').innerHTML =
+          '<div class="ba-error">Backend URL not configured.<br>' +
+          '<a href="#" id="ba-open-options">Open settings \u2192</a></div>';
+        document.getElementById('ba-open-options')?.addEventListener('click', (e) => {
+          e.preventDefault();
+          chrome.runtime.sendMessage({ type: 'OPEN_OPTIONS' });
+        });
+        setStatusChip('\u2699');
+      } else {
+        const url = response?.url || '(unknown)';
+        showError(`Can\u2019t reach backend at ${url}. Is it running?`);
+      }
+      return;
+    }
+
+    const body = document.getElementById('ba-sidebar-body');
+    let html = '';
+    let statusChip = '\u00b7 No booking';
+
+    if (response.linkedBookings && response.linkedBookings.length > 0) {
+      statusChip = `\u2705 #${response.linkedBookings[0].osmBookingId}`;
+      html += '<div class="ba-section">';
+      html += '<div class="ba-section-title">\u2705 Linked Booking</div>';
+      response.linkedBookings.forEach(b => { html += renderBookingCard(b); });
+      html += '</div>';
+    } else if (response.suggestedBookings && response.suggestedBookings.length > 0) {
+      statusChip = '\uD83D\uDD0D Possible match';
+      html += '<div class="ba-section">';
+      html += '<div class="ba-section-title">\uD83D\uDD0D Possible Match</div>';
+      response.suggestedBookings.forEach(b => { html += renderBookingCard(b, true); });
+      html += '</div>';
+    } else {
+      html += '<div class="ba-section"><div class="ba-empty">No booking linked.</div></div>';
+    }
+
+    html += '<div class="ba-section">';
+    html += '<div class="ba-section-title">\uD83D\uDD17 Manual Link</div>';
+    html += `<button class="ba-link-btn secondary" onclick="window.open('http://localhost:5000', '_blank')">Open Dashboard \u2192</button>`;
+    html += '</div>';
+
+    html += `<button class="ba-handle-btn" disabled title="Coming in Phase 2">\u2728 Handle with AI</button>`;
+
+    body.innerHTML = html;
+    setStatusChip(statusChip);
+  }
+
+  function renderBookingCard(booking, isSuggested) {
+    isSuggested = isSuggested || false;
+    const status = (booking.status || '').toLowerCase();
+    const statusClass = `ba-status-${status}`;
+    const start = booking.startDate
+      ? new Date(booking.startDate).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })
+      : '';
+    const end = booking.endDate
+      ? new Date(booking.endDate).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
+      : '';
+
+    return `
+      <div class="ba-booking-card">
+        <div><span class="ba-booking-ref">#${booking.osmBookingId}</span> \u00b7 <span class="ba-booking-name">${booking.customerName}</span></div>
+        <div class="ba-booking-dates">${start}${end ? ' \u2013 ' + end : ''}</div>
+        <div><span class="ba-booking-status ${statusClass}">${booking.status}</span></div>
+        ${isSuggested ? '<div style="font-size:11px;color:#666;margin-top:4px">Possible match</div>' : ''}
+      </div>
+    `;
+  }
+})();
