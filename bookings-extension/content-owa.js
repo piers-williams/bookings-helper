@@ -6,6 +6,7 @@
 
   // --- Email extraction from OWA DOM ---
   // Selectors verified against outlook.cloud.microsoft (Feb 2026).
+  // IDs like CONV_xxx_SUBJECT and MSG_xxx_FROM are dynamic but the suffix is stable.
 
   function extractEmail() {
     const subject = getTextBySelectors([
@@ -90,7 +91,7 @@
     if (key === lastEmailKey) return;
 
     lastEmailKey = key;
-    chrome.runtime.sendMessage({ type: 'CAPTURE_EMAIL', payload: email });
+    chrome.runtime.sendMessage({ type: 'CAPTURE_EMAIL', payload: email }).catch(() => {});
   }
 
   // --- Message listener (refresh triggered from panel) ---
@@ -100,6 +101,7 @@
       lastEmailKey = null;
       checkForEmailChange();
     }
+    return false;
   });
 
   // --- MutationObserver for SPA navigation ---
