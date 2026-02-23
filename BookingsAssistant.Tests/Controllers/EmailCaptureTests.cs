@@ -1,7 +1,9 @@
 using System.Net;
 using System.Net.Http.Json;
 using BookingsAssistant.Api.Data;
+using BookingsAssistant.Api.Data.Entities;
 using BookingsAssistant.Api.Models;
+using BookingsAssistant.Api.Services;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -117,5 +119,81 @@ public class EmailCaptureTests : IClassFixture<WebApplicationFactory<Program>>
         Assert.NotNull(result);
         Assert.Empty(result.LinkedBookings);
         Assert.False(result.AutoLinked);
+    }
+
+    [Fact]
+    public async Task CaptureEmail_SuggestsBooking_WhenSenderEmailHashMatchesCustomerEmailHash()
+    {
+        using var scope = _factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        var hashing = scope.ServiceProvider.GetRequiredService<IHashingService>();
+
+        const string senderEmail = "match@example.com";
+        db.OsmBookings.Add(new OsmBooking
+        {
+            OsmBookingId = "88001",
+            CustomerName = "Match Group",
+            CustomerEmailHash = hashing.HashValue(senderEmail),
+            CustomerNameHash = hashing.HashValue("Match Group"),
+            StartDate = DateTime.UtcNow.AddDays(10),
+            EndDate = DateTime.UtcNow.AddDays(12),
+            Status = "Provisional",
+            LastFetched = DateTime.UtcNow
+        });
+        await db.SaveChangesAsync();
+
+        var client = _factory.CreateClient();
+        var response = await client.PostAsJsonAsync("/api/emails/capture", new CaptureEmailRequest
+        {
+            Subject = "General enquiry",
+            SenderEmail = senderEmail,
+            SenderName = "Match Person",
+            BodyText = "Hello there",
+            ReceivedDate = DateTime.UtcNow,
+            CandidateNames = new List<string>()
+        });
+
+        var result = await response.Content.ReadFromJsonAsync<CaptureEmailResponse>();
+        Assert.NotNull(result);
+        Assert.Single(result.SuggestedBookings);
+        Assert.Equal("88001", result.SuggestedBookings[0].OsmBookingId);
+        Assert.False(result.AutoLinked);
+    }
+
+    [Fact]
+    public async Task CaptureEmail_SuggestsBooking_WhenCandidateNameHashMatchesCustomerNameHash()
+    {
+        using var scope = _factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        var hashing = scope.ServiceProvider.GetRequiredService<IHashingService>();
+
+        const string groupName = "Anytown Scouts";
+        db.OsmBookings.Add(new OsmBooking
+        {
+            OsmBookingId = "88002",
+            CustomerName = groupName,
+            CustomerNameHash = hashing.HashValue(groupName),
+            StartDate = DateTime.UtcNow.AddDays(10),
+            EndDate = DateTime.UtcNow.AddDays(12),
+            Status = "Future",
+            LastFetched = DateTime.UtcNow
+        });
+        await db.SaveChangesAsync();
+
+        var client = _factory.CreateClient();
+        var response = await client.PostAsJsonAsync("/api/emails/capture", new CaptureEmailRequest
+        {
+            Subject = "Booking enquiry",
+            SenderEmail = "someone@anytown.com",
+            SenderName = "Jane Doe",
+            BodyText = "Hi there",
+            ReceivedDate = DateTime.UtcNow,
+            CandidateNames = new List<string> { "Jane Doe", groupName }
+        });
+
+        var result = await response.Content.ReadFromJsonAsync<CaptureEmailResponse>();
+        Assert.NotNull(result);
+        Assert.Single(result.SuggestedBookings);
+        Assert.Equal("88002", result.SuggestedBookings[0].OsmBookingId);
     }
 }

@@ -174,8 +174,29 @@ public class EmailsController : ControllerBase
             })
             .ToListAsync();
 
-        // Suggested bookings: hash-based matching will be added in Task 5
-        var suggestedBookings = new List<BookingDto>();
+        // Hash candidate names from the extension
+        var candidateNameHashes = request.CandidateNames
+            .Select(n => _hashingService.HashValue(n))
+            .ToList();
+
+        // Suggestions: email hash match OR name hash match
+        var suggestedIds = await _linkingService.FindSuggestedBookingIdsAsync(
+            senderEmailHash, candidateNameHashes);
+
+        var suggestedBookings = suggestedIds.Any()
+            ? await _context.OsmBookings
+                .Where(b => suggestedIds.Contains(b.Id))
+                .Select(b => new BookingDto
+                {
+                    Id = b.Id,
+                    OsmBookingId = b.OsmBookingId,
+                    CustomerName = b.CustomerName,
+                    StartDate = b.StartDate,
+                    EndDate = b.EndDate,
+                    Status = b.Status
+                })
+                .ToListAsync()
+            : new List<BookingDto>();
 
         return Ok(new CaptureEmailResponse
         {

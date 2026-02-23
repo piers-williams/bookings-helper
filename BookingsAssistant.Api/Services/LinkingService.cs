@@ -90,6 +90,26 @@ public class LinkingService : ILinkingService
         return emailIds;
     }
 
+    public async Task<List<int>> FindSuggestedBookingIdsAsync(
+        string senderEmailHash, List<string> candidateNameHashes)
+    {
+        var byEmail = await _context.OsmBookings
+            .Where(b => b.CustomerEmailHash == senderEmailHash
+                     && b.CustomerEmailHash != "no-email")
+            .Select(b => b.Id)
+            .ToListAsync();
+
+        var byName = candidateNameHashes.Count > 0
+            ? await _context.OsmBookings
+                .Where(b => b.CustomerNameHash != null
+                         && candidateNameHashes.Contains(b.CustomerNameHash))
+                .Select(b => b.Id)
+                .ToListAsync()
+            : new List<int>();
+
+        return byEmail.Concat(byName).Distinct().ToList();
+    }
+
     private List<string> ExtractBookingReferences(string text)
     {
         // Regex pattern to match booking references
