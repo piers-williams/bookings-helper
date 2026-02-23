@@ -4,7 +4,6 @@ public class EmailDetailDto
 {
     public int Id { get; set; }
     public string MessageId { get; set; } = string.Empty;
-    public string SenderEmail { get; set; } = string.Empty;
     public string? SenderName { get; set; }
     public string Subject { get; set; } = string.Empty;
     public DateTime ReceivedDate { get; set; }

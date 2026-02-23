@@ -153,7 +153,6 @@ public class BookingsController : ControllerBase
                 .Select(e => new EmailDto
                 {
                     Id = e.Id,
-                    SenderEmail = e.SenderEmail,
                     SenderName = e.SenderName,
                     Subject = e.Subject,
                     ReceivedDate = e.ReceivedDate,
@@ -182,7 +181,6 @@ public class BookingsController : ControllerBase
             .Select(e => new EmailDto
             {
                 Id = e.Id,
-                SenderEmail = e.SenderEmail,
                 SenderName = e.SenderName,
                 Subject = e.Subject,
                 ReceivedDate = e.ReceivedDate,

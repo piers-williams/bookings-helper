@@ -74,14 +74,6 @@ using (var scope = app.Services.CreateScope())
     // Backfill hash columns for any existing rows
     var hashingService = scope.ServiceProvider.GetRequiredService<IHashingService>();
 
-    var emailsToHash = await context.EmailMessages
-        .Where(e => e.SenderEmailHash == null && e.SenderEmail != null)
-        .ToListAsync();
-    foreach (var e in emailsToHash)
-        e.SenderEmailHash = hashingService.HashValue(e.SenderEmail!);
-    if (emailsToHash.Count > 0)
-        await context.SaveChangesAsync();
-
     var bookingsToHash = await context.OsmBookings
         .Where(b => b.CustomerNameHash == null)
         .ToListAsync();

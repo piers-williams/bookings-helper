@@ -1,5 +1,5 @@
 name: Bookings Assistant
-version: 0.9.2
+version: 0.9.3
 slug: bookings-assistant
 description: Manage scout campsite bookings from OSM
 url: https://github.com/piers-williams/bookings-helper

@@ -30,7 +30,6 @@ public class EmailsController : ControllerBase
             new EmailDto
             {
                 Id = 1,
-                SenderEmail = "john@scouts.org.uk",
                 SenderName = "John Smith",
                 Subject = "Query about booking #12345",
                 ReceivedDate = DateTime.UtcNow.AddHours(-2),
@@ -40,7 +39,6 @@ public class EmailsController : ControllerBase
             new EmailDto
             {
                 Id = 2,
-                SenderEmail = "jane@school.ac.uk",
                 SenderName = "Jane Doe",
                 Subject = "Availability for March?",
                 ReceivedDate = DateTime.UtcNow.AddHours(-5),
@@ -60,7 +58,6 @@ public class EmailsController : ControllerBase
         {
             Id = id,
             MessageId = $"msg-{id}",
-            SenderEmail = "john@scouts.org.uk",
             SenderName = "John Smith",
             Subject = "Query about booking #12345",
             ReceivedDate = DateTime.UtcNow.AddHours(-2),
@@ -108,7 +105,6 @@ public class EmailsController : ControllerBase
                 .Select(e => new EmailDto
                 {
                     Id = e.Id,
-                    SenderEmail = e.SenderEmail,
                     SenderName = e.SenderName,
                     Subject = e.Subject,
                     ReceivedDate = e.ReceivedDate,
