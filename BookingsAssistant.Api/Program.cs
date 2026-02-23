@@ -31,6 +31,9 @@ builder.Services.AddScoped<ILinkingService, LinkingService>();
 // Add hashing service (singleton — loaded once at startup with the secret)
 builder.Services.AddSingleton<IHashingService, HashingService>();
 
+// Add hosted services
+builder.Services.AddHostedService<BookingDetailBackfillService>();
+
 // Add services
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
