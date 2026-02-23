@@ -12,11 +12,13 @@ public class EmailsController : ControllerBase
 {
     private readonly ILinkingService _linkingService;
     private readonly ApplicationDbContext _context;
+    private readonly IHashingService _hashingService;
 
-    public EmailsController(ILinkingService linkingService, ApplicationDbContext context)
+    public EmailsController(ILinkingService linkingService, ApplicationDbContext context, IHashingService hashingService)
     {
         _linkingService = linkingService;
         _context = context;
+        _hashingService = hashingService;
     }
 
     [HttpGet]
@@ -115,10 +117,12 @@ public class EmailsController : ControllerBase
     [Microsoft.AspNetCore.Cors.EnableCors("ExtensionCapture")]
     public async Task<ActionResult<CaptureEmailResponse>> Capture([FromBody] CaptureEmailRequest request)
     {
+        var senderEmailHash = _hashingService.HashValue(request.SenderEmail);
+
         // Duplicate detection: same subject + sender + date already captured
         var existing = await _context.EmailMessages.FirstOrDefaultAsync(e =>
             e.Subject == request.Subject &&
-            e.SenderEmail == request.SenderEmail &&
+            e.SenderEmailHash == senderEmailHash &&
             e.ReceivedDate == request.ReceivedDate);
 
         int emailId;
@@ -131,9 +135,9 @@ public class EmailsController : ControllerBase
             var email = new BookingsAssistant.Api.Data.Entities.EmailMessage
             {
                 MessageId = Guid.NewGuid().ToString(),
-                Subject = request.Subject,
-                SenderEmail = request.SenderEmail,
+                SenderEmailHash = senderEmailHash,
                 SenderName = request.SenderName,
+                Subject = request.Subject,
                 ReceivedDate = request.ReceivedDate,
                 IsRead = false,
                 LastFetched = DateTime.UtcNow

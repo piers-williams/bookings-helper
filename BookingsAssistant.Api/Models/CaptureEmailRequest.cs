@@ -7,4 +7,5 @@ public class CaptureEmailRequest
     public string SenderName { get; set; } = string.Empty;
     public string BodyText { get; set; } = string.Empty;
     public DateTime ReceivedDate { get; set; }
+    public List<string> CandidateNames { get; set; } = new();
 }
