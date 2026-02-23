@@ -92,21 +92,31 @@ public class EmailsController : ControllerBase
         }
 
         // Fetch related emails (same sender, different ID)
-        var relatedEmails = await _context.EmailMessages
-            .Where(e => e.SenderEmail == email.SenderEmail && e.Id != id)
-            .OrderByDescending(e => e.ReceivedDate)
-            .Take(10) // Limit to 10 most recent
-            .Select(e => new EmailDto
-            {
-                Id = e.Id,
-                SenderEmail = e.SenderEmail,
-                SenderName = e.SenderName,
-                Subject = e.Subject,
-                ReceivedDate = e.ReceivedDate,
-                IsRead = e.IsRead,
-                ExtractedBookingRef = e.ExtractedBookingRef
-            })
-            .ToListAsync();
+        var emailEntity = await _context.EmailMessages
+            .Where(e => e.Id == id)
+            .Select(e => new { e.SenderEmailHash })
+            .FirstOrDefaultAsync();
+
+        var relatedEmails = new List<EmailDto>();
+        if (emailEntity?.SenderEmailHash != null)
+        {
+            var senderHash = emailEntity.SenderEmailHash;
+            relatedEmails = await _context.EmailMessages
+                .Where(e => e.SenderEmailHash == senderHash && e.Id != id)
+                .OrderByDescending(e => e.ReceivedDate)
+                .Take(10) // Limit to 10 most recent
+                .Select(e => new EmailDto
+                {
+                    Id = e.Id,
+                    SenderEmail = e.SenderEmail,
+                    SenderName = e.SenderName,
+                    Subject = e.Subject,
+                    ReceivedDate = e.ReceivedDate,
+                    IsRead = e.IsRead,
+                    ExtractedBookingRef = e.ExtractedBookingRef
+                })
+                .ToListAsync();
+        }
 
         email.RelatedEmails = relatedEmails;
 
