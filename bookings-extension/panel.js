@@ -49,6 +49,15 @@
 
   // --- Rendering ---
 
+  function escapeHtml(str) {
+    return String(str)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+  }
+
   function setStatusChip(text) {
     document.getElementById('ba-status-chip').textContent = text;
   }
@@ -78,7 +87,7 @@
         setStatusChip('\u2699');
       } else {
         const url = response?.url || '(unknown)';
-        showError(`Can\u2019t reach backend at ${url}. Is it running?`);
+        showError(`Can\u2019t reach backend at ${escapeHtml(url)}. Is it running?`);
       }
       return;
     }
@@ -105,19 +114,26 @@
 
     html += '<div class="ba-section">';
     html += '<div class="ba-section-title">\uD83D\uDD17 Manual Link</div>';
-    html += `<button class="ba-link-btn secondary" onclick="window.open('http://localhost:5000', '_blank')">Open Dashboard \u2192</button>`;
+    html += `<button class="ba-link-btn secondary" id="ba-open-dashboard">Open Dashboard \u2192</button>`;
     html += '</div>';
 
     html += `<button class="ba-handle-btn" disabled title="Coming in Phase 2">\u2728 Handle with AI</button>`;
 
     body.innerHTML = html;
     setStatusChip(statusChip);
+
+    document.getElementById('ba-open-dashboard')?.addEventListener('click', () => {
+      chrome.storage.sync.get(['backendUrl'], (result) => {
+        const url = result.backendUrl || 'http://localhost:5000';
+        window.open(url, '_blank');
+      });
+    });
   }
 
   function renderBookingCard(booking, isSuggested) {
     isSuggested = isSuggested || false;
     const status = (booking.status || '').toLowerCase();
-    const statusClass = `ba-status-${status}`;
+    const statusClass = `ba-status-${escapeHtml(status)}`;
     const start = booking.startDate
       ? new Date(booking.startDate).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })
       : '';
@@ -127,9 +143,9 @@
 
     return `
       <div class="ba-booking-card">
-        <div><span class="ba-booking-ref">#${booking.osmBookingId}</span> \u00b7 <span class="ba-booking-name">${booking.customerName}</span></div>
-        <div class="ba-booking-dates">${start}${end ? ' \u2013 ' + end : ''}</div>
-        <div><span class="ba-booking-status ${statusClass}">${booking.status}</span></div>
+        <div><span class="ba-booking-ref">#${escapeHtml(booking.osmBookingId)}</span> \u00b7 <span class="ba-booking-name">${escapeHtml(booking.customerName)}</span></div>
+        <div class="ba-booking-dates">${escapeHtml(start)}${end ? ' \u2013 ' + escapeHtml(end) : ''}</div>
+        <div><span class="ba-booking-status ${statusClass}">${escapeHtml(booking.status)}</span></div>
         ${isSuggested ? '<div style="font-size:11px;color:#666;margin-top:4px">Possible match</div>' : ''}
       </div>
     `;
