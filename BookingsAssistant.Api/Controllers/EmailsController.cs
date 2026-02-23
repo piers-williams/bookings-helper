@@ -179,9 +179,10 @@ public class EmailsController : ControllerBase
             .Select(n => _hashingService.HashValue(n))
             .ToList();
 
-        // Suggestions: email hash match OR name hash match
-        var suggestedIds = await _linkingService.FindSuggestedBookingIdsAsync(
-            senderEmailHash, candidateNameHashes);
+        // Only compute suggestions when there are no confirmed auto-links
+        var suggestedIds = linkedBookings.Any()
+            ? new List<int>()
+            : await _linkingService.FindSuggestedBookingIdsAsync(senderEmailHash, candidateNameHashes);
 
         var suggestedBookings = suggestedIds.Any()
             ? await _context.OsmBookings

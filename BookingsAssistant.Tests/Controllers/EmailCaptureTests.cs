@@ -195,5 +195,6 @@ public class EmailCaptureTests : IClassFixture<WebApplicationFactory<Program>>
         Assert.NotNull(result);
         Assert.Single(result.SuggestedBookings);
         Assert.Equal("88002", result.SuggestedBookings[0].OsmBookingId);
+        Assert.False(result.AutoLinked);
     }
 }
