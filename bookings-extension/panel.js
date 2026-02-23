@@ -37,15 +37,15 @@
 
   // --- Background communication ---
 
-  // Tell background we're ready — it will reply with the last cached result
-  chrome.runtime.sendMessage({ type: 'PANEL_READY' });
-
   // Listen for results relayed from background
   chrome.runtime.onMessage.addListener((message) => {
     if (message.type === 'EMAIL_RESPONSE') {
       renderResponse(message.response, message.email);
     }
   });
+
+  // Tell background we're ready — it will reply with the last cached result
+  chrome.runtime.sendMessage({ type: 'PANEL_READY' });
 
   // --- Rendering ---
 

@@ -1,5 +1,6 @@
 // Last backend result — cached so panel gets it immediately on open
 let lastEmailResult = null; // { response, email }
+let lastOwaTabId = null;
 
 // OWA URLs that should trigger auto-open
 const OWA_ORIGINS = [
@@ -36,6 +37,7 @@ function relayToPanel(response, email) {
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
   if (message.type === 'CAPTURE_EMAIL') {
+    if (sender.tab) lastOwaTabId = sender.tab.id;
     handleCaptureEmail(message.payload).then(response => {
       lastEmailResult = { response, email: message.payload };
       relayToPanel(response, message.payload);
@@ -52,12 +54,9 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   }
 
   if (message.type === 'REFRESH_EMAIL') {
-    // Ask the active OWA content script to re-trigger capture
-    chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
-      if (tabs[0]) {
-        chrome.tabs.sendMessage(tabs[0].id, { type: 'REFRESH' }).catch(() => {});
-      }
-    });
+    if (lastOwaTabId !== null) {
+      chrome.tabs.sendMessage(lastOwaTabId, { type: 'REFRESH' }).catch(() => {});
+    }
     return false;
   }
 
