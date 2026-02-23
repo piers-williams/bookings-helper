@@ -6,6 +6,7 @@ using BookingsAssistant.Api.Models;
 using BookingsAssistant.Api.Services;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 
@@ -20,6 +21,12 @@ public class BookingStatsTests : IClassFixture<WebApplicationFactory<Program>>
         var dbName = "TestDb_Stats_" + Guid.NewGuid();
         _factory = factory.WithWebHostBuilder(builder =>
         {
+            builder.ConfigureAppConfiguration((_, cfg) =>
+                cfg.AddInMemoryCollection(new Dictionary<string, string?>
+                {
+                    ["Hashing:Iterations"] = "1"
+                }));
+
             builder.ConfigureServices(services =>
             {
                 var descriptor = services.SingleOrDefault(

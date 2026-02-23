@@ -68,6 +68,25 @@ using (var scope = app.Services.CreateScope())
         await context.Database.MigrateAsync();
     await DbSeeder.SeedAsync(context);
 
+    // Backfill hash columns for any existing rows
+    var hashingService = scope.ServiceProvider.GetRequiredService<IHashingService>();
+
+    var emailsToHash = await context.EmailMessages
+        .Where(e => e.SenderEmailHash == null && e.SenderEmail != null)
+        .ToListAsync();
+    foreach (var e in emailsToHash)
+        e.SenderEmailHash = hashingService.HashValue(e.SenderEmail!);
+    if (emailsToHash.Count > 0)
+        await context.SaveChangesAsync();
+
+    var bookingsToHash = await context.OsmBookings
+        .Where(b => b.CustomerNameHash == null)
+        .ToListAsync();
+    foreach (var b in bookingsToHash)
+        b.CustomerNameHash = hashingService.HashValue(b.CustomerName);
+    if (bookingsToHash.Count > 0)
+        await context.SaveChangesAsync();
+
     // If OSM tokens are already stored (e.g. after addon update), sync on startup
     try
     {
