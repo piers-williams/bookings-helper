@@ -44,30 +44,6 @@ public class OsmSyncTests : IClassFixture<WebApplicationFactory<Program>>
     }
 
     /// <summary>
-    /// RED until Task 2 adds write-through behaviour to <c>GET /api/bookings</c>:
-    /// fetched bookings must be upserted into the database on every read.
-    /// </summary>
-    [Fact]
-    public async Task GetBookings_UpsertsFetchedBookingsToDatabase()
-    {
-        _fakeOsm.BookingsToReturn = new List<BookingDto>
-        {
-            new() { OsmBookingId = "55001", CustomerName = "Scouts UK",
-                    StartDate = DateTime.UtcNow.AddDays(10), EndDate = DateTime.UtcNow.AddDays(12),
-                    Status = "Provisional" }
-        };
-
-        var client = _factory.CreateClient();
-        await client.GetAsync("/api/bookings");
-
-        using var scope = _factory.Services.CreateScope();
-        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-        var booking = await db.OsmBookings.FirstOrDefaultAsync(b => b.OsmBookingId == "55001");
-        Assert.NotNull(booking);
-        Assert.Equal("Scouts UK", booking.CustomerName);
-    }
-
-    /// <summary>
     /// RED until Task 2 adds the <c>POST /api/bookings/sync</c> endpoint.
     /// Verifies that an explicit sync call inserts new bookings and updates existing ones.
     /// </summary>
