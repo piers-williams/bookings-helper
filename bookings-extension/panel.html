@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <link rel="stylesheet" href="sidebar.css">
+  <style>
+    html, body { margin: 0; padding: 0; height: 100%; overflow: hidden; }
+    /* Override sidebar.css layout rules — panel fills its container naturally */
+    #ba-sidebar {
+      position: static;
+      width: 100%;
+      height: 100vh;
+      box-shadow: none;
+      border-left: none;
+    }
+    /* Compact mode: hide body, shrink header */
+    .ba-compact #ba-sidebar-body { display: none; }
+    .ba-compact #ba-title { display: none; }
+    .ba-compact #ba-status-chip { display: inline !important; font-size: 12px; color: white; }
+    .ba-compact #ba-sidebar-header { padding: 6px 10px; }
+  </style>
+</head>
+<body>
+  <div id="ba-sidebar">
+    <div id="ba-sidebar-header">
+      <span id="ba-title">Bookings Assistant</span>
+      <span id="ba-status-chip" style="display:none">·</span>
+      <div style="display:flex;gap:4px">
+        <button id="ba-refresh" title="Refresh">&#x27F3;</button>
+        <button id="ba-toggle" title="Compact mode">&#x2039;</button>
+      </div>
+    </div>
+    <div id="ba-sidebar-body">
+      <div class="ba-loading">Open an email to see booking context.</div>
+    </div>
+  </div>
+  <script src="panel.js"></script>
+</body>
+</html>

@@ -3,7 +3,10 @@
   "name": "Bookings Assistant",
   "version": "0.1.0",
   "description": "Shows OSM booking context alongside OWA emails, and email context alongside OSM bookings.",
-  "permissions": ["storage"],
+  "permissions": ["storage", "sidePanel", "tabs"],
+  "side_panel": {
+    "default_path": "panel.html"
+  },
   "host_permissions": [
     "https://outlook.office365.com/*",
     "https://outlook.cloud.microsoft/*",
@@ -16,7 +19,6 @@
         "https://outlook.cloud.microsoft/*"
       ],
       "js": ["content-owa.js"],
-      "css": ["sidebar.css"],
       "run_at": "document_idle"
     },
     {
