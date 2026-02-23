@@ -39,7 +39,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     handleCaptureEmail(message.payload).then(response => {
       lastEmailResult = { response, email: message.payload };
       relayToPanel(response, message.payload);
-    });
+    }).catch(() => {});
     return false; // no async response back to content script
   }
 
@@ -48,7 +48,6 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     if (lastEmailResult) {
       relayToPanel(lastEmailResult.response, lastEmailResult.email);
     }
-    sendResponse({});
     return false;
   }
 
