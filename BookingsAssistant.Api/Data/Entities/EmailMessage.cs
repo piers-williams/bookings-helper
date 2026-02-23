@@ -13,9 +13,11 @@ public class EmailMessage
     [MaxLength(255)]
     public string MessageId { get; set; } = string.Empty;
 
-    [Required]
     [MaxLength(255)]
-    public string SenderEmail { get; set; } = string.Empty;
+    public string? SenderEmail { get; set; }   // nullable — will be dropped in Task 8
+
+    [MaxLength(64)]
+    public string? SenderEmailHash { get; set; }
 
     [MaxLength(255)]
     public string? SenderName { get; set; }

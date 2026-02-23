@@ -40,7 +40,6 @@ public class EmailCaptureTests : IClassFixture<WebApplicationFactory<Program>>
         {
             OsmBookingId = "99999",
             CustomerName = "Test Customer",
-            CustomerEmail = "test@example.com",
             StartDate = DateTime.UtcNow.AddDays(30),
             EndDate = DateTime.UtcNow.AddDays(33),
             Status = "Provisional",

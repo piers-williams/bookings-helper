@@ -37,7 +37,7 @@ public class ApplicationDbContext : DbContext
             .HasIndex(e => e.ExtractedBookingRef);
 
         modelBuilder.Entity<OsmBooking>()
-            .HasIndex(b => b.CustomerEmail);
+            .HasIndex(b => b.CustomerEmailHash);
 
         // Configure relationships
         modelBuilder.Entity<ApplicationLink>()

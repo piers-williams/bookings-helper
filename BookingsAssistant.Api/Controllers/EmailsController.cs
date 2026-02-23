@@ -80,7 +80,6 @@ public class EmailsController : ControllerBase
                     Id = b.Id,
                     OsmBookingId = b.OsmBookingId,
                     CustomerName = b.CustomerName,
-                    CustomerEmail = b.CustomerEmail,
                     StartDate = b.StartDate,
                     EndDate = b.EndDate,
                     Status = b.Status
@@ -155,31 +154,14 @@ public class EmailsController : ControllerBase
                 Id = b.Id,
                 OsmBookingId = b.OsmBookingId,
                 CustomerName = b.CustomerName,
-                CustomerEmail = b.CustomerEmail,
                 StartDate = b.StartDate,
                 EndDate = b.EndDate,
                 Status = b.Status
             })
             .ToListAsync();
 
-        // Suggested bookings: match by sender email if no auto-links found
+        // Suggested bookings: hash-based matching will be added in Task 5
         var suggestedBookings = new List<BookingDto>();
-        if (!linkedBookings.Any())
-        {
-            suggestedBookings = await _context.OsmBookings
-                .Where(b => b.CustomerEmail == request.SenderEmail)
-                .Select(b => new BookingDto
-                {
-                    Id = b.Id,
-                    OsmBookingId = b.OsmBookingId,
-                    CustomerName = b.CustomerName,
-                    CustomerEmail = b.CustomerEmail,
-                    StartDate = b.StartDate,
-                    EndDate = b.EndDate,
-                    Status = b.Status
-                })
-                .ToListAsync();
-        }
 
         return Ok(new CaptureEmailResponse
         {

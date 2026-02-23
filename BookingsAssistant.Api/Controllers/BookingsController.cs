@@ -39,7 +39,6 @@ public class BookingsController : ControllerBase
                 Id = b.Id,
                 OsmBookingId = b.OsmBookingId,
                 CustomerName = b.CustomerName,
-                CustomerEmail = b.CustomerEmail,
                 StartDate = b.StartDate,
                 EndDate = b.EndDate,
                 Status = b.Status
