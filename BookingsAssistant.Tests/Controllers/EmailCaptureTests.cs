@@ -15,6 +15,7 @@ public class EmailCaptureTests : IClassFixture<WebApplicationFactory<Program>>
 
     public EmailCaptureTests(WebApplicationFactory<Program> factory)
     {
+        var dbName = "TestDb_" + Guid.NewGuid();
         _factory = factory.WithWebHostBuilder(builder =>
         {
             builder.ConfigureAppConfiguration((_, cfg) =>
@@ -29,7 +30,6 @@ public class EmailCaptureTests : IClassFixture<WebApplicationFactory<Program>>
                     d => d.ServiceType == typeof(DbContextOptions<ApplicationDbContext>));
                 if (descriptor != null) services.Remove(descriptor);
 
-                var dbName = "TestDb_" + Guid.NewGuid();
                 services.AddDbContext<ApplicationDbContext>(options =>
                     options.UseInMemoryDatabase(dbName));
             });
