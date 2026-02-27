@@ -135,3 +135,27 @@
   font-weight: 600;
 }
 .ba-handle-btn:hover { background: #581c87; }
+
+/* Holiday tooltip — appears on hover over date line when start date is in a school holiday */
+.ba-date-tip {
+  position: relative;
+  cursor: default;
+}
+.ba-date-tip::after {
+  content: attr(data-tip);
+  display: none;
+  position: absolute;
+  left: 0;
+  top: calc(100% + 4px);
+  background: #333;
+  color: #fff;
+  font-size: 10px;
+  padding: 3px 6px;
+  border-radius: 3px;
+  white-space: nowrap;
+  z-index: 10;
+  pointer-events: none;
+}
+.ba-date-tip:hover::after {
+  display: block;
+}
