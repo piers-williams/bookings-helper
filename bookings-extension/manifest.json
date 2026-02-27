@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Bookings Assistant",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Shows OSM booking context alongside OWA emails, and email context alongside OSM bookings.",
   "permissions": ["storage", "sidePanel", "tabs"],
   "side_panel": {
