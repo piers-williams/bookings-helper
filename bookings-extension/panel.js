@@ -130,7 +130,29 @@
     });
   }
 
-  // --- Date formatting helpers ---
+  // --- Date formatting and school holiday helpers ---
+
+  // Essex school holidays 2025-2026.
+  // Source: https://www.essex.gov.uk/schools-and-learning/schools/essex-school-terms-and-holidays/academic-year-2025-2026
+  // Update each academic year.
+  const ESSEX_HOLIDAYS = [
+    { name: 'Autumn half term',       shortName: 'Autumn half term', start: new Date('2025-10-27'), end: new Date('2025-10-31') },
+    { name: 'Christmas holiday',      shortName: 'Christmas hols',   start: new Date('2025-12-22'), end: new Date('2026-01-02') },
+    { name: 'Spring half term',       shortName: 'Spring half term', start: new Date('2026-02-16'), end: new Date('2026-02-20') },
+    { name: 'Easter holiday',         shortName: 'Easter hols',      start: new Date('2026-03-30'), end: new Date('2026-04-10') },
+    { name: 'Early May bank holiday', shortName: 'May bank holiday', start: new Date('2026-05-04'), end: new Date('2026-05-04') },
+    { name: 'Summer half term',       shortName: 'Summer half term', start: new Date('2026-05-25'), end: new Date('2026-05-29') },
+    { name: 'Summer holiday',         shortName: 'Summer hols',      start: new Date('2026-07-21'), end: new Date('2026-08-31') },
+  ];
+
+  // Returns the holiday object if `date` falls within any Essex holiday period, otherwise null.
+  function getHolidayForDate(date) {
+    const d = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+    for (const h of ESSEX_HOLIDAYS) {
+      if (d >= h.start && d <= h.end) return h;
+    }
+    return null;
+  }
 
   function formatDate(date, includeYear) {
     const opts = { weekday: 'short', day: 'numeric', month: 'short' };
