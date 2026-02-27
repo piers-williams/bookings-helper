@@ -31,8 +31,8 @@
   // --- Refresh button ---
 
   document.getElementById('ba-refresh').addEventListener('click', () => {
-    chrome.runtime.sendMessage({ type: 'REFRESH_EMAIL' });
-    chrome.runtime.sendMessage({ type: 'REFRESH_BOOKING' });
+    chrome.runtime.sendMessage({ type: 'REFRESH_EMAIL' }).catch(() => {});
+    chrome.runtime.sendMessage({ type: 'REFRESH_BOOKING' }).catch(() => {});
     showLoading();
   });
 
