@@ -130,15 +130,23 @@
     });
   }
 
+  // --- Date formatting helpers ---
+
+  function formatDate(date, includeYear) {
+    const opts = { weekday: 'short', day: 'numeric', month: 'short' };
+    if (includeYear) opts.year = 'numeric';
+    return date.toLocaleDateString('en-GB', opts);
+  }
+
   function renderBookingCard(booking, isSuggested) {
     isSuggested = isSuggested || false;
     const status = (booking.status || '').toLowerCase();
     const statusClass = `ba-status-${escapeHtml(status)}`;
     const start = booking.startDate
-      ? new Date(booking.startDate).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })
+      ? formatDate(new Date(booking.startDate), false)
       : '';
     const end = booking.endDate
-      ? new Date(booking.endDate).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
+      ? formatDate(new Date(booking.endDate), true)
       : '';
 
     return `
