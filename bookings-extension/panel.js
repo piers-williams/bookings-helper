@@ -130,21 +130,66 @@
     });
   }
 
+  // --- Date formatting and school holiday helpers ---
+
+  // Essex school holidays 2025-2026.
+  // Source: https://www.essex.gov.uk/schools-and-learning/schools/essex-school-terms-and-holidays/academic-year-2025-2026
+  // Update each academic year.
+  // Dates use new Date(year, month-1, day) to stay in local time — avoids UTC-midnight
+  // offset issues that arise when using ISO string literals like new Date('2025-10-27').
+  const ESSEX_HOLIDAYS = [
+    { name: 'Autumn half term',       shortName: 'Autumn half term', start: new Date(2025,  9, 27), end: new Date(2025,  9, 31) },
+    { name: 'Christmas holiday',      shortName: 'Christmas hols',   start: new Date(2025, 11, 22), end: new Date(2026,  0,  2) },
+    { name: 'Spring half term',       shortName: 'Spring half term', start: new Date(2026,  1, 16), end: new Date(2026,  1, 20) },
+    { name: 'Easter holiday',         shortName: 'Easter hols',      start: new Date(2026,  2, 30), end: new Date(2026,  3, 10) },
+    { name: 'Early May bank holiday', shortName: 'May bank holiday', start: new Date(2026,  4,  4), end: new Date(2026,  4,  4) },
+    { name: 'Summer half term',       shortName: 'Summer half term', start: new Date(2026,  4, 25), end: new Date(2026,  4, 29) },
+    { name: 'Summer holiday',         shortName: 'Summer hols',      start: new Date(2026,  6, 21), end: new Date(2026,  7, 31) },
+  ];
+
+  // Returns the holiday object if `date` falls within any Essex holiday period, otherwise null.
+  function getHolidayForDate(date) {
+    const d = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+    for (const h of ESSEX_HOLIDAYS) {
+      if (d >= h.start && d <= h.end) return h;
+    }
+    return null;
+  }
+
+  function formatDate(date, includeYear) {
+    const opts = { weekday: 'short', day: 'numeric', month: 'short' };
+    if (includeYear) opts.year = 'numeric';
+    return date.toLocaleDateString('en-GB', opts);
+  }
+
   function renderBookingCard(booking, isSuggested) {
     isSuggested = isSuggested || false;
     const status = (booking.status || '').toLowerCase();
     const statusClass = `ba-status-${escapeHtml(status)}`;
-    const start = booking.startDate
-      ? new Date(booking.startDate).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })
-      : '';
-    const end = booking.endDate
-      ? new Date(booking.endDate).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
-      : '';
+
+    const startDate = booking.startDate ? new Date(booking.startDate) : null;
+    const endDate   = booking.endDate   ? new Date(booking.endDate)   : null;
+    const start = startDate ? formatDate(startDate, false) : '';
+    const end   = endDate   ? formatDate(endDate,   true)  : '';
+
+    // Build the date range text, then optionally wrap it in a holiday tooltip.
+    const dateText = start + (end ? ' \u2013 ' + end : '');
+    const holiday = startDate ? getHolidayForDate(startDate) : null;
+
+    let datesHtml;
+    if (holiday) {
+      const tipStart = holiday.start.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+      const tipEnd   = holiday.end.toLocaleDateString('en-GB',   { day: 'numeric', month: 'short', year: 'numeric' });
+      const tipText  = escapeHtml(`${holiday.name}: ${tipStart} \u2013 ${tipEnd}`);
+      datesHtml = `<span class="ba-date-tip" data-tip="${tipText}">${escapeHtml(dateText)} \u00b7 ${escapeHtml(holiday.shortName)}</span>`;
+    } else {
+      datesHtml = escapeHtml(dateText);
+    }
 
     return `
       <div class="ba-booking-card">
         <div><span class="ba-booking-ref">#${escapeHtml(booking.osmBookingId)}</span> \u00b7 <span class="ba-booking-name">${escapeHtml(booking.customerName)}</span></div>
-        <div class="ba-booking-dates">${escapeHtml(start)}${end ? ' \u2013 ' + escapeHtml(end) : ''}</div>
+        <div class="ba-booking-dates">${datesHtml}</div>
         <div><span class="ba-booking-status ${statusClass}">${escapeHtml(booking.status)}</span></div>
         ${isSuggested ? '<div style="font-size:11px;color:#666;margin-top:4px">Possible match</div>' : ''}
       </div>
