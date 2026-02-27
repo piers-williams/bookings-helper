@@ -1,10 +1,11 @@
 name: Bookings Assistant
-version: 0.9.3
+version: 0.9.4
 slug: bookings-assistant
 description: Manage scout campsite bookings from OSM
 url: https://github.com/piers-williams/bookings-helper
 arch:
   - amd64
+webui: http://[HOST]:[PORT]/
 ports:
   5000/tcp: 8099
 ports_description:
