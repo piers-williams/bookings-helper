@@ -24,7 +24,18 @@
     if (!bookingId || bookingId === lastBookingId) return;
 
     lastBookingId = bookingId;
+    chrome.runtime.sendMessage({ type: 'BOOKING_CHANGED', bookingId }).catch(() => {});
   }
+
+  // --- Message listener (refresh triggered from panel) ---
+
+  chrome.runtime.onMessage.addListener((message) => {
+    if (message.type === 'REFRESH_BOOKING') {
+      lastBookingId = null;
+      checkForBookingChange();
+    }
+    return false;
+  });
 
   // --- MutationObserver for SPA navigation ---
 
