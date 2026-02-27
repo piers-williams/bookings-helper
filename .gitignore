@@ -108,3 +108,6 @@ process.md
 nul
 .claude/
 .devcontainer/
+
+# Workflow state
+.workflow-state.md

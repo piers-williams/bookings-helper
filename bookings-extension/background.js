@@ -1,6 +1,8 @@
-// Last backend result — cached so panel gets it immediately on open
-let lastEmailResult = null; // { response, email }
+// Last backend results — cached so panel gets them immediately on open
+let lastEmailResult = null;   // { response, email }
+let lastBookingResult = null; // { response, bookingId }
 let lastOwaTabId = null;
+let lastOsmTabId = null;
 
 // OWA URLs that should trigger auto-open
 const OWA_ORIGINS = [
@@ -8,29 +10,41 @@ const OWA_ORIGINS = [
   'https://outlook.office365.com',
 ];
 
+const OSM_ORIGIN = 'https://www.onlinescoutmanager.co.uk';
+
 function isOwaUrl(url) {
   return url && OWA_ORIGINS.some(o => url.startsWith(o));
 }
 
-// Auto-open side panel when an OWA tab becomes active
+function isOsmUrl(url) {
+  return url && url.startsWith(OSM_ORIGIN);
+}
+
+// Auto-open side panel when an OWA or OSM tab becomes active
 chrome.tabs.onActivated.addListener(({ tabId }) => {
   chrome.tabs.get(tabId, (tab) => {
-    if (tab && isOwaUrl(tab.url)) {
+    if (tab && (isOwaUrl(tab.url) || isOsmUrl(tab.url))) {
       chrome.sidePanel.open({ tabId }).catch(() => {});
     }
   });
 });
 
-// Auto-open side panel when an OWA tab finishes loading
+// Auto-open side panel when an OWA or OSM tab finishes loading
 chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
-  if (changeInfo.status === 'complete' && isOwaUrl(tab.url)) {
+  if (changeInfo.status === 'complete' && (isOwaUrl(tab.url) || isOsmUrl(tab.url))) {
     chrome.sidePanel.open({ tabId }).catch(() => {});
   }
 });
 
-// Relay a result to the side panel (panel may not be open — silently ignore)
-function relayToPanel(response, email) {
+// Relay an email result to the side panel (panel may not be open — silently ignore)
+function relayEmailToPanel(response, email) {
   chrome.runtime.sendMessage({ type: 'EMAIL_RESPONSE', response, email })
+    .catch(() => {}); // panel not open — result is cached for when it opens
+}
+
+// Relay a booking result to the side panel (panel may not be open — silently ignore)
+function relayBookingToPanel(response, bookingId) {
+  chrome.runtime.sendMessage({ type: 'BOOKING_RESPONSE', response, bookingId })
     .catch(() => {}); // panel not open — result is cached for when it opens
 }
 
@@ -40,15 +54,27 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     if (sender.tab) lastOwaTabId = sender.tab.id;
     handleCaptureEmail(message.payload).then(response => {
       lastEmailResult = { response, email: message.payload };
-      relayToPanel(response, message.payload);
+      relayEmailToPanel(response, message.payload);
+    }).catch(() => {});
+    return false; // no async response back to content script
+  }
+
+  if (message.type === 'BOOKING_CHANGED') {
+    if (sender.tab) lastOsmTabId = sender.tab.id;
+    handleGetBookingLinks(message.bookingId).then(response => {
+      lastBookingResult = { response, bookingId: message.bookingId };
+      relayBookingToPanel(response, message.bookingId);
     }).catch(() => {});
     return false; // no async response back to content script
   }
 
   if (message.type === 'PANEL_READY') {
-    // Panel just opened — send last cached result if available
+    // Panel just opened — send last cached results if available
     if (lastEmailResult) {
-      relayToPanel(lastEmailResult.response, lastEmailResult.email);
+      relayEmailToPanel(lastEmailResult.response, lastEmailResult.email);
+    }
+    if (lastBookingResult) {
+      relayBookingToPanel(lastBookingResult.response, lastBookingResult.bookingId);
     }
     return false;
   }
@@ -60,9 +86,11 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     return false;
   }
 
-  if (message.type === 'GET_BOOKING_LINKS') {
-    handleGetBookingLinks(message.bookingId).then(sendResponse);
-    return true;
+  if (message.type === 'REFRESH_BOOKING') {
+    if (lastOsmTabId !== null) {
+      chrome.tabs.sendMessage(lastOsmTabId, { type: 'REFRESH_BOOKING' }).catch(() => {});
+    }
+    return false;
   }
 
   if (message.type === 'OPEN_OPTIONS') {

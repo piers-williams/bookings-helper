@@ -31,7 +31,8 @@
   // --- Refresh button ---
 
   document.getElementById('ba-refresh').addEventListener('click', () => {
-    chrome.runtime.sendMessage({ type: 'REFRESH_EMAIL' });
+    chrome.runtime.sendMessage({ type: 'REFRESH_EMAIL' }).catch(() => {});
+    chrome.runtime.sendMessage({ type: 'REFRESH_BOOKING' }).catch(() => {});
     showLoading();
   });
 
@@ -41,6 +42,9 @@
   chrome.runtime.onMessage.addListener((message) => {
     if (message.type === 'EMAIL_RESPONSE') {
       renderResponse(message.response, message.email);
+    }
+    if (message.type === 'BOOKING_RESPONSE') {
+      renderBookingResponse(message.response, message.bookingId);
     }
   });
 
@@ -128,6 +132,54 @@
         window.open(url, '_blank');
       });
     });
+  }
+
+  // --- OSM: render linked emails for a booking ---
+  function renderBookingResponse(response, bookingId) {
+    if (!response || response.error) {
+      if (response && response.error === 'not_configured') {
+        document.getElementById('ba-sidebar-body').innerHTML =
+          '<div class="ba-error">Backend URL not configured.<br>' +
+          '<a href="#" id="ba-open-options">Open settings \u2192</a></div>';
+        document.getElementById('ba-open-options')?.addEventListener('click', (e) => {
+          e.preventDefault();
+          chrome.runtime.sendMessage({ type: 'OPEN_OPTIONS' });
+        });
+        setStatusChip('\u2699');
+      } else {
+        const url = response?.url || '(unknown)';
+        showError(`Can\u2019t reach backend at ${escapeHtml(url)}. Is it running?`);
+      }
+      return;
+    }
+
+    const emails = Array.isArray(response) ? response : [];
+    const body = document.getElementById('ba-sidebar-body');
+    let html = '';
+    let statusChip = `\uD83D\uDCCB #${escapeHtml(String(bookingId))}`;
+
+    if (emails.length === 0) {
+      html += `<div class="ba-section"><div class="ba-empty">No emails linked to booking #${escapeHtml(String(bookingId))} yet.</div></div>`;
+    } else {
+      html += '<div class="ba-section">';
+      html += `<div class="ba-section-title">\uD83D\uDCE7 Linked Emails (${emails.length})</div>`;
+      emails.forEach(email => {
+        const date = email.receivedDate
+          ? new Date(email.receivedDate).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })
+          : '';
+        html += `
+          <div class="ba-email-item">
+            <div class="ba-email-subject">${escapeHtml(email.subject || '(No Subject)')}</div>
+            <div class="ba-email-meta">${escapeHtml(email.senderName || email.senderEmail || '')} \u00b7 ${escapeHtml(date)}</div>
+          </div>
+        `;
+      });
+      html += '</div>';
+      statusChip = `\uD83D\uDCE7 #${escapeHtml(String(bookingId))} (${emails.length})`;
+    }
+
+    body.innerHTML = html;
+    setStatusChip(statusChip);
   }
 
   // --- Date formatting and school holiday helpers ---
