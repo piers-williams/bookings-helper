@@ -24,7 +24,6 @@
     {
       "matches": ["https://www.onlinescoutmanager.co.uk/*"],
       "js": ["content-osm.js"],
-      "css": ["sidebar.css"],
       "run_at": "document_idle"
     }
   ],
