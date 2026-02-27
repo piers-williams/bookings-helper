@@ -135,14 +135,16 @@
   // Essex school holidays 2025-2026.
   // Source: https://www.essex.gov.uk/schools-and-learning/schools/essex-school-terms-and-holidays/academic-year-2025-2026
   // Update each academic year.
+  // Dates use new Date(year, month-1, day) to stay in local time — avoids UTC-midnight
+  // offset issues that arise when using ISO string literals like new Date('2025-10-27').
   const ESSEX_HOLIDAYS = [
-    { name: 'Autumn half term',       shortName: 'Autumn half term', start: new Date('2025-10-27'), end: new Date('2025-10-31') },
-    { name: 'Christmas holiday',      shortName: 'Christmas hols',   start: new Date('2025-12-22'), end: new Date('2026-01-02') },
-    { name: 'Spring half term',       shortName: 'Spring half term', start: new Date('2026-02-16'), end: new Date('2026-02-20') },
-    { name: 'Easter holiday',         shortName: 'Easter hols',      start: new Date('2026-03-30'), end: new Date('2026-04-10') },
-    { name: 'Early May bank holiday', shortName: 'May bank holiday', start: new Date('2026-05-04'), end: new Date('2026-05-04') },
-    { name: 'Summer half term',       shortName: 'Summer half term', start: new Date('2026-05-25'), end: new Date('2026-05-29') },
-    { name: 'Summer holiday',         shortName: 'Summer hols',      start: new Date('2026-07-21'), end: new Date('2026-08-31') },
+    { name: 'Autumn half term',       shortName: 'Autumn half term', start: new Date(2025,  9, 27), end: new Date(2025,  9, 31) },
+    { name: 'Christmas holiday',      shortName: 'Christmas hols',   start: new Date(2025, 11, 22), end: new Date(2026,  0,  2) },
+    { name: 'Spring half term',       shortName: 'Spring half term', start: new Date(2026,  1, 16), end: new Date(2026,  1, 20) },
+    { name: 'Easter holiday',         shortName: 'Easter hols',      start: new Date(2026,  2, 30), end: new Date(2026,  3, 10) },
+    { name: 'Early May bank holiday', shortName: 'May bank holiday', start: new Date(2026,  4,  4), end: new Date(2026,  4,  4) },
+    { name: 'Summer half term',       shortName: 'Summer half term', start: new Date(2026,  4, 25), end: new Date(2026,  4, 29) },
+    { name: 'Summer holiday',         shortName: 'Summer hols',      start: new Date(2026,  6, 21), end: new Date(2026,  7, 31) },
   ];
 
   // Returns the holiday object if `date` falls within any Essex holiday period, otherwise null.
