@@ -164,17 +164,30 @@
     isSuggested = isSuggested || false;
     const status = (booking.status || '').toLowerCase();
     const statusClass = `ba-status-${escapeHtml(status)}`;
-    const start = booking.startDate
-      ? formatDate(new Date(booking.startDate), false)
-      : '';
-    const end = booking.endDate
-      ? formatDate(new Date(booking.endDate), true)
-      : '';
+
+    const startDate = booking.startDate ? new Date(booking.startDate) : null;
+    const endDate   = booking.endDate   ? new Date(booking.endDate)   : null;
+    const start = startDate ? formatDate(startDate, false) : '';
+    const end   = endDate   ? formatDate(endDate,   true)  : '';
+
+    // Build the date range text, then optionally wrap it in a holiday tooltip.
+    const dateText = start + (end ? ' \u2013 ' + end : '');
+    const holiday = startDate ? getHolidayForDate(startDate) : null;
+
+    let datesHtml;
+    if (holiday) {
+      const tipStart = holiday.start.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+      const tipEnd   = holiday.end.toLocaleDateString('en-GB',   { day: 'numeric', month: 'short', year: 'numeric' });
+      const tipText  = escapeHtml(`${holiday.name}: ${tipStart} \u2013 ${tipEnd}`);
+      datesHtml = `<span class="ba-date-tip" data-tip="${tipText}">${escapeHtml(dateText)} \u00b7 ${escapeHtml(holiday.shortName)}</span>`;
+    } else {
+      datesHtml = escapeHtml(dateText);
+    }
 
     return `
       <div class="ba-booking-card">
         <div><span class="ba-booking-ref">#${escapeHtml(booking.osmBookingId)}</span> \u00b7 <span class="ba-booking-name">${escapeHtml(booking.customerName)}</span></div>
-        <div class="ba-booking-dates">${escapeHtml(start)}${end ? ' \u2013 ' + escapeHtml(end) : ''}</div>
+        <div class="ba-booking-dates">${datesHtml}</div>
         <div><span class="ba-booking-status ${statusClass}">${escapeHtml(booking.status)}</span></div>
         ${isSuggested ? '<div style="font-size:11px;color:#666;margin-top:4px">Possible match</div>' : ''}
       </div>
