@@ -100,6 +100,9 @@ keys/
 # Git worktrees
 .worktrees/
 
+# Loop state (session state, not source)
+.loop-state.md
+
 # Local dev / exploratory work
 test-imap/
 draft-process.md
