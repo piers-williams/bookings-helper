@@ -1,5 +1,21 @@
 // TypeScript types matching the backend DTOs
 
+export interface PagedResult<T> {
+  items: T[];
+  total: number;
+  page: number;
+  pageSize: number;
+}
+
+export interface Email {
+  id: number;
+  senderName?: string;
+  subject: string;
+  receivedDate: string;
+  isRead: boolean;
+  extractedBookingRef?: string;
+}
+
 export interface Booking {
   id: number;
   osmBookingId: string;
