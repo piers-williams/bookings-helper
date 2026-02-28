@@ -118,53 +118,55 @@ public class BookingsController : ControllerBase
     [HttpGet("{id}")]
     public async Task<ActionResult<BookingDetailDto>> GetById(int id)
     {
-        // Mock data for now
-        var booking = new BookingDetailDto
-        {
-            Id = id,
-            OsmBookingId = "12345",
-            CustomerName = "John Smith",
-            StartDate = new DateTime(2026, 3, 15),
-            EndDate = new DateTime(2026, 3, 17),
-            Status = "Provisional",
-            FullDetails = "{\"site\": \"Main Field\", \"attendees\": 25}",
-            Comments = new List<CommentDto>
+        var booking = await _context.OsmBookings.FindAsync(id);
+        if (booking == null)
+            return NotFound();
+
+        // Get linked emails via ApplicationLinks join
+        var linkedEmails = await _context.ApplicationLinks
+            .Where(l => l.OsmBookingId == id)
+            .Join(_context.EmailMessages, l => l.EmailMessageId, e => e.Id, (l, e) => new EmailDto
             {
-                new CommentDto
-                {
-                    Id = 1,
-                    OsmBookingId = "12345",
-                    OsmCommentId = "c1",
-                    AuthorName = "Tammy",
-                    TextPreview = "Called customer to confirm arrival time",
-                    CreatedDate = DateTime.UtcNow.AddDays(-1),
-                    IsNew = false
-                }
-            },
-            LinkedEmails = new List<EmailDto>()
+                Id = e.Id,
+                SenderName = e.SenderName,
+                Subject = e.Subject,
+                ReceivedDate = e.ReceivedDate,
+                IsRead = e.IsRead,
+                ExtractedBookingRef = e.ExtractedBookingRef
+            })
+            .OrderByDescending(e => e.ReceivedDate)
+            .ToListAsync();
+
+        // Get comments by OSM booking ID (string)
+        var comments = await _context.OsmComments
+            .Where(c => c.OsmBookingId == booking.OsmBookingId)
+            .OrderByDescending(c => c.CreatedDate)
+            .Select(c => new CommentDto
+            {
+                Id = c.Id,
+                OsmBookingId = c.OsmBookingId,
+                OsmCommentId = c.OsmCommentId,
+                AuthorName = c.AuthorName,
+                TextPreview = c.TextPreview ?? string.Empty,
+                CreatedDate = c.CreatedDate,
+                IsNew = c.IsNew
+            })
+            .ToListAsync();
+
+        var detail = new BookingDetailDto
+        {
+            Id = booking.Id,
+            OsmBookingId = booking.OsmBookingId,
+            CustomerName = booking.CustomerName,
+            StartDate = booking.StartDate,
+            EndDate = booking.EndDate,
+            Status = booking.Status,
+            FullDetails = "{}",
+            Comments = comments,
+            LinkedEmails = linkedEmails
         };
 
-        var linkedEmailIds = await _linkingService.GetLinkedEmailIdsAsync(id);
-        if (linkedEmailIds.Any())
-        {
-            var linkedEmails = await _context.EmailMessages
-                .Where(e => linkedEmailIds.Contains(e.Id))
-                .OrderByDescending(e => e.ReceivedDate)
-                .Select(e => new EmailDto
-                {
-                    Id = e.Id,
-                    SenderName = e.SenderName,
-                    Subject = e.Subject,
-                    ReceivedDate = e.ReceivedDate,
-                    IsRead = e.IsRead,
-                    ExtractedBookingRef = e.ExtractedBookingRef
-                })
-                .ToListAsync();
-
-            booking.LinkedEmails = linkedEmails;
-        }
-
-        return Ok(booking);
+        return Ok(detail);
     }
 
     [HttpGet("{id}/links")]
