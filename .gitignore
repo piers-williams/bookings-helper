@@ -110,6 +110,7 @@ draft-process.pdf
 process.md
 nul
 .claude/
+!.claude/commands/
 .devcontainer/
 
 # Workflow state
