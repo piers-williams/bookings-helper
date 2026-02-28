@@ -1,29 +1,5 @@
 // TypeScript types matching the backend DTOs
 
-export interface Email {
-  id: number;
-  senderEmail: string;
-  senderName?: string;
-  subject: string;
-  receivedDate: string;
-  isRead: boolean;
-  extractedBookingRef?: string;
-}
-
-export interface EmailDetail {
-  id: number;
-  messageId: string;
-  senderEmail: string;
-  senderName?: string;
-  subject: string;
-  receivedDate: string;
-  isRead: boolean;
-  body: string;
-  extractedBookingRef?: string;
-  linkedBookings: Booking[];
-  relatedEmails: Email[];
-}
-
 export interface Booking {
   id: number;
   osmBookingId: string;
@@ -32,6 +8,16 @@ export interface Booking {
   startDate: string;
   endDate: string;
   status: string;
+}
+
+// Summary of a linked email as returned by GET /api/bookings/{id}/links
+export interface LinkedEmail {
+  id: number;
+  senderName?: string;
+  subject: string;
+  receivedDate: string;
+  isRead: boolean;
+  extractedBookingRef?: string;
 }
 
 export interface BookingDetail {
@@ -44,7 +30,7 @@ export interface BookingDetail {
   status: string;
   fullDetails: string;
   comments: Comment[];
-  linkedEmails: Email[];
+  linkedEmails: LinkedEmail[];
 }
 
 export interface Comment {

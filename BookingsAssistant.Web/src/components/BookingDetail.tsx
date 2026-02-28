@@ -62,7 +62,7 @@ export default function BookingDetail() {
         onClick={() => navigate('/')}
         className="mb-4 px-4 py-2 bg-gray-600 text-white rounded hover:bg-gray-700"
       >
-        ← Back to Dashboard
+        Back to Dashboard
       </button>
 
       {/* Booking Header */}
@@ -154,13 +154,12 @@ export default function BookingDetail() {
             {booking.linkedEmails.map((email) => (
               <div
                 key={email.id}
-                className="p-4 border border-gray-200 rounded hover:bg-gray-50 cursor-pointer"
-                onClick={() => navigate(`/emails/${email.id}`)}
+                className="p-4 border border-gray-200 rounded bg-gray-50"
               >
                 <div className="font-semibold text-gray-800">{email.subject}</div>
-                <div className="text-sm text-gray-600">
-                  From: {email.senderName ? `${email.senderName} <${email.senderEmail}>` : email.senderEmail}
-                </div>
+                {email.senderName && (
+                  <div className="text-sm text-gray-600">From: {email.senderName}</div>
+                )}
                 <div className="text-sm text-gray-500">
                   {new Date(email.receivedDate).toLocaleString()}
                 </div>
