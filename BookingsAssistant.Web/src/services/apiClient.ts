@@ -1,6 +1,5 @@
 import axios from 'axios';
 import type {
-  EmailDetail,
   Booking,
   BookingDetail,
   Link,
@@ -14,14 +13,6 @@ const apiClient = axios.create({
     'Content-Type': 'application/json',
   },
 });
-
-// Emails API (capture/detail only — no unread list endpoint)
-export const emailsApi = {
-  getById: async (id: number): Promise<EmailDetail> => {
-    const response = await apiClient.get<EmailDetail>(`/emails/${id}`);
-    return response.data;
-  },
-};
 
 // Bookings API
 export const bookingsApi = {
