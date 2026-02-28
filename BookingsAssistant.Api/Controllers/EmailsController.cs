@@ -21,6 +21,38 @@ public class EmailsController : ControllerBase
         _hashingService = hashingService;
     }
 
+    [HttpGet]
+    public async Task<ActionResult<PagedResult<EmailDto>>> GetAll([FromQuery] int page = 1, [FromQuery] int pageSize = 20)
+    {
+        if (page < 1) page = 1;
+        if (pageSize < 1) pageSize = 1;
+        if (pageSize > 100) pageSize = 100;
+
+        var query = _context.EmailMessages.OrderByDescending(e => e.ReceivedDate);
+        var total = await query.CountAsync();
+        var items = await query
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
+            .Select(e => new EmailDto
+            {
+                Id = e.Id,
+                SenderName = e.SenderName,
+                Subject = e.Subject,
+                ReceivedDate = e.ReceivedDate,
+                IsRead = e.IsRead,
+                ExtractedBookingRef = e.ExtractedBookingRef
+            })
+            .ToListAsync();
+
+        return Ok(new PagedResult<EmailDto>
+        {
+            Items = items,
+            Total = total,
+            Page = page,
+            PageSize = pageSize
+        });
+    }
+
     [HttpPost("capture")]
     [Microsoft.AspNetCore.Cors.EnableCors("ExtensionCapture")]
     public async Task<ActionResult<CaptureEmailResponse>> Capture([FromBody] CaptureEmailRequest request)

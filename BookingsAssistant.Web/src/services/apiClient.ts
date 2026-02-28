@@ -2,9 +2,11 @@ import axios from 'axios';
 import type {
   Booking,
   BookingDetail,
+  Email,
   Link,
   CreateLinkRequest,
-  BookingStats
+  BookingStats,
+  PagedResult
 } from '../types';
 
 const apiClient = axios.create({
@@ -47,6 +49,16 @@ export const linksApi = {
 
   getByBooking: async (bookingId: number): Promise<Link[]> => {
     const response = await apiClient.get<Link[]>(`/links/booking/${bookingId}`);
+    return response.data;
+  },
+};
+
+// Emails API
+export const emailsApi = {
+  getAll: async (page = 1, pageSize = 20): Promise<PagedResult<Email>> => {
+    const response = await apiClient.get<PagedResult<Email>>('/emails', {
+      params: { page, pageSize },
+    });
     return response.data;
   },
 };
