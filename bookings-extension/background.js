@@ -97,6 +97,21 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     chrome.runtime.openOptionsPage();
     return false;
   }
+
+  if (message.type === 'CREATE_LINK') {
+    handleCreateLink(message.emailMessageId, message.bookingId).then(response => {
+      chrome.runtime.sendMessage({ type: 'LINK_RESPONSE', response, bookingId: message.bookingId })
+        .catch(() => {});
+      // If successful and we have a cached email, refresh to show the new link
+      if (!response.error && lastEmailResult) {
+        handleCaptureEmail(lastEmailResult.email).then(refreshed => {
+          lastEmailResult = { response: refreshed, email: lastEmailResult.email };
+          relayEmailToPanel(refreshed, lastEmailResult.email);
+        }).catch(() => {});
+      }
+    }).catch(() => {});
+    return false;
+  }
 });
 
 async function getBackendUrl() {
@@ -117,6 +132,26 @@ async function handleCaptureEmail(payload) {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload)
+    });
+    if (!response.ok) {
+      return { error: 'server_error', status: response.status };
+    }
+    return await response.json();
+  } catch (e) {
+    return { error: 'unreachable', url: backendUrl, message: e.message };
+  }
+}
+
+async function handleCreateLink(emailMessageId, bookingId) {
+  const backendUrl = await getBackendUrl();
+  if (!backendUrl) {
+    return { error: 'not_configured' };
+  }
+  try {
+    const response = await fetch(`${backendUrl}/api/links`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ emailMessageId, osmBookingId: bookingId })
     });
     if (!response.ok) {
       return { error: 'server_error', status: response.status };
