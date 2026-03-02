@@ -33,6 +33,10 @@ export const bookingsApi = {
     const response = await apiClient.get<BookingDetail>(`/bookings/${id}`);
     return response.data;
   },
+
+  postComment: async (id: number, comment: string): Promise<void> => {
+    await apiClient.post(`/bookings/${id}/comments`, { comment });
+  },
 };
 
 // Links API

@@ -228,5 +228,8 @@ public class CommentSyncTests : IClassFixture<WebApplicationFactory<Program>>
                 : new List<CommentDto>();
             return Task.FromResult((string.Empty, comments));
         }
+
+        public Task<CommentDto?> PostCommentAsync(string osmBookingId, string comment)
+            => Task.FromResult<CommentDto?>(null);
     }
 }
