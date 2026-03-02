@@ -1,6 +1,7 @@
 using BookingsAssistant.Api.Data;
 using BookingsAssistant.Api.Data.Entities;
 using BookingsAssistant.Api.Models;
+using Microsoft.AspNetCore.Cors;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
@@ -18,6 +19,7 @@ public class LinksController : ControllerBase
     }
 
     [HttpPost]
+    [EnableCors("ExtensionCapture")]
     public async Task<ActionResult<LinkDto>> CreateLink([FromBody] CreateLinkRequest request)
     {
         // For Phase 1, userId is hardcoded - will be from auth in Phase 2

@@ -46,6 +46,26 @@
     if (message.type === 'BOOKING_RESPONSE') {
       renderBookingResponse(message.response, message.bookingId);
     }
+    if (message.type === 'LINK_RESPONSE') {
+      if (message.response && !message.response.error) {
+        // Success — EMAIL_RESPONSE with refreshed data will follow shortly
+        // Disable any remaining link buttons to prevent double-linking
+        document.querySelectorAll('.ba-link-booking').forEach(btn => {
+          btn.disabled = true;
+          if (parseInt(btn.dataset.bookingId) === message.bookingId) {
+            btn.textContent = 'Linked!';
+          }
+        });
+      } else {
+        // Show error on the button
+        document.querySelectorAll('.ba-link-booking').forEach(btn => {
+          if (parseInt(btn.dataset.bookingId) === message.bookingId) {
+            btn.disabled = false;
+            btn.textContent = 'Link failed \u2014 retry?';
+          }
+        });
+      }
+    }
   });
 
   // Tell background we're ready — it will reply with the last cached result
@@ -130,6 +150,20 @@
       chrome.storage.sync.get(['backendUrl'], (result) => {
         const url = result.backendUrl || 'http://localhost:5000';
         window.open(url, '_blank');
+      });
+    });
+
+    document.querySelectorAll('.ba-link-booking').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const bookingId = parseInt(btn.dataset.bookingId);
+        const emailMessageId = response.emailId;
+        btn.disabled = true;
+        btn.textContent = 'Linking\u2026';
+        chrome.runtime.sendMessage({
+          type: 'CREATE_LINK',
+          emailMessageId,
+          bookingId
+        });
       });
     });
   }
@@ -243,7 +277,7 @@
         <div><span class="ba-booking-ref">#${escapeHtml(booking.osmBookingId)}</span> \u00b7 <span class="ba-booking-name">${escapeHtml(booking.customerName)}</span></div>
         <div class="ba-booking-dates">${datesHtml}</div>
         <div><span class="ba-booking-status ${statusClass}">${escapeHtml(booking.status)}</span></div>
-        ${isSuggested ? '<div style="font-size:11px;color:#666;margin-top:4px">Possible match</div>' : ''}
+        ${isSuggested ? `<div style="font-size:11px;color:#666;margin-top:4px">Possible match</div><button class="ba-link-btn ba-link-booking" data-booking-id="${escapeHtml(String(booking.id))}">Link this booking</button>` : ''}
       </div>
     `;
   }
