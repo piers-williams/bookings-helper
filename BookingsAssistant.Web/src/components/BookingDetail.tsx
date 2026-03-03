@@ -9,6 +9,9 @@ export default function BookingDetail() {
   const [booking, setBooking] = useState<BookingDetailType | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [newComment, setNewComment] = useState('');
+  const [posting, setPosting] = useState(false);
+  const [postError, setPostError] = useState<string | null>(null);
 
   useEffect(() => {
     const fetchBooking = async () => {
@@ -28,6 +31,24 @@ export default function BookingDetail() {
 
     fetchBooking();
   }, [id]);
+
+  const handlePostComment = async () => {
+    if (!newComment.trim() || !id) return;
+    setPosting(true);
+    setPostError(null);
+    try {
+      await bookingsApi.postComment(parseInt(id), newComment);
+      setNewComment('');
+      // Refresh booking to get updated comments
+      const bookingData = await bookingsApi.getById(parseInt(id));
+      setBooking(bookingData);
+    } catch (err) {
+      setPostError('Failed to post comment');
+      console.error(err);
+    } finally {
+      setPosting(false);
+    }
+  };
 
   if (loading) {
     return (
@@ -141,6 +162,25 @@ export default function BookingDetail() {
         ) : (
           <p className="text-gray-500">No comments on this booking.</p>
         )}
+
+        <div className="mt-4 border-t pt-4">
+          <textarea
+            value={newComment}
+            onChange={(e) => setNewComment(e.target.value)}
+            placeholder="Add a comment..."
+            className="w-full p-3 border border-gray-300 rounded resize-none"
+            rows={3}
+            disabled={posting}
+          />
+          {postError && <div className="text-red-600 text-sm mt-1">{postError}</div>}
+          <button
+            onClick={handlePostComment}
+            disabled={posting || !newComment.trim()}
+            className="mt-2 px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50"
+          >
+            {posting ? 'Posting...' : 'Post Comment'}
+          </button>
+        </div>
       </div>
 
       {/* Linked Emails */}

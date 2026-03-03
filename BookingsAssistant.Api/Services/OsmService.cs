@@ -175,6 +175,54 @@ public class OsmService : IOsmService
         }
     }
 
+    public async Task<CommentDto?> PostCommentAsync(string osmBookingId, string comment)
+    {
+        try
+        {
+            _logger.LogInformation("Posting comment to OSM booking: {BookingId}", osmBookingId);
+
+            var url = $"/v3/comments/campsite_booking/{osmBookingId}/add?section_id={_sectionId}";
+
+            var token = await GetAccessTokenAsync();
+            var request = new HttpRequestMessage(HttpMethod.Post, url);
+            request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
+            request.Content = new StringContent(
+                JsonSerializer.Serialize(new { comment }),
+                System.Text.Encoding.UTF8,
+                "application/json");
+
+            var response = await _httpClient.SendAsync(request);
+            HandleRateLimiting(response);
+
+            if (!response.IsSuccessStatusCode)
+            {
+                _logger.LogError("OSM API returned error status when posting comment: {StatusCode}", response.StatusCode);
+                return null;
+            }
+
+            var content = await response.Content.ReadAsStringAsync();
+            var osmResponse = JsonSerializer.Deserialize<OsmApiResponse<OsmComment>>(content, new JsonSerializerOptions
+            {
+                PropertyNameCaseInsensitive = true
+            });
+
+            if (osmResponse == null || !osmResponse.Status || osmResponse.Data == null)
+            {
+                _logger.LogError("OSM API returned error when posting comment: {Error}", osmResponse?.Error ?? "Unknown error");
+                return null;
+            }
+
+            var result = MapOsmCommentToDto(osmResponse.Data, osmBookingId);
+            _logger.LogInformation("Successfully posted comment to OSM booking {BookingId}", osmBookingId);
+            return result;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error posting comment to OSM API for booking {BookingId}", osmBookingId);
+            return null;
+        }
+    }
+
     private string MapStatusToMode(string status)
     {
         return status.ToLower() switch

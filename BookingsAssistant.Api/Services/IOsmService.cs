@@ -6,4 +6,5 @@ public interface IOsmService
 {
     Task<List<BookingDto>> GetBookingsAsync(string status);
     Task<(string FullDetails, List<CommentDto> Comments)> GetBookingDetailsAsync(string osmBookingId);
+    Task<CommentDto?> PostCommentAsync(string osmBookingId, string comment);
 }

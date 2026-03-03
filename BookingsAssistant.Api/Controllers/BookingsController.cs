@@ -185,6 +185,34 @@ public class BookingsController : ControllerBase
         return Ok(detail);
     }
 
+    [HttpPost("{id}/comments")]
+    public async Task<ActionResult<CommentDto>> PostComment(int id, [FromBody] PostCommentRequest request)
+    {
+        var booking = await _context.OsmBookings.FindAsync(id);
+        if (booking == null) return NotFound();
+
+        // Post to OSM
+        var result = await _osmService.PostCommentAsync(booking.OsmBookingId, request.Comment);
+        if (result == null) return StatusCode(502, new { message = "Failed to post comment to OSM" });
+
+        // Persist locally
+        var entity = new Data.Entities.OsmComment
+        {
+            OsmBookingId = booking.OsmBookingId,
+            OsmCommentId = result.OsmCommentId,
+            AuthorName = result.AuthorName,
+            TextPreview = result.TextPreview,
+            CreatedDate = result.CreatedDate,
+            IsNew = false,
+            LastFetched = DateTime.UtcNow
+        };
+        _context.OsmComments.Add(entity);
+        await _context.SaveChangesAsync();
+
+        result.Id = entity.Id;
+        return Ok(result);
+    }
+
     [HttpGet("{id}/links")]
     [Microsoft.AspNetCore.Cors.EnableCors("ExtensionCapture")]
     public async Task<ActionResult<List<EmailDto>>> GetLinks(int id)

@@ -140,5 +140,7 @@ public class EmailListTests : IClassFixture<WebApplicationFactory<Program>>
             => Task.FromResult(new List<BookingDto>());
         public Task<(string FullDetails, List<CommentDto> Comments)> GetBookingDetailsAsync(string osmBookingId)
             => Task.FromResult((string.Empty, new List<CommentDto>()));
+        public Task<CommentDto?> PostCommentAsync(string osmBookingId, string comment)
+            => Task.FromResult<CommentDto?>(null);
     }
 }

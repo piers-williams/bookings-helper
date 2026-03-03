@@ -124,5 +124,8 @@ public class OsmSyncTests : IClassFixture<WebApplicationFactory<Program>>
 
         public Task<(string FullDetails, List<CommentDto> Comments)> GetBookingDetailsAsync(string osmBookingId)
             => Task.FromResult((string.Empty, new List<CommentDto>()));
+
+        public Task<CommentDto?> PostCommentAsync(string osmBookingId, string comment)
+            => Task.FromResult<CommentDto?>(null);
     }
 }
