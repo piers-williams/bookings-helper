@@ -71,6 +71,45 @@ OWA content script extracts email → `CAPTURE_EMAIL` → background.js → `POS
 
 **CORS:** Two policies — `Development` (localhost:3000 for React dev server) and `ExtensionCapture` (AllowAnyOrigin, used on `/capture` and `/links` endpoints for the Chrome extension).
 
+## Custom Commands
+
+| Command | Purpose | When to use |
+|---------|---------|-------------|
+| `/pm` | Product manager — discovers opportunities, generates backlog, creates GitHub issues | Planning what to build next |
+| `/review` | Pre-commit reviewer — checks data protection, code quality, and testing patterns | Before every commit |
+| `/scaffold` | Feature scaffolding — generates skeleton code following project conventions | Starting a new feature |
+| `/privacy` | PII audit — scans for data protection issues and traces data flows | Periodic audit, or when adding new data storage |
+
+## PII Field Inventory
+
+| Entity | Field | Storage | Purpose |
+|--------|-------|---------|---------|
+| `OsmBooking` | `CustomerName` | plaintext | Display |
+| `OsmBooking` | `CustomerNameHash` | PBKDF2 hash | Matching |
+| `OsmBooking` | `CustomerEmailHash` | PBKDF2 hash | Matching |
+| `EmailMessage` | `SenderEmailHash` | PBKDF2 hash | Matching + dedup |
+| `EmailMessage` | `SenderName` | plaintext | Display |
+| `EmailMessage` | `Subject` | plaintext | Display |
+| `OsmComment` | `AuthorName` | plaintext | Display |
+| `OsmComment` | `TextPreview` | plaintext (truncated) | Display |
+| `ApplicationUser` | `Name` | plaintext | Display |
+| `ApplicationUser` | `OsmUsername` | plaintext | OSM identity |
+| `ApplicationUser` | `OsmAccessToken` | encrypted (DataProtection) | OAuth |
+| `ApplicationUser` | `OsmRefreshToken` | encrypted (DataProtection) | OAuth |
+
+Raw email addresses are NEVER stored. `SenderEmail` column was intentionally removed (migration `20260223085029`). The `"no-email"` sentinel is used when OSM bookings lack a customer email.
+
+## Service Lifetimes
+
+| Service | Registration | Reason |
+|---------|-------------|--------|
+| `ApplicationDbContext` | `AddDbContext` (Scoped) | EF Core default, one context per request |
+| `IHashingService` / `HashingService` | `AddSingleton` | Stateless after startup, holds secret key |
+| `ILinkingService` / `LinkingService` | `AddScoped` | Depends on DbContext (scoped) |
+| `IOsmService` / `OsmService` | `AddHttpClient` | Needs HttpClientFactory |
+| `IOsmAuthService` / `OsmAuthService` | `AddHttpClient` | Needs HttpClientFactory |
+| `BookingDetailBackfillService` | `AddHostedService` | Background worker |
+
 ## Configuration
 
 Backend config in `appsettings.json` with environment overrides (`appsettings.Development.json`, `appsettings.Local.json` — both gitignored). Key sections: `ConnectionStrings:DefaultConnection`, `Osm:BaseUrl/ClientId/ClientSecret/CampsiteId/SectionId`. In Docker, `entrypoint.sh` reads HA addon options from `/data/options.json`.
