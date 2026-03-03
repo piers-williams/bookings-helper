@@ -13,15 +13,7 @@ else
     echo "No /data/options.json found, using defaults"
 fi
 
-# Use HTTPS if HA SSL certs are available, otherwise fall back to HTTP
-if [ -f /ssl/fullchain.pem ] && [ -f /ssl/privkey.pem ]; then
-    export ASPNETCORE_URLS="https://+:5000"
-    export Kestrel__Certificates__Default__Path="/ssl/fullchain.pem"
-    export Kestrel__Certificates__Default__KeyPath="/ssl/privkey.pem"
-    echo "HTTPS enabled using /ssl/fullchain.pem"
-else
-    export ASPNETCORE_URLS="http://+:5000"
-    echo "SSL certs not found, falling back to HTTP"
-fi
+# Always serve HTTP — HA handles TLS termination externally
+export ASPNETCORE_URLS="http://+:5000"
 
 exec dotnet BookingsAssistant.Api.dll
