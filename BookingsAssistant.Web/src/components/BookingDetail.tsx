@@ -116,8 +116,8 @@ export default function BookingDetail() {
           <div>
             <h2 className="text-lg font-semibold text-gray-700 mb-2">Booking Dates</h2>
             <div className="text-gray-600">
-              <div><span className="font-semibold">Start:</span> {new Date(booking.startDate).toLocaleDateString()}</div>
-              <div><span className="font-semibold">End:</span> {new Date(booking.endDate).toLocaleDateString()}</div>
+              <div><span className="font-semibold">Start:</span> {new Date(booking.startDate).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' })}</div>
+              <div><span className="font-semibold">End:</span> {new Date(booking.endDate).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' })}</div>
             </div>
           </div>
         </div>
@@ -147,7 +147,7 @@ export default function BookingDetail() {
                   <div className="flex items-center justify-between mb-1">
                     <div className="font-semibold text-gray-800">{comment.authorName}</div>
                     <div className="text-sm text-gray-500">
-                      {new Date(comment.createdDate).toLocaleString()}
+                      {new Date(comment.createdDate).toLocaleString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
                     </div>
                   </div>
                   <div className="text-gray-700">{comment.textPreview}</div>
@@ -201,7 +201,7 @@ export default function BookingDetail() {
                   <div className="text-sm text-gray-600">From: {email.senderName}</div>
                 )}
                 <div className="text-sm text-gray-500">
-                  {new Date(email.receivedDate).toLocaleString()}
+                  {new Date(email.receivedDate).toLocaleString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
                 </div>
               </div>
             ))}

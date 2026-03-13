@@ -199,7 +199,7 @@
       html += `<div class="ba-section-title">\uD83D\uDCE7 Linked Emails (${emails.length})</div>`;
       emails.forEach(email => {
         const date = email.receivedDate
-          ? new Date(email.receivedDate).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })
+          ? new Date(email.receivedDate).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' })
           : '';
         html += `
           <div class="ba-email-item">

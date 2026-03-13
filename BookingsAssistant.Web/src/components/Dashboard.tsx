@@ -171,7 +171,7 @@ export default function Dashboard() {
                       {email.senderName ?? 'Unknown sender'}
                     </p>
                     <p className="text-xs text-gray-400 flex-shrink-0">
-                      {new Date(email.receivedDate).toLocaleDateString()}
+                      {new Date(email.receivedDate).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' })}
                     </p>
                   </div>
                   <p className="text-sm text-gray-600 truncate">{email.subject}</p>

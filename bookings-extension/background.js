@@ -23,6 +23,7 @@ function isOsmUrl(url) {
 // Auto-open side panel when an OWA or OSM tab becomes active
 chrome.tabs.onActivated.addListener(({ tabId }) => {
   chrome.tabs.get(tabId, (tab) => {
+    if (chrome.runtime.lastError) return;  // tab closed before callback
     if (tab && (isOwaUrl(tab.url) || isOsmUrl(tab.url))) {
       chrome.sidePanel.open({ tabId }).catch(() => {});
     }
