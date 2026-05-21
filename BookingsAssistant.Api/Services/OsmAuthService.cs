@@ -6,7 +6,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace BookingsAssistant.Api.Services;
 
-public class OsmAuthService : IOsmAuthService
+internal class OsmAuthService : IOsmAuthService
 {
     private readonly ApplicationDbContext _context;
     private readonly IDataProtector _protector;

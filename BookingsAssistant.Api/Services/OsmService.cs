@@ -4,7 +4,7 @@ using BookingsAssistant.Api.Models;
 
 namespace BookingsAssistant.Api.Services;
 
-public class OsmService : IOsmService
+internal class OsmService : IOsmService
 {
     private readonly HttpClient _httpClient;
     private readonly IConfiguration _configuration;
@@ -233,6 +233,29 @@ public class OsmService : IOsmService
             osmBookingId);
         await Task.CompletedTask;
         return true;
+    }
+
+    public string GetAuthorizationUrl(string redirectUri)
+    {
+        return _osmAuthService.GetAuthorizationUrl(redirectUri);
+    }
+
+    public async Task<bool> HandleOAuthCallbackAsync(string code, int userId, string redirectUri)
+    {
+        return await _osmAuthService.HandleCallbackAsync(code, userId, redirectUri);
+    }
+
+    public async Task<bool> IsAuthenticatedAsync(int userId)
+    {
+        try
+        {
+            await _osmAuthService.GetValidAccessTokenAsync(userId);
+            return true;
+        }
+        catch
+        {
+            return false;
+        }
     }
 
     private string MapStatusToMode(string status)

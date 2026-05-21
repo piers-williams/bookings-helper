@@ -7,12 +7,12 @@ namespace BookingsAssistant.Api.Controllers;
 [Route("api/[controller]")]
 public class AuthController : ControllerBase
 {
-    private readonly IOsmAuthService _osmAuthService;
+    private readonly IOsmService _osmService;
     private readonly ILogger<AuthController> _logger;
 
-    public AuthController(IOsmAuthService osmAuthService, ILogger<AuthController> logger)
+    public AuthController(IOsmService osmService, ILogger<AuthController> logger)
     {
-        _osmAuthService = osmAuthService;
+        _osmService = osmService;
         _logger = logger;
     }
 
@@ -21,7 +21,7 @@ public class AuthController : ControllerBase
     {
         _logger.LogInformation("OSM login endpoint called");
         var redirectUri = $"{Request.Scheme}://{Request.Host}/api/auth/osm/callback";
-        var url = _osmAuthService.GetAuthorizationUrl(redirectUri);
+        var url = _osmService.GetAuthorizationUrl(redirectUri);
         return Redirect(url);
     }
 
@@ -32,7 +32,7 @@ public class AuthController : ControllerBase
             return BadRequest("Authorization code missing");
 
         var redirectUri = $"{Request.Scheme}://{Request.Host}/api/auth/osm/callback";
-        var success = await _osmAuthService.HandleCallbackAsync(code, 1, redirectUri);
+        var success = await _osmService.HandleOAuthCallbackAsync(code, 1, redirectUri);
 
         return success ? Redirect("/") : BadRequest("OAuth authorization failed");
     }
@@ -40,14 +40,7 @@ public class AuthController : ControllerBase
     [HttpGet("osm/status")]
     public async Task<IActionResult> OsmStatus()
     {
-        try
-        {
-            await _osmAuthService.GetValidAccessTokenAsync(1);
-            return Ok(new { authenticated = true });
-        }
-        catch
-        {
-            return Ok(new { authenticated = false });
-        }
+        var authenticated = await _osmService.IsAuthenticatedAsync(1);
+        return Ok(new { authenticated });
     }
 }

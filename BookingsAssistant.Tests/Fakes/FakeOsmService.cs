@@ -42,4 +42,19 @@ public class FakeOsmService : IOsmService
         EmailsSent.Add(osmBookingId);
         return Task.FromResult(true);
     }
+
+    public string GetAuthorizationUrl(string redirectUri)
+    {
+        return string.Empty;
+    }
+
+    public Task<bool> HandleOAuthCallbackAsync(string code, int userId, string redirectUri)
+    {
+        return Task.FromResult(true);
+    }
+
+    public Task<bool> IsAuthenticatedAsync(int userId)
+    {
+        return Task.FromResult(false);
+    }
 }

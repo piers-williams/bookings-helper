@@ -86,13 +86,13 @@ using (var scope = app.Services.CreateScope())
     // If OSM tokens are already stored (e.g. after addon update), sync on startup
     try
     {
-        var osmAuth = scope.ServiceProvider.GetRequiredService<IOsmAuthService>();
-        await osmAuth.GetValidAccessTokenAsync(1); // throws if no token
+        var osmService = scope.ServiceProvider.GetRequiredService<IOsmService>();
+        var isAuthenticated = await osmService.IsAuthenticatedAsync(1);
+        if (!isAuthenticated)
+            throw new InvalidOperationException("Not authenticated");
 
         var logger = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
         logger.LogInformation("OSM tokens found — running startup sync...");
-
-        var osmService = scope.ServiceProvider.GetRequiredService<IOsmService>();
         var tasks = await Task.WhenAll(
             osmService.GetBookingsAsync("provisional"),
             osmService.GetBookingsAsync("confirmed"),

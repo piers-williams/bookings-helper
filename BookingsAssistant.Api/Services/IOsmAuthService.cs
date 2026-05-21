@@ -1,6 +1,6 @@
 namespace BookingsAssistant.Api.Services;
 
-public interface IOsmAuthService
+internal interface IOsmAuthService
 {
     Task<string> GetValidAccessTokenAsync(int userId);
     string GetAuthorizationUrl(string redirectUri);
