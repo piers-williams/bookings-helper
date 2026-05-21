@@ -3,6 +3,7 @@ using System.Net.Http.Json;
 using BookingsAssistant.Api.Data;
 using BookingsAssistant.Api.Models;
 using BookingsAssistant.Api.Services;
+using BookingsAssistant.Tests.Fakes;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
@@ -211,28 +212,5 @@ public class CommentSyncTests : IClassFixture<WebApplicationFactory<Program>>
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
         var commentCount = await db.OsmComments.CountAsync();
         Assert.Equal(0, commentCount);
-    }
-
-    private class FakeOsmService : IOsmService
-    {
-        public List<BookingDto> BookingsToReturn { get; set; } = new();
-        public Dictionary<string, List<CommentDto>> CommentsByBookingId { get; } = new();
-
-        public Task<List<BookingDto>> GetBookingsAsync(string status)
-            => Task.FromResult(BookingsToReturn);
-
-        public Task<(string FullDetails, List<CommentDto> Comments)> GetBookingDetailsAsync(string osmBookingId)
-        {
-            var comments = CommentsByBookingId.TryGetValue(osmBookingId, out var list)
-                ? list
-                : new List<CommentDto>();
-            return Task.FromResult((string.Empty, comments));
-        }
-
-        public Task<CommentDto?> PostCommentAsync(string osmBookingId, string comment)
-            => Task.FromResult<CommentDto?>(null);
-
-        public Task<bool> SendBookingTemplateEmailAsync(string osmBookingId)
-            => Task.FromResult(true);
     }
 }

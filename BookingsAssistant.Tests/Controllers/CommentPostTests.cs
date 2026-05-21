@@ -4,6 +4,7 @@ using BookingsAssistant.Api.Data;
 using BookingsAssistant.Api.Data.Entities;
 using BookingsAssistant.Api.Models;
 using BookingsAssistant.Api.Services;
+using BookingsAssistant.Tests.Fakes;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
@@ -136,22 +137,5 @@ public class CommentPostTests : IClassFixture<WebApplicationFactory<Program>>
             new { comment = "This will fail at OSM" });
 
         Assert.Equal(HttpStatusCode.BadGateway, response.StatusCode);
-    }
-
-    private class FakeOsmService : IOsmService
-    {
-        public CommentDto? CommentToReturn { get; set; }
-
-        public Task<List<BookingDto>> GetBookingsAsync(string status)
-            => Task.FromResult(new List<BookingDto>());
-
-        public Task<(string FullDetails, List<CommentDto> Comments)> GetBookingDetailsAsync(string osmBookingId)
-            => Task.FromResult((string.Empty, new List<CommentDto>()));
-
-        public Task<CommentDto?> PostCommentAsync(string osmBookingId, string comment)
-            => Task.FromResult(CommentToReturn);
-
-        public Task<bool> SendBookingTemplateEmailAsync(string osmBookingId)
-            => Task.FromResult(true);
     }
 }

@@ -4,6 +4,7 @@ using BookingsAssistant.Api.Data;
 using BookingsAssistant.Api.Data.Entities;
 using BookingsAssistant.Api.Models;
 using BookingsAssistant.Api.Services;
+using BookingsAssistant.Tests.Fakes;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
@@ -37,7 +38,7 @@ public class BookingStatsTests : IClassFixture<WebApplicationFactory<Program>>
 
                 // Prevent startup sync from calling real OSM
                 services.RemoveAll<IOsmService>();
-                services.AddSingleton<IOsmService>(new NoOpOsmService());
+                services.AddSingleton<IOsmService>(new FakeOsmService());
             });
         });
     }
@@ -91,17 +92,5 @@ public class BookingStatsTests : IClassFixture<WebApplicationFactory<Program>>
         Assert.Equal(2, stats.ArrivingNext30Days); // s2 (3 days) and s3 (20 days)
         Assert.Equal(1, stats.Provisional);
         Assert.NotNull(stats.LastSynced);
-    }
-
-    private class NoOpOsmService : IOsmService
-    {
-        public Task<List<BookingDto>> GetBookingsAsync(string status)
-            => Task.FromResult(new List<BookingDto>());
-        public Task<(string FullDetails, List<CommentDto> Comments)> GetBookingDetailsAsync(string osmBookingId)
-            => Task.FromResult((string.Empty, new List<CommentDto>()));
-        public Task<CommentDto?> PostCommentAsync(string osmBookingId, string comment)
-            => Task.FromResult<CommentDto?>(null);
-        public Task<bool> SendBookingTemplateEmailAsync(string osmBookingId)
-            => Task.FromResult(true);
     }
 }

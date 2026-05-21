@@ -1,0 +1,626 @@
+openapi: 3.0.3
+info:
+  title: OSM (Online Scout Manager) API — Discovered Endpoints
+  version: 0.1.0
+  description: |
+    Reverse-engineered API surface for Online Scout Manager (onlinescoutmanager.co.uk).
+    OSM has no published API documentation. These endpoints were discovered via:
+    - OAuth scope docs provided at application registration
+    - Browser DevTools network captures (HAR files)
+    - Trial-and-error from this project's OsmService
+
+    **Two endpoint families:**
+    - `/v3/...` — newer JSON API, uses Bearer token auth
+    - `/ext/...` — legacy endpoints, use `x-csrf` header + form-urlencoded bodies
+
+    **Rate limiting** applies to all endpoints via standard headers.
+    The v3 endpoints have a tighter limit (~95 req/window) than ext (~9999).
+
+servers:
+  - url: https://www.onlinescoutmanager.co.uk
+    description: Production
+
+components:
+  securitySchemes:
+    oauth2:
+      type: oauth2
+      description: |
+        Standard OAuth 2.0. Supports authorization_code flow (multi-user) and
+        client_credentials flow (single user). Token endpoint uses HTTP Basic auth
+        with client_id:client_secret.
+      flows:
+        authorizationCode:
+          authorizationUrl: /oauth/authorize
+          tokenUrl: /oauth/token
+          scopes:
+            section:campsite_bookings:read: Read venue booking data
+            section:campsite_bookings:write: Write comments, manage bookings
+            section:member:read: Read member/contact details
+            section:member:write: Send emails to members/contacts
+    bearerAuth:
+      type: http
+      scheme: bearer
+      description: Access token obtained from OAuth token endpoint
+
+  parameters:
+    sectionId:
+      name: section_id
+      in: query
+      required: true
+      schema:
+        type: integer
+      description: OSM section ID (e.g. 56710 for the campsite section)
+      example: 56710
+    campsiteId:
+      name: campsiteId
+      in: path
+      required: true
+      schema:
+        type: integer
+      description: Campsite site ID
+      example: 219
+
+  headers:
+    X-RateLimit-Limit:
+      description: Requests per hour per authenticated user
+      schema:
+        type: integer
+    X-RateLimit-Remaining:
+      description: Requests remaining in current window
+      schema:
+        type: integer
+    X-RateLimit-Reset:
+      description: Seconds until rate limit resets
+      schema:
+        type: integer
+
+  schemas:
+    ApiResponse:
+      type: object
+      properties:
+        status:
+          type: boolean
+        error:
+          type: string
+          nullable: true
+        data:
+          description: Varies by endpoint
+        meta:
+          type: array
+          items: {}
+
+    Booking:
+      type: object
+      properties:
+        id:
+          type: integer
+          example: 153277
+        campsite_site_id:
+          type: integer
+          example: 219
+        campsite_organisation_id:
+          type: integer
+          example: 609
+        member_id:
+          type: integer
+          description: The member/contact ID for this booking. Used as the `scouts` parameter in email endpoints.
+          example: 3260538
+        group_name:
+          type: string
+          example: "1st Example Scouts"
+        start_date:
+          type: string
+          format: date
+          example: "2026-06-15"
+        end_date:
+          type: string
+          format: date
+          example: "2026-06-17"
+        number_leaders:
+          type: integer
+        number_participants:
+          type: integer
+        status:
+          type: string
+          enum: [provisional, confirmed, cancelled]
+        deposit:
+          type: number
+        deposit_due:
+          type: string
+          format: date-time
+        total_price:
+          type: number
+        total_paid:
+          type: number
+
+    Comment:
+      type: object
+      properties:
+        id:
+          type: integer
+        comment:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+        user:
+          type: object
+          properties:
+            first_name:
+              type: string
+            last_name:
+              type: string
+
+    TokenResponse:
+      type: object
+      properties:
+        access_token:
+          type: string
+        refresh_token:
+          type: string
+        expires_in:
+          type: integer
+          description: Seconds until token expires
+        token_type:
+          type: string
+          example: Bearer
+
+    EmailContact:
+      type: object
+      description: Response structure not fully captured — contains resolved email addresses for the specified contacts.
+
+    Campaign:
+      type: object
+      description: Email campaign/template metadata. Full schema not yet captured.
+
+    CampaignSnippets:
+      type: object
+      description: |
+        The rendered template content (HTML snippets) for an email campaign.
+        Response is ~16KB for a typical venue template. Full schema not yet captured.
+
+security:
+  - bearerAuth: []
+
+paths:
+  # ── Authentication ──────────────────────────────────────────────────
+
+  /oauth/authorize:
+    get:
+      tags: [Authentication]
+      summary: OAuth authorization page
+      description: Redirect users here to begin the authorization code flow.
+      security: []
+      parameters:
+        - name: response_type
+          in: query
+          required: true
+          schema:
+            type: string
+            enum: [code]
+        - name: client_id
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: redirect_uri
+          in: query
+          required: true
+          schema:
+            type: string
+            format: uri
+        - name: scope
+          in: query
+          required: true
+          schema:
+            type: string
+          example: "section:campsite_bookings:read section:campsite_bookings:write"
+      responses:
+        "302":
+          description: Redirects to OSM login, then back to redirect_uri with ?code=
+
+  /oauth/token:
+    post:
+      tags: [Authentication]
+      summary: Exchange code or refresh token for access token
+      description: |
+        Uses HTTP Basic auth (client_id:client_secret).
+        Supports `grant_type=authorization_code` and `grant_type=refresh_token`.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              required: [grant_type]
+              properties:
+                grant_type:
+                  type: string
+                  enum: [authorization_code, refresh_token]
+                code:
+                  type: string
+                  description: Required for authorization_code grant
+                redirect_uri:
+                  type: string
+                  format: uri
+                  description: Required for authorization_code grant
+                refresh_token:
+                  type: string
+                  description: Required for refresh_token grant
+      responses:
+        "200":
+          description: Token response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TokenResponse"
+
+  /oauth/resource:
+    get:
+      tags: [Authentication]
+      summary: Get authenticated user info
+      description: Returns full name, email, and accessible sections.
+      responses:
+        "200":
+          description: Resource owner details
+
+  # ── Campsite Bookings (v3) ─────────────────────────────────────────
+
+  /v3/campsites/{campsiteId}/bookings:
+    get:
+      tags: [Bookings]
+      summary: List bookings by status
+      operationId: getBookings
+      parameters:
+        - $ref: "#/components/parameters/campsiteId"
+        - name: mode
+          in: query
+          required: true
+          schema:
+            type: string
+            enum: [provisional, current, future, past, cancelled]
+          description: |
+            Booking status filter. Note: "current" = confirmed bookings,
+            "future" = accepted but not yet started.
+      responses:
+        "200":
+          description: List of bookings
+          headers:
+            X-RateLimit-Limit:
+              $ref: "#/components/headers/X-RateLimit-Limit"
+            X-RateLimit-Remaining:
+              $ref: "#/components/headers/X-RateLimit-Remaining"
+            X-RateLimit-Reset:
+              $ref: "#/components/headers/X-RateLimit-Reset"
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiResponse"
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: "#/components/schemas/Booking"
+
+  /v3/campsites/{campsiteId}/items:
+    get:
+      tags: [Bookings]
+      summary: Get booking details (items, facilities, activities)
+      operationId: getBookingItems
+      parameters:
+        - $ref: "#/components/parameters/campsiteId"
+        - name: booking_id
+          in: query
+          required: true
+          schema:
+            type: integer
+        - name: mode
+          in: query
+          required: true
+          schema:
+            type: string
+            enum: [booking]
+        - name: audience
+          in: query
+          required: true
+          schema:
+            type: string
+            enum: [venue]
+      responses:
+        "200":
+          description: Hierarchical list of campsite items with booking assignments
+
+  # ── Comments (v3) ──────────────────────────────────────────────────
+
+  /v3/comments/campsite_booking/{bookingId}/list:
+    get:
+      tags: [Comments]
+      summary: List comments on a booking
+      operationId: getComments
+      parameters:
+        - name: bookingId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - $ref: "#/components/parameters/sectionId"
+      responses:
+        "200":
+          description: List of comments
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiResponse"
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: "#/components/schemas/Comment"
+
+  /v3/comments/campsite_booking/{bookingId}/add:
+    post:
+      tags: [Comments]
+      summary: Add a comment to a booking
+      operationId: addComment
+      parameters:
+        - name: bookingId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - $ref: "#/components/parameters/sectionId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [comment]
+              properties:
+                comment:
+                  type: string
+      responses:
+        "200":
+          description: Created comment
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiResponse"
+                  - type: object
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/Comment"
+
+  # ── Email — Undocumented (from HAR capture 2026-05-21) ─────────────
+  # These endpoints were captured from browser DevTools while composing
+  # a venue email in OSM. The actual "send" call was NOT captured —
+  # a follow-up HAR with the send action is still needed.
+  #
+  # Key discovery: the `scouts` parameter = `member_id` from the Booking
+  # object, NOT the booking ID. The `contactGroups` parameter selects
+  # which contact type to email (e.g. "contact_primary_campsite").
+
+  /ext/members/email/:
+    post:
+      tags: [Email (undocumented)]
+      summary: Get contact email addresses for members
+      operationId: getContactEmails
+      description: |
+        Resolves email addresses for the specified members/contacts.
+        Uses legacy `/ext/` endpoint with form-urlencoded body.
+
+        **Important:** The `scouts` parameter is the `member_id` from the
+        booking, not the booking's own ID.
+      parameters:
+        - name: action
+          in: query
+          required: true
+          schema:
+            type: string
+            enum: [getSelectedEmailsFromContacts]
+        - name: sectionid
+          in: query
+          required: true
+          schema:
+            type: integer
+          description: Note lowercase 'id' (differs from other endpoints)
+          example: 56710
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              required: [contactGroups, scouts]
+              properties:
+                contactGroups:
+                  type: string
+                  description: JSON array of contact group names
+                  example: '["contact_primary_campsite"]'
+                scouts:
+                  type: string
+                  description: Member ID (from booking.member_id). Comma-separated for multiple.
+                  example: "3111514"
+      responses:
+        "200":
+          description: Resolved email addresses
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EmailContact"
+
+    get:
+      tags: [Email (undocumented)]
+      summary: Email utility endpoints (attachments, campaigns)
+      description: |
+        Multiple actions available via the `action` query parameter.
+        All use GET with the legacy `/ext/` endpoint family.
+      parameters:
+        - name: action
+          in: query
+          required: true
+          schema:
+            type: string
+            enum: [emailerAttachmentsManifest, listCampaigns]
+          description: |
+            - `emailerAttachmentsManifest`: Get attachment list for a draft
+            - Not to be confused with `/ext/members/email/campaigns/` (separate path)
+        - name: section_id
+          in: query
+          required: true
+          schema:
+            type: integer
+          example: 56710
+        - name: id
+          in: query
+          schema:
+            type: string
+            format: uuid
+          description: Draft ID (for emailerAttachmentsManifest action)
+      responses:
+        "200":
+          description: Action-dependent response
+
+  /ext/members/email/campaigns/:
+    get:
+      tags: [Email (undocumented)]
+      summary: List email campaigns/templates
+      operationId: listCampaigns
+      parameters:
+        - name: action
+          in: query
+          required: true
+          schema:
+            type: string
+            enum: [listCampaigns]
+        - name: section_id
+          in: query
+          required: true
+          schema:
+            type: integer
+          example: 56710
+      responses:
+        "200":
+          description: List of available email campaigns
+
+  /v3/members/email/draft/{sectionId}:
+    get:
+      tags: [Email (undocumented)]
+      summary: Get current email draft
+      operationId: getEmailDraft
+      parameters:
+        - name: sectionId
+          in: path
+          required: true
+          schema:
+            type: integer
+          example: 56710
+      responses:
+        "200":
+          description: Current draft email state
+
+  /v3/members/email/campaigns/snippets/{campaignId}:
+    get:
+      tags: [Email (undocumented)]
+      summary: Get campaign template content
+      operationId: getCampaignSnippets
+      description: |
+        Returns the HTML template content for an email campaign.
+        Campaign 123054 is the venue gate codes template.
+        Response is ~16KB of rendered HTML snippets.
+      parameters:
+        - name: campaignId
+          in: path
+          required: true
+          schema:
+            type: integer
+          example: 123054
+      responses:
+        "200":
+          description: Campaign template HTML snippets
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CampaignSnippets"
+
+  # ── Email — Send (NOT YET CAPTURED) ────────────────────────────────
+  # The actual send endpoint has not been captured in HAR yet.
+  # Likely candidates based on the pattern:
+  #   POST /ext/members/email/?action=send&section_id={sectionId}
+  #   POST /v3/members/email/send/{sectionId}
+  # A follow-up HAR capture including the "Send" button click is needed.
+
+  # ── Utility — Undocumented ─────────────────────────────────────────
+
+  /ext/generic/locks/:
+    post:
+      tags: [Utility (undocumented)]
+      summary: Obtain or release a resource lock
+      operationId: obtainLock
+      description: |
+        Locking mechanism used by the email editor to prevent concurrent edits.
+        May not be required for automated sends.
+      parameters:
+        - name: action
+          in: query
+          required: true
+          schema:
+            type: string
+            enum: [obtain, release]
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              required: [item, section_id]
+              properties:
+                item:
+                  type: string
+                  description: Lock target (e.g. "campaign_123054")
+                  example: campaign_123054
+                duration:
+                  type: integer
+                  description: Lock duration in seconds
+                  example: 60
+                read_allowed:
+                  type: boolean
+                write_allowed:
+                  type: boolean
+                type:
+                  type: string
+                  enum: [read, write]
+                section_id:
+                  type: integer
+                  example: 56710
+      responses:
+        "200":
+          description: Lock obtained
+
+  /ext/generic/featureusage/:
+    post:
+      tags: [Utility (undocumented)]
+      summary: Track feature usage (analytics)
+      operationId: trackFeatureUsage
+      description: Internal analytics. Not required for API integration.
+      parameters:
+        - name: action
+          in: query
+          required: true
+          schema:
+            type: string
+            enum: [add]
+      requestBody:
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+      responses:
+        "200":
+          description: Tracked

@@ -2,6 +2,7 @@ using BookingsAssistant.Api.Data;
 using BookingsAssistant.Api.Data.Entities;
 using BookingsAssistant.Api.Models;
 using BookingsAssistant.Api.Services;
+using BookingsAssistant.Tests.Fakes;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -416,31 +417,5 @@ public class GateCodeServiceTests
 
         Assert.Single(fakeOsm.EmailsSent);
         Assert.Equal("1201", fakeOsm.EmailsSent[0]);
-    }
-
-    private class FakeOsmService : IOsmService
-    {
-        public List<string> EmailsSent { get; } = new();
-        public List<(string bookingId, string comment)> CommentsPosted { get; } = new();
-        public bool ShouldFailSend { get; set; }
-
-        public Task<List<BookingDto>> GetBookingsAsync(string status)
-            => Task.FromResult(new List<BookingDto>());
-
-        public Task<(string FullDetails, List<CommentDto> Comments)> GetBookingDetailsAsync(string osmBookingId)
-            => Task.FromResult((string.Empty, new List<CommentDto>()));
-
-        public Task<CommentDto?> PostCommentAsync(string osmBookingId, string comment)
-        {
-            CommentsPosted.Add((osmBookingId, comment));
-            return Task.FromResult<CommentDto?>(null);
-        }
-
-        public Task<bool> SendBookingTemplateEmailAsync(string osmBookingId)
-        {
-            if (ShouldFailSend) return Task.FromResult(false);
-            EmailsSent.Add(osmBookingId);
-            return Task.FromResult(true);
-        }
     }
 }

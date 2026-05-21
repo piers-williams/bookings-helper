@@ -3,6 +3,7 @@ using System.Net.Http.Json;
 using BookingsAssistant.Api.Data;
 using BookingsAssistant.Api.Models;
 using BookingsAssistant.Api.Services;
+using BookingsAssistant.Tests.Fakes;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
@@ -101,34 +102,5 @@ public class OsmSyncTests : IClassFixture<WebApplicationFactory<Program>>
         Assert.Equal("Confirmed", updated.Status);
         var added = await db2.OsmBookings.FirstOrDefaultAsync(b => b.OsmBookingId == "55003");
         Assert.NotNull(added);
-    }
-
-    // Stub — returns whatever BookingsToReturn is set to at call time
-    private class FakeOsmService : IOsmService
-    {
-        public List<BookingDto> BookingsToReturn { get; set; } = new();
-
-        /// <summary>
-        /// When set, returned for status=="confirmed". Falls back to BookingsToReturn when null.
-        /// Allows deduplication logic to be tested with distinct lists per status.
-        /// </summary>
-        public List<BookingDto>? ConfirmedBookingsToReturn { get; set; }
-
-        public Task<List<BookingDto>> GetBookingsAsync(string status)
-        {
-            if (ConfirmedBookingsToReturn != null &&
-                status.Equals("confirmed", StringComparison.OrdinalIgnoreCase))
-                return Task.FromResult(ConfirmedBookingsToReturn);
-            return Task.FromResult(BookingsToReturn);
-        }
-
-        public Task<(string FullDetails, List<CommentDto> Comments)> GetBookingDetailsAsync(string osmBookingId)
-            => Task.FromResult((string.Empty, new List<CommentDto>()));
-
-        public Task<CommentDto?> PostCommentAsync(string osmBookingId, string comment)
-            => Task.FromResult<CommentDto?>(null);
-
-        public Task<bool> SendBookingTemplateEmailAsync(string osmBookingId)
-            => Task.FromResult(true);
     }
 }
