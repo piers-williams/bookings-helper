@@ -223,6 +223,18 @@ public class OsmService : IOsmService
         }
     }
 
+    // TODO: Replace with real OSM API call once the endpoint is discovered.
+    // To find the endpoint: open OSM venue booking UI → DevTools Network tab →
+    // send the gate code email template to a booking → capture the request.
+    public async Task<bool> SendBookingTemplateEmailAsync(string osmBookingId)
+    {
+        _logger.LogInformation(
+            "SendBookingTemplateEmailAsync called for booking {BookingId} — no-op stub, awaiting API endpoint discovery",
+            osmBookingId);
+        await Task.CompletedTask;
+        return true;
+    }
+
     private string MapStatusToMode(string status)
     {
         return status.ToLower() switch

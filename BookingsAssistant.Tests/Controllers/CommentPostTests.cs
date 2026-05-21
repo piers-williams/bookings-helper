@@ -150,5 +150,8 @@ public class CommentPostTests : IClassFixture<WebApplicationFactory<Program>>
 
         public Task<CommentDto?> PostCommentAsync(string osmBookingId, string comment)
             => Task.FromResult(CommentToReturn);
+
+        public Task<bool> SendBookingTemplateEmailAsync(string osmBookingId)
+            => Task.FromResult(true);
     }
 }

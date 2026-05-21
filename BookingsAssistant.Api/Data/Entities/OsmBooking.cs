@@ -35,6 +35,8 @@ public class OsmBooking
 
     public DateTime? LastFetched { get; set; }
 
+    public DateTime? GateCodeSentAt { get; set; }
+
     // Navigation properties
     public ICollection<OsmComment> Comments { get; set; } = new List<OsmComment>();
     public ICollection<ApplicationLink> Links { get; set; } = new List<ApplicationLink>();

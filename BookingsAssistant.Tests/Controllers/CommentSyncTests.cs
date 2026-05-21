@@ -231,5 +231,8 @@ public class CommentSyncTests : IClassFixture<WebApplicationFactory<Program>>
 
         public Task<CommentDto?> PostCommentAsync(string osmBookingId, string comment)
             => Task.FromResult<CommentDto?>(null);
+
+        public Task<bool> SendBookingTemplateEmailAsync(string osmBookingId)
+            => Task.FromResult(true);
     }
 }

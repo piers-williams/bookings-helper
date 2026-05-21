@@ -24,6 +24,7 @@ export interface Booking {
   startDate: string;
   endDate: string;
   status: string;
+  gateCodeSentAt?: string | null;
 }
 
 // Summary of a linked email as returned by GET /api/bookings/{id}/links

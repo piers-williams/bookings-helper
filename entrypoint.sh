@@ -8,6 +8,7 @@ if [ -f /data/options.json ]; then
     export Osm__SectionId=$(jq -r '.osm_section_id // "56710"' /data/options.json)
     export Osm__ClientId=$(jq -r '.osm_client_id // ""' /data/options.json)
     export Osm__ClientSecret=$(jq -r '.osm_client_secret // ""' /data/options.json)
+    export GateCode__DaysBefore=$(jq -r '.gate_code_days_before // "2"' /data/options.json)
     echo "Options loaded from /data/options.json"
 else
     echo "No /data/options.json found, using defaults"

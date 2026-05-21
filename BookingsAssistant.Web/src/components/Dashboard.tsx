@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { bookingsApi, emailsApi, syncApi } from '../services/apiClient';
 import apiClient from '../services/apiClient';
-import type { BookingStats, Email } from '../types';
+import type { Booking, BookingStats, Email } from '../types';
 
 interface StatCardProps {
   label: string;
@@ -37,6 +37,7 @@ export default function Dashboard() {
   const [authenticated, setAuthenticated] = useState<boolean | null>(null);
   const [emails, setEmails] = useState<Email[]>([]);
   const [emailTotal, setEmailTotal] = useState<number | null>(null);
+  const [upcomingBookings, setUpcomingBookings] = useState<Booking[]>([]);
   const [loading, setLoading] = useState(false);
   const [syncing, setSyncing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -45,15 +46,28 @@ export default function Dashboard() {
     setLoading(true);
     setError(null);
     try {
-      const [statsRes, authRes, emailsRes] = await Promise.all([
+      const [statsRes, authRes, emailsRes, confirmedRes, futureRes] = await Promise.all([
         bookingsApi.getStats(),
         apiClient.get<{ authenticated: boolean }>('/auth/osm/status'),
         emailsApi.getAll(1, 10),
+        bookingsApi.getAll('confirmed'),
+        bookingsApi.getAll('future'),
       ]);
       setStats(statsRes);
       setAuthenticated(authRes.data.authenticated);
       setEmails(emailsRes.items);
       setEmailTotal(emailsRes.total);
+
+      const now = new Date();
+      const sevenDays = new Date(now);
+      sevenDays.setDate(sevenDays.getDate() + 7);
+      const upcoming = [...confirmedRes, ...futureRes]
+        .filter(b => {
+          const start = new Date(b.startDate);
+          return start >= now && start <= sevenDays;
+        })
+        .sort((a, b) => new Date(a.startDate).getTime() - new Date(b.startDate).getTime());
+      setUpcomingBookings(upcoming);
     } catch {
       setError('Failed to load dashboard data');
     } finally {
@@ -143,6 +157,60 @@ export default function Dashboard() {
           colorClass="text-amber-600"
         />
       </div>
+
+      {/* Upcoming arrivals */}
+      {!loading && upcomingBookings.length > 0 && (
+        <div className="mt-8">
+          <h2 className="text-lg font-semibold text-gray-700 mb-3">
+            Upcoming Arrivals
+            <span className="ml-2 text-sm font-normal text-gray-400">
+              (next 7 days)
+            </span>
+          </h2>
+          <div className="bg-white rounded-lg shadow divide-y divide-gray-100">
+            {upcomingBookings.map((booking) => {
+              const start = new Date(booking.startDate);
+              const daysUntil = Math.ceil((start.getTime() - Date.now()) / 86400000);
+              const dateStr = start.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' });
+              return (
+                <a
+                  key={booking.id}
+                  href={`/bookings/${booking.id}`}
+                  className="flex items-center justify-between px-4 py-3 hover:bg-gray-50 transition-colors"
+                >
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-medium text-gray-800 truncate">{booking.customerName}</p>
+                    <p className="text-xs text-gray-500">
+                      {dateStr}
+                      {daysUntil <= 0
+                        ? ' — today'
+                        : daysUntil === 1
+                        ? ' — tomorrow'
+                        : ` — in ${daysUntil} days`}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2 ml-4 flex-shrink-0">
+                    <span className={`px-2 py-1 text-xs rounded ${
+                      booking.status === 'Provisional'
+                        ? 'bg-yellow-100 text-yellow-800'
+                        : 'bg-green-100 text-green-800'
+                    }`}>
+                      {booking.status}
+                    </span>
+                    <span className={`px-2 py-1 text-xs rounded ${
+                      booking.gateCodeSentAt
+                        ? 'bg-emerald-100 text-emerald-800'
+                        : 'bg-orange-100 text-orange-800'
+                    }`}>
+                      {booking.gateCodeSentAt ? 'Gate code sent' : 'Gate code pending'}
+                    </span>
+                  </div>
+                </a>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {/* Recent emails */}
       <div className="mt-8">

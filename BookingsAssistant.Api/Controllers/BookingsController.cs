@@ -41,7 +41,8 @@ public class BookingsController : ControllerBase
                 CustomerName = b.CustomerName,
                 StartDate = b.StartDate,
                 EndDate = b.EndDate,
-                Status = b.Status
+                Status = b.Status,
+                GateCodeSentAt = b.GateCodeSentAt
             })
             .ToListAsync();
 

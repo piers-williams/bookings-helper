@@ -33,6 +33,7 @@ builder.Services.AddSingleton<IHashingService, HashingService>();
 
 // Add hosted services
 builder.Services.AddHostedService<BookingDetailBackfillService>();
+builder.Services.AddHostedService<GateCodeService>();
 
 // Add services
 builder.Services.AddControllers();

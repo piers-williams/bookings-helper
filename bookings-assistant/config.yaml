@@ -19,10 +19,12 @@ options:
   osm_section_id: "56710"
   osm_client_id: ""
   osm_client_secret: ""
+  gate_code_days_before: 2
 schema:
   osm_base_url: url
   osm_campsite_id: str
   osm_section_id: str
   osm_client_id: str
   osm_client_secret: password
+  gate_code_days_before: "int(1,14)"
 image: ghcr.io/piers-williams/bookings-assistant-{arch}

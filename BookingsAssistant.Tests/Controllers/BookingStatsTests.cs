@@ -101,5 +101,7 @@ public class BookingStatsTests : IClassFixture<WebApplicationFactory<Program>>
             => Task.FromResult((string.Empty, new List<CommentDto>()));
         public Task<CommentDto?> PostCommentAsync(string osmBookingId, string comment)
             => Task.FromResult<CommentDto?>(null);
+        public Task<bool> SendBookingTemplateEmailAsync(string osmBookingId)
+            => Task.FromResult(true);
     }
 }
