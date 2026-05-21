@@ -15,6 +15,7 @@ public class ApplicationDbContext : DbContext
     public DbSet<OsmBooking> OsmBookings { get; set; }
     public DbSet<OsmComment> OsmComments { get; set; }
     public DbSet<ApplicationLink> ApplicationLinks { get; set; }
+    public DbSet<SiteDuty> SiteDuties { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

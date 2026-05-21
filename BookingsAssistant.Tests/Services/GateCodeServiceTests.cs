@@ -307,6 +307,117 @@ public class GateCodeServiceTests
         Assert.Single(fakeOsm.EmailsSent);
     }
 
+    [Fact]
+    public async Task SkipsBooking_WhenCoveredBySiteDuty()
+    {
+        var fakeOsm = new FakeOsmService();
+        var (provider, _) = CreateServices(fakeOsm);
+        var today = DateTime.UtcNow.Date;
+        var arrivalTime = today.AddDays(1).AddHours(14);
+
+        using (var scope = provider.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+            db.OsmBookings.Add(new OsmBooking
+            {
+                OsmBookingId = "1000", CustomerName = "Covered Group",
+                Status = "Confirmed",
+                StartDate = today.AddDays(1), EndDate = today.AddDays(3),
+                CustomerEmailHash = "abc123",
+                GateCodeSentAt = null
+            });
+            db.SiteDuties.Add(new SiteDuty
+            {
+                StartDate = today.AddDays(1).AddHours(10),
+                EndDate = today.AddDays(1).AddHours(16),
+                TeamName = "Test Team"
+            });
+            await db.SaveChangesAsync();
+        }
+
+        var service = CreateService(provider);
+        await service.ProcessPendingBookingsAsync(CancellationToken.None);
+
+        Assert.Empty(fakeOsm.EmailsSent);
+    }
+
+    [Fact]
+    public async Task SendsGateCode_WhenNotCoveredBySiteDuty()
+    {
+        var fakeOsm = new FakeOsmService();
+        var (provider, _) = CreateServices(fakeOsm);
+        var today = DateTime.UtcNow.Date;
+
+        using (var scope = provider.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+            db.OsmBookings.Add(new OsmBooking
+            {
+                OsmBookingId = "1100", CustomerName = "Uncovered Group",
+                Status = "Confirmed",
+                StartDate = today.AddDays(1), EndDate = today.AddDays(3),
+                CustomerEmailHash = "abc123",
+                GateCodeSentAt = null
+            });
+            // Duty is on a different day — doesn't cover this booking
+            db.SiteDuties.Add(new SiteDuty
+            {
+                StartDate = today.AddDays(3).AddHours(10),
+                EndDate = today.AddDays(3).AddHours(16),
+                TeamName = "Other Team"
+            });
+            await db.SaveChangesAsync();
+        }
+
+        var service = CreateService(provider);
+        await service.ProcessPendingBookingsAsync(CancellationToken.None);
+
+        Assert.Single(fakeOsm.EmailsSent);
+        Assert.Equal("1100", fakeOsm.EmailsSent[0]);
+    }
+
+    [Fact]
+    public async Task MixedBookings_OnlySendsToUncovered()
+    {
+        var fakeOsm = new FakeOsmService();
+        var (provider, _) = CreateServices(fakeOsm);
+        var today = DateTime.UtcNow.Date;
+
+        using (var scope = provider.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+            db.OsmBookings.AddRange(
+                new OsmBooking
+                {
+                    OsmBookingId = "1200", CustomerName = "Covered Group",
+                    Status = "Confirmed",
+                    StartDate = today.AddDays(1), EndDate = today.AddDays(3),
+                    CustomerEmailHash = "abc123", GateCodeSentAt = null
+                },
+                new OsmBooking
+                {
+                    OsmBookingId = "1201", CustomerName = "Uncovered Group",
+                    Status = "Confirmed",
+                    StartDate = today.AddDays(2), EndDate = today.AddDays(4),
+                    CustomerEmailHash = "def456", GateCodeSentAt = null
+                });
+            // Duty covers day+1 but not day+2
+            db.SiteDuties.Add(new SiteDuty
+            {
+                StartDate = today.AddDays(1),
+                EndDate = today.AddDays(1).AddHours(23),
+                TeamName = "Test Team"
+            });
+            await db.SaveChangesAsync();
+        }
+
+        var service = CreateService(provider);
+        await service.ProcessPendingBookingsAsync(CancellationToken.None);
+
+        Assert.Single(fakeOsm.EmailsSent);
+        Assert.Equal("1201", fakeOsm.EmailsSent[0]);
+    }
+
     private class FakeOsmService : IOsmService
     {
         public List<string> EmailsSent { get; } = new();

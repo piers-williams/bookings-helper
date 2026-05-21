@@ -44,7 +44,7 @@ public class GateCodeService : BackgroundService
         var cutoff = DateTime.UtcNow.AddDays(daysBefore);
         var now = DateTime.UtcNow;
 
-        var bookings = await context.OsmBookings
+        var candidates = await context.OsmBookings
             .Where(b => b.Status == "Confirmed"
                      && b.StartDate <= cutoff
                      && b.StartDate >= now.Date
@@ -54,13 +54,37 @@ public class GateCodeService : BackgroundService
             .OrderBy(b => b.StartDate)
             .ToListAsync(ct);
 
-        if (bookings.Count == 0)
+        if (candidates.Count == 0)
         {
-            _logger.LogDebug("Gate code service: no bookings need gate codes");
+            _logger.LogDebug("Gate code service: no candidate bookings");
             return;
         }
 
-        _logger.LogInformation("Gate code service: {Count} bookings need gate codes", bookings.Count);
+        // Filter out bookings whose arrival is covered by a site duty (someone on site to let them in)
+        var windowStart = candidates.Min(b => b.StartDate.Date);
+        var windowEnd = candidates.Max(b => b.StartDate.Date).AddDays(1);
+        var duties = await context.SiteDuties
+            .Where(d => d.EndDate > windowStart && d.StartDate < windowEnd)
+            .ToListAsync(ct);
+
+        // A booking is "covered" if any duty overlaps with the booking's arrival day
+        var bookings = candidates
+            .Where(b =>
+            {
+                var arrivalDayStart = b.StartDate.Date;
+                var arrivalDayEnd = arrivalDayStart.AddDays(1);
+                return !duties.Any(d => d.StartDate < arrivalDayEnd && d.EndDate > arrivalDayStart);
+            })
+            .ToList();
+
+        if (bookings.Count == 0)
+        {
+            _logger.LogDebug("Gate code service: {Count} candidates all covered by site duty", candidates.Count);
+            return;
+        }
+
+        _logger.LogInformation("Gate code service: {Count} bookings need gate codes ({Covered} covered by duty)",
+            bookings.Count, candidates.Count - bookings.Count);
 
         foreach (var booking in bookings)
         {
