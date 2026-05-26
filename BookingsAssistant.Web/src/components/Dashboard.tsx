@@ -189,7 +189,7 @@ export default function Dashboard() {
                         : ` — in ${daysUntil} days`}
                     </p>
                   </div>
-                  <div className="flex items-center gap-2 ml-4 flex-shrink-0">
+                  <div className="flex items-center gap-3 ml-4 flex-shrink-0">
                     <span className={`px-2 py-1 text-xs rounded ${
                       booking.status === 'Provisional'
                         ? 'bg-yellow-100 text-yellow-800'
