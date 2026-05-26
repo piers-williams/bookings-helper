@@ -25,6 +25,7 @@ export interface Booking {
   endDate: string;
   status: string;
   gateCodeSentAt?: string | null;
+  gateCodeStatus?: 'sent' | 'not_required' | 'pending';
 }
 
 // Summary of a linked email as returned by GET /api/bookings/{id}/links

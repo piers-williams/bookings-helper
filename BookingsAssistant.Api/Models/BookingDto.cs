@@ -9,4 +9,5 @@ public class BookingDto
     public DateTime EndDate { get; set; }
     public string Status { get; set; } = string.Empty;
     public DateTime? GateCodeSentAt { get; set; }
+    public string? GateCodeStatus { get; set; }
 }

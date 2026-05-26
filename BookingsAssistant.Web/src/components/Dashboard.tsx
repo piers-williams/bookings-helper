@@ -198,11 +198,17 @@ export default function Dashboard() {
                       {booking.status}
                     </span>
                     <span className={`px-2 py-1 text-xs rounded ${
-                      booking.gateCodeSentAt
+                      booking.gateCodeStatus === 'sent'
                         ? 'bg-emerald-100 text-emerald-800'
+                        : booking.gateCodeStatus === 'not_required'
+                        ? 'bg-gray-100 text-gray-600'
                         : 'bg-orange-100 text-orange-800'
                     }`}>
-                      {booking.gateCodeSentAt ? 'Gate code sent' : 'Gate code pending'}
+                      {booking.gateCodeStatus === 'sent'
+                        ? 'Gate code sent'
+                        : booking.gateCodeStatus === 'not_required'
+                        ? 'Wardens on site'
+                        : 'Gate code pending'}
                     </span>
                   </div>
                 </a>

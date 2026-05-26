@@ -46,6 +46,18 @@ public class BookingsController : ControllerBase
             })
             .ToListAsync();
 
+        var duties = await _context.SiteDuties.ToListAsync();
+
+        foreach (var b in bookings)
+        {
+            if (b.GateCodeSentAt != null)
+                b.GateCodeStatus = "sent";
+            else if (duties.Any(d => d.StartDate < b.StartDate.Date.AddDays(1) && d.EndDate > b.StartDate.Date))
+                b.GateCodeStatus = "not_required";
+            else
+                b.GateCodeStatus = "pending";
+        }
+
         return Ok(bookings);
     }
 
