@@ -20,6 +20,10 @@ options:
   osm_client_id: ""
   osm_client_secret: ""
   gate_code_days_before: 2
+  gate_code_campaign_id: "123054"
+  gate_code_from_name: ""
+  gate_code_from_email: ""
+  gate_code_subject: "Gate code"
 schema:
   osm_base_url: url
   osm_campsite_id: str
@@ -27,4 +31,8 @@ schema:
   osm_client_id: str
   osm_client_secret: password
   gate_code_days_before: "int(1,14)"
+  gate_code_campaign_id: str
+  gate_code_from_name: str
+  gate_code_from_email: email
+  gate_code_subject: str
 image: ghcr.io/piers-williams/bookings-assistant-{arch}

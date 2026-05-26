@@ -223,16 +223,36 @@ internal class OsmService : IOsmService
         }
     }
 
-    // TODO: Replace with real OSM API call once the endpoint is discovered.
-    // To find the endpoint: open OSM venue booking UI → DevTools Network tab →
-    // send the gate code email template to a booking → capture the request.
     public async Task<bool> SendBookingTemplateEmailAsync(string osmBookingId)
     {
-        _logger.LogInformation(
-            "SendBookingTemplateEmailAsync called for booking {BookingId} — no-op stub, awaiting API endpoint discovery",
-            osmBookingId);
-        await Task.CompletedTask;
-        return true;
+        try
+        {
+            _logger.LogInformation("Sending gate code email for booking {BookingId}", osmBookingId);
+
+            var memberId = await GetBookingMemberIdAsync(osmBookingId);
+            if (memberId == null)
+            {
+                _logger.LogError("Could not resolve member_id for booking {BookingId}", osmBookingId);
+                return false;
+            }
+
+            var emailsJson = await ResolveContactEmailsAsync(memberId);
+            if (emailsJson == null)
+            {
+                _logger.LogError("Could not resolve contact emails for member {MemberId} (booking {BookingId})", memberId, osmBookingId);
+                return false;
+            }
+
+            var sent = await SendTemplateAsync(osmBookingId, emailsJson);
+            if (sent)
+                _logger.LogInformation("Successfully sent gate code email for booking {BookingId}", osmBookingId);
+            return sent;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error sending gate code email for booking {BookingId}", osmBookingId);
+            return false;
+        }
     }
 
     public string GetAuthorizationUrl(string redirectUri)
@@ -256,6 +276,125 @@ internal class OsmService : IOsmService
         {
             return false;
         }
+    }
+
+    private async Task<string?> GetBookingMemberIdAsync(string osmBookingId)
+    {
+        var token = await GetAccessTokenAsync();
+        var request = new HttpRequestMessage(HttpMethod.Get, $"/v3/campsites/bookings/{osmBookingId}");
+        request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
+
+        var response = await _httpClient.SendAsync(request);
+        HandleRateLimiting(response);
+
+        if (!response.IsSuccessStatusCode)
+        {
+            _logger.LogError("OSM booking detail returned {StatusCode} for booking {BookingId}", response.StatusCode, osmBookingId);
+            return null;
+        }
+
+        var content = await response.Content.ReadAsStringAsync();
+        using var doc = JsonDocument.Parse(content);
+
+        if (doc.RootElement.TryGetProperty("data", out var data) &&
+            data.TryGetProperty("member_id", out var memberId))
+        {
+            return memberId.ToString();
+        }
+
+        if (doc.RootElement.TryGetProperty("member_id", out var rootMemberId))
+            return rootMemberId.ToString();
+
+        _logger.LogError("member_id not found in booking detail for {BookingId}. Keys: {Keys}",
+            osmBookingId,
+            string.Join(", ", doc.RootElement.EnumerateObject().Select(p => p.Name)));
+        return null;
+    }
+
+    private async Task<string?> ResolveContactEmailsAsync(string memberId)
+    {
+        var token = await GetAccessTokenAsync();
+        var request = new HttpRequestMessage(HttpMethod.Post,
+            $"/ext/members/email/?action=getSelectedEmailsFromContacts&sectionid={_sectionId}");
+        request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
+        request.Content = new FormUrlEncodedContent(new Dictionary<string, string>
+        {
+            ["contactGroups"] = "[\"contact_primary_campsite\"]",
+            ["scouts"] = memberId
+        });
+
+        var response = await _httpClient.SendAsync(request);
+        HandleRateLimiting(response);
+
+        if (!response.IsSuccessStatusCode)
+        {
+            _logger.LogError("getSelectedEmailsFromContacts returned {StatusCode} for member {MemberId}",
+                response.StatusCode, memberId);
+            return null;
+        }
+
+        var content = await response.Content.ReadAsStringAsync();
+        using var doc = JsonDocument.Parse(content);
+
+        if (doc.RootElement.TryGetProperty("data", out var data))
+            return data.GetRawText();
+
+        _logger.LogError("Unexpected getSelectedEmailsFromContacts response for member {MemberId}: {Response}",
+            memberId, content);
+        return null;
+    }
+
+    private async Task<bool> SendTemplateAsync(string osmBookingId, string emailsJson)
+    {
+        var campaignId = _configuration["GateCode:CampaignId"]
+            ?? throw new InvalidOperationException("GateCode:CampaignId not configured");
+        var fromName = _configuration["GateCode:FromName"]
+            ?? throw new InvalidOperationException("GateCode:FromName not configured");
+        var fromEmail = _configuration["GateCode:FromEmail"]
+            ?? throw new InvalidOperationException("GateCode:FromEmail not configured");
+        var subject = _configuration["GateCode:Subject"] ?? "Gate code";
+
+        var token = await GetAccessTokenAsync();
+        var request = new HttpRequestMessage(HttpMethod.Post, "/ext/members/email/?action=sendTemplate");
+        request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
+        request.Content = new FormUrlEncodedContent(new Dictionary<string, string>
+        {
+            ["cc"] = "",
+            ["from"] = $"{fromName} <{fromEmail}>",
+            ["save_email_from"] = "false",
+            ["subject"] = subject,
+            ["emails"] = emailsJson,
+            ["edits"] = "{}",
+            ["sectionid"] = _sectionId,
+            ["campaign_id"] = campaignId,
+            ["email_session_key"] = "blank",
+            ["guid"] = Guid.NewGuid().ToString(),
+            ["current_section_id"] = _sectionId,
+            ["draft_email_id"] = "0",
+            ["scheduled_email_id"] = "0"
+        });
+
+        var response = await _httpClient.SendAsync(request);
+        HandleRateLimiting(response);
+
+        if (!response.IsSuccessStatusCode)
+        {
+            _logger.LogError("sendTemplate returned {StatusCode} for booking {BookingId}",
+                response.StatusCode, osmBookingId);
+            return false;
+        }
+
+        var content = await response.Content.ReadAsStringAsync();
+        using var doc = JsonDocument.Parse(content);
+
+        if (doc.RootElement.TryGetProperty("status", out var status) && !status.GetBoolean())
+        {
+            var error = doc.RootElement.TryGetProperty("error", out var err) ? err.GetString() : "unknown";
+            _logger.LogError("sendTemplate returned error for booking {BookingId}: {Error}", osmBookingId, error);
+            return false;
+        }
+
+        return true;
     }
 
     private string MapStatusToMode(string status)
@@ -373,6 +512,9 @@ internal class OsmService : IOsmService
     {
         [JsonPropertyName("id")]
         public int Id { get; set; }
+
+        [JsonPropertyName("member_id")]
+        public int? MemberId { get; set; }
 
         [JsonPropertyName("group_name")]
         public string? GroupName { get; set; }

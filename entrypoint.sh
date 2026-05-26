@@ -9,6 +9,10 @@ if [ -f /data/options.json ]; then
     export Osm__ClientId=$(jq -r '.osm_client_id // ""' /data/options.json)
     export Osm__ClientSecret=$(jq -r '.osm_client_secret // ""' /data/options.json)
     export GateCode__DaysBefore=$(jq -r '.gate_code_days_before // "2"' /data/options.json)
+    export GateCode__CampaignId=$(jq -r '.gate_code_campaign_id // "123054"' /data/options.json)
+    export GateCode__FromName=$(jq -r '.gate_code_from_name // ""' /data/options.json)
+    export GateCode__FromEmail=$(jq -r '.gate_code_from_email // ""' /data/options.json)
+    export GateCode__Subject=$(jq -r '.gate_code_subject // "Gate code"' /data/options.json)
     echo "Options loaded from /data/options.json"
 else
     echo "No /data/options.json found, using defaults"

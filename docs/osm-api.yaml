@@ -549,12 +549,103 @@ paths:
               schema:
                 $ref: "#/components/schemas/CampaignSnippets"
 
-  # ── Email — Send (NOT YET CAPTURED) ────────────────────────────────
-  # The actual send endpoint has not been captured in HAR yet.
-  # Likely candidates based on the pattern:
-  #   POST /ext/members/email/?action=send&section_id={sectionId}
-  #   POST /v3/members/email/send/{sectionId}
-  # A follow-up HAR capture including the "Send" button click is needed.
+  # ── Email — Send Template (captured 2026-05-23 from send-email-2.har)
+
+  /ext/members/email/?action=sendTemplate:
+    post:
+      tags: [Email (undocumented)]
+      summary: Send a template email to booking contacts
+      operationId: sendTemplateEmail
+      description: |
+        Sends an email using a pre-configured campaign template.
+        The `emails` parameter is the JSON object returned by
+        `getSelectedEmailsFromContacts`, passed through verbatim.
+
+        **Full flow for automated gate code emails:**
+        1. `GET /v3/campsites/bookings/{bookingId}` → extract `member_id`
+        2. `POST /ext/members/email/?action=getSelectedEmailsFromContacts` → resolve contact email
+        3. `POST /ext/members/email/?action=sendTemplate` → send the template
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              required: [from, subject, emails, sectionid, campaign_id]
+              properties:
+                cc:
+                  type: string
+                  description: CC recipients (empty for none)
+                from:
+                  type: string
+                  description: "Sender identity, format: Name <email>"
+                  example: "Camp Admin <admin@example.co.uk>"
+                save_email_from:
+                  type: string
+                  enum: ["true", "false"]
+                  default: "false"
+                subject:
+                  type: string
+                  example: "Gate code"
+                emails:
+                  type: string
+                  description: JSON object from getSelectedEmailsFromContacts response data
+                edits:
+                  type: string
+                  description: Template edits (empty object for no changes)
+                  default: "{}"
+                sectionid:
+                  type: integer
+                  example: 56710
+                campaign_id:
+                  type: integer
+                  description: Email campaign/template ID
+                  example: 123054
+                email_session_key:
+                  type: string
+                  default: "blank"
+                guid:
+                  type: string
+                  format: uuid
+                current_section_id:
+                  type: integer
+                  example: 56710
+                draft_email_id:
+                  type: integer
+                  default: 0
+                scheduled_email_id:
+                  type: integer
+                  default: 0
+      responses:
+        "200":
+          description: Email sent successfully
+
+  # ── Individual Booking Detail (captured 2026-05-23 from get-booking.har)
+
+  /v3/campsites/bookings/{bookingId}:
+    get:
+      tags: [Bookings]
+      summary: Get a single booking by ID
+      operationId: getBooking
+      parameters:
+        - name: bookingId
+          in: path
+          required: true
+          schema:
+            type: integer
+          example: 155867
+      responses:
+        "200":
+          description: Single booking detail (includes member_id)
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiResponse"
+                  - type: object
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/Booking"
 
   # ── Utility — Undocumented ─────────────────────────────────────────
 
