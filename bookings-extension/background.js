@@ -115,23 +115,30 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   }
 });
 
-async function getBackendUrl() {
+async function getConfig() {
   return new Promise((resolve) => {
-    chrome.storage.sync.get(['backendUrl'], (result) => {
-      resolve(result.backendUrl || null);
+    chrome.storage.sync.get(['backendUrl', 'apiToken'], (result) => {
+      resolve({ backendUrl: result.backendUrl || null, apiToken: result.apiToken || null });
     });
   });
 }
 
+// Builds request headers, including the shared API token when configured.
+function buildHeaders(apiToken, extra = {}) {
+  const headers = { ...extra };
+  if (apiToken) headers['X-Api-Token'] = apiToken;
+  return headers;
+}
+
 async function handleCaptureEmail(payload) {
-  const backendUrl = await getBackendUrl();
+  const { backendUrl, apiToken } = await getConfig();
   if (!backendUrl) {
     return { error: 'not_configured' };
   }
   try {
     const response = await fetch(`${backendUrl}/api/emails/capture`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: buildHeaders(apiToken, { 'Content-Type': 'application/json' }),
       body: JSON.stringify(payload)
     });
     if (!response.ok) {
@@ -144,14 +151,14 @@ async function handleCaptureEmail(payload) {
 }
 
 async function handleCreateLink(emailMessageId, bookingId) {
-  const backendUrl = await getBackendUrl();
+  const { backendUrl, apiToken } = await getConfig();
   if (!backendUrl) {
     return { error: 'not_configured' };
   }
   try {
     const response = await fetch(`${backendUrl}/api/links`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: buildHeaders(apiToken, { 'Content-Type': 'application/json' }),
       body: JSON.stringify({ emailMessageId, osmBookingId: bookingId })
     });
     if (!response.ok) {
@@ -164,12 +171,14 @@ async function handleCreateLink(emailMessageId, bookingId) {
 }
 
 async function handleGetBookingLinks(bookingId) {
-  const backendUrl = await getBackendUrl();
+  const { backendUrl, apiToken } = await getConfig();
   if (!backendUrl) {
     return { error: 'not_configured' };
   }
   try {
-    const response = await fetch(`${backendUrl}/api/bookings/${bookingId}/links`);
+    const response = await fetch(`${backendUrl}/api/bookings/${bookingId}/links`, {
+      headers: buildHeaders(apiToken)
+    });
     if (!response.ok) {
       return { error: 'server_error', status: response.status };
     }

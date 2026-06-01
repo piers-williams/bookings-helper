@@ -18,6 +18,11 @@
   <label for="backendUrl">Backend URL</label>
   <input type="text" id="backendUrl" placeholder="http://192.168.1.50:5000">
   <div class="hint">The address of the Bookings Assistant backend on your network.</div>
+
+  <label for="apiToken" style="margin-top:12px">API token</label>
+  <input type="password" id="apiToken" placeholder="Leave blank if not configured">
+  <div class="hint">Must match the <code>api_token</code> set in the add-on configuration. Leave blank if the add-on has no token set.</div>
+
   <button id="save">Save</button>
   <div id="status"></div>
   <script src="options.js"></script>

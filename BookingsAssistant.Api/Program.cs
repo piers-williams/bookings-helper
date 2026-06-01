@@ -144,6 +144,27 @@ using (var scope = app.Services.CreateScope())
 // Configure middleware
 app.UseCors();
 
+// Shared API token guard. No-op until Auth:ApiToken is configured (addon option
+// api_token). Guards /api/* except the OSM OAuth handshake; SPA assets stay open.
+var apiToken = app.Configuration["Auth:ApiToken"];
+app.Use(async (context, next) =>
+{
+    var authHeader = context.Request.Headers.Authorization.FirstOrDefault();
+    var bearer = authHeader != null && authHeader.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase)
+        ? authHeader["Bearer ".Length..].Trim()
+        : null;
+    var provided = context.Request.Headers["X-Api-Token"].FirstOrDefault() ?? bearer;
+
+    if (!ApiTokenPolicy.IsAllowed(context.Request.Path.Value ?? string.Empty, apiToken, provided))
+    {
+        context.Response.StatusCode = StatusCodes.Status401Unauthorized;
+        await context.Response.WriteAsJsonAsync(new { message = "API token required" });
+        return;
+    }
+
+    await next();
+});
+
 if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();

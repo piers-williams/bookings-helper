@@ -13,6 +13,7 @@ if [ -f /data/options.json ]; then
     export GateCode__FromName=$(jq -r '.gate_code_from_name // ""' /data/options.json)
     export GateCode__FromEmail=$(jq -r '.gate_code_from_email // ""' /data/options.json)
     export GateCode__Subject=$(jq -r '.gate_code_subject // "Gate code"' /data/options.json)
+    export Auth__ApiToken=$(jq -r '.api_token // ""' /data/options.json)
     echo "Options loaded from /data/options.json"
 else
     echo "No /data/options.json found, using defaults"

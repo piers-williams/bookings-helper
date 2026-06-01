@@ -16,6 +16,37 @@ const apiClient = axios.create({
   },
 });
 
+const TOKEN_KEY = 'apiToken';
+
+// Attach the shared API token (if the user has set one) to every request.
+apiClient.interceptors.request.use((config) => {
+  const token = localStorage.getItem(TOKEN_KEY);
+  if (token) config.headers['X-Api-Token'] = token;
+  return config;
+});
+
+// On 401 the addon has an api_token configured but ours is missing/wrong.
+// Prompt once, store it, and reload. Guarded so concurrent 401s prompt only once.
+let promptingForToken = false;
+apiClient.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (error.response?.status === 401 && !promptingForToken) {
+      promptingForToken = true;
+      const entered = window.prompt(
+        'This Bookings Assistant requires an API token (set in the add-on configuration). Enter it to continue:'
+      );
+      if (entered) {
+        localStorage.setItem(TOKEN_KEY, entered.trim());
+        window.location.reload();
+      } else {
+        promptingForToken = false;
+      }
+    }
+    return Promise.reject(error);
+  }
+);
+
 // Bookings API
 export const bookingsApi = {
   getAll: async (status?: string): Promise<Booking[]> => {

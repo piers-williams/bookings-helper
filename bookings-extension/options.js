@@ -1,10 +1,12 @@
 document.addEventListener('DOMContentLoaded', () => {
   const input = document.getElementById('backendUrl');
+  const tokenInput = document.getElementById('apiToken');
   const status = document.getElementById('status');
 
-  // Load saved value
-  chrome.storage.sync.get(['backendUrl'], (result) => {
+  // Load saved values
+  chrome.storage.sync.get(['backendUrl', 'apiToken'], (result) => {
     if (result.backendUrl) input.value = result.backendUrl;
+    if (result.apiToken) tokenInput.value = result.apiToken;
   });
 
   document.getElementById('save').addEventListener('click', () => {
@@ -14,7 +16,7 @@ document.addEventListener('DOMContentLoaded', () => {
       status.style.color = 'red';
       return;
     }
-    chrome.storage.sync.set({ backendUrl: url }, () => {
+    chrome.storage.sync.set({ backendUrl: url, apiToken: tokenInput.value.trim() }, () => {
       status.textContent = 'Saved!';
       status.style.color = 'green';
       setTimeout(() => status.textContent = '', 2000);
