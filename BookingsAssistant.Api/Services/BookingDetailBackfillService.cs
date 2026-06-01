@@ -62,7 +62,7 @@ public class BookingDetailBackfillService : BackgroundService
             try
             {
                 var (fullDetails, _) = await osm.GetBookingDetailsAsync(booking.OsmBookingId);
-                var email = ExtractEmail(fullDetails);
+                var email = ExtractEmail(fullDetails, _logger);
 
                 // "no-email" sentinel prevents retrying bookings that genuinely have no email
                 booking.CustomerEmailHash = email != null
@@ -81,7 +81,7 @@ public class BookingDetailBackfillService : BackgroundService
         await context.SaveChangesAsync(ct);
     }
 
-    private string? ExtractEmail(string fullDetailsJson)
+    internal static string? ExtractEmail(string fullDetailsJson, ILogger? logger = null)
     {
         if (string.IsNullOrWhiteSpace(fullDetailsJson)) return null;
         try
@@ -89,20 +89,26 @@ public class BookingDetailBackfillService : BackgroundService
             using var doc = JsonDocument.Parse(fullDetailsJson);
             var root = doc.RootElement;
 
-            // Attempt 1: { data: { contact: { email: "..." } } }
-            if (root.TryGetProperty("data", out var data))
+            // TryGetProperty throws on non-Object elements, so every access is
+            // guarded by a ValueKind check first.
+            if (root.ValueKind == JsonValueKind.Object &&
+                root.TryGetProperty("data", out var data))
             {
-                if (data.TryGetProperty("contact", out var contact) &&
+                // Shape 1: { data: { contact: { email: "..." } } }
+                if (data.ValueKind == JsonValueKind.Object &&
+                    data.TryGetProperty("contact", out var contact) &&
+                    contact.ValueKind == JsonValueKind.Object &&
                     contact.TryGetProperty("email", out var e1) &&
                     e1.ValueKind == JsonValueKind.String)
                     return e1.GetString();
 
-                // Attempt 2: { data: [ { label: "..email..", value: "..." } ] }
+                // Shape 2: { data: [ { label: "..email..", value: "..." } ] }
                 if (data.ValueKind == JsonValueKind.Array)
                 {
                     foreach (var item in data.EnumerateArray())
                     {
-                        if (item.TryGetProperty("label", out var label) &&
+                        if (item.ValueKind == JsonValueKind.Object &&
+                            item.TryGetProperty("label", out var label) &&
                             label.GetString()?.Contains("email", StringComparison.OrdinalIgnoreCase) == true &&
                             item.TryGetProperty("value", out var val))
                             return val.GetString();
@@ -110,7 +116,7 @@ public class BookingDetailBackfillService : BackgroundService
                 }
             }
 
-            _logger.LogWarning("Backfill: no email field found in response (first 300 chars): {Snippet}",
+            logger?.LogWarning("Backfill: no email field found in response (first 300 chars): {Snippet}",
                 fullDetailsJson.Length > 300 ? fullDetailsJson[..300] : fullDetailsJson);
             return null;
         }
