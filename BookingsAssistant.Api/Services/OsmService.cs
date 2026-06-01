@@ -14,6 +14,11 @@ internal class OsmService : IOsmService
     private readonly string _campsiteId;
     private readonly string _sectionId;
 
+    // When OSM signals we're nearly out of quota we pause new requests until
+    // this time. Shared across the request loop within a single OsmService
+    // instance (e.g. one sync's comment loop or one backfill batch).
+    private DateTimeOffset _cooldownUntil = DateTimeOffset.MinValue;
+
     public OsmService(HttpClient httpClient, IConfiguration configuration, ILogger<OsmService> logger, IOsmAuthService osmAuthService)
     {
         _httpClient = httpClient;
@@ -46,14 +51,14 @@ internal class OsmService : IOsmService
 
             _logger.LogInformation("Fetching OSM bookings with mode: {Mode}", mode);
 
-            // Get access token and make authenticated request
-            var token = await GetAccessTokenAsync();
-            var request = new HttpRequestMessage(HttpMethod.Get, url);
-            request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
-            var response = await _httpClient.SendAsync(request);
-
-            // Log rate limiting headers
-            HandleRateLimiting(response);
+            // Make the authenticated request, honouring OSM rate limits
+            var response = await SendWithRateLimitAsync(async () =>
+            {
+                var token = await GetAccessTokenAsync();
+                var req = new HttpRequestMessage(HttpMethod.Get, url);
+                req.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
+                return req;
+            });
 
             // Check HTTP status
             if (!response.IsSuccessStatusCode)
@@ -104,26 +109,23 @@ internal class OsmService : IOsmService
             var detailsUrl = $"/v3/campsites/{_campsiteId}/items?booking_id={osmBookingId}&mode=booking&audience=venue";
             var commentsUrl = $"/v3/comments/campsite_booking/{osmBookingId}/list?section_id={_sectionId}";
 
-            // Get access token and make authenticated requests
+            // Get access token and make authenticated requests (rate-limit aware)
             var token = await GetAccessTokenAsync();
 
-            var detailsRequest = new HttpRequestMessage(HttpMethod.Get, detailsUrl);
-            detailsRequest.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
+            HttpRequestMessage BuildGet(string url)
+            {
+                var req = new HttpRequestMessage(HttpMethod.Get, url);
+                req.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
+                return req;
+            }
 
-            var commentsRequest = new HttpRequestMessage(HttpMethod.Get, commentsUrl);
-            commentsRequest.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
-
-            var detailsTask = _httpClient.SendAsync(detailsRequest);
-            var commentsTask = _httpClient.SendAsync(commentsRequest);
+            var detailsTask = SendWithRateLimitAsync(() => Task.FromResult(BuildGet(detailsUrl)));
+            var commentsTask = SendWithRateLimitAsync(() => Task.FromResult(BuildGet(commentsUrl)));
 
             await Task.WhenAll(detailsTask, commentsTask);
 
             var detailsResponse = await detailsTask;
             var commentsResponse = await commentsTask;
-
-            // Log rate limiting
-            HandleRateLimiting(detailsResponse);
-            HandleRateLimiting(commentsResponse);
 
             // Process details
             string fullDetails = string.Empty;
@@ -183,16 +185,17 @@ internal class OsmService : IOsmService
 
             var url = $"/v3/comments/campsite_booking/{osmBookingId}/add?section_id={_sectionId}";
 
-            var token = await GetAccessTokenAsync();
-            var request = new HttpRequestMessage(HttpMethod.Post, url);
-            request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
-            request.Content = new StringContent(
-                JsonSerializer.Serialize(new { comment }),
-                System.Text.Encoding.UTF8,
-                "application/json");
-
-            var response = await _httpClient.SendAsync(request);
-            HandleRateLimiting(response);
+            var response = await SendWithRateLimitAsync(async () =>
+            {
+                var token = await GetAccessTokenAsync();
+                var req = new HttpRequestMessage(HttpMethod.Post, url);
+                req.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
+                req.Content = new StringContent(
+                    JsonSerializer.Serialize(new { comment }),
+                    System.Text.Encoding.UTF8,
+                    "application/json");
+                return req;
+            });
 
             if (!response.IsSuccessStatusCode)
             {
@@ -280,12 +283,13 @@ internal class OsmService : IOsmService
 
     private async Task<string?> GetBookingMemberIdAsync(string osmBookingId)
     {
-        var token = await GetAccessTokenAsync();
-        var request = new HttpRequestMessage(HttpMethod.Get, $"/v3/campsites/bookings/{osmBookingId}");
-        request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
-
-        var response = await _httpClient.SendAsync(request);
-        HandleRateLimiting(response);
+        var response = await SendWithRateLimitAsync(async () =>
+        {
+            var token = await GetAccessTokenAsync();
+            var req = new HttpRequestMessage(HttpMethod.Get, $"/v3/campsites/bookings/{osmBookingId}");
+            req.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
+            return req;
+        });
 
         if (!response.IsSuccessStatusCode)
         {
@@ -313,18 +317,19 @@ internal class OsmService : IOsmService
 
     private async Task<string?> ResolveContactEmailsAsync(string memberId)
     {
-        var token = await GetAccessTokenAsync();
-        var request = new HttpRequestMessage(HttpMethod.Post,
-            $"/ext/members/email/?action=getSelectedEmailsFromContacts&sectionid={_sectionId}");
-        request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
-        request.Content = new FormUrlEncodedContent(new Dictionary<string, string>
+        var response = await SendWithRateLimitAsync(async () =>
         {
-            ["contactGroups"] = "[\"contact_primary_campsite\"]",
-            ["scouts"] = memberId
+            var token = await GetAccessTokenAsync();
+            var req = new HttpRequestMessage(HttpMethod.Post,
+                $"/ext/members/email/?action=getSelectedEmailsFromContacts&sectionid={_sectionId}");
+            req.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
+            req.Content = new FormUrlEncodedContent(new Dictionary<string, string>
+            {
+                ["contactGroups"] = "[\"contact_primary_campsite\"]",
+                ["scouts"] = memberId
+            });
+            return req;
         });
-
-        var response = await _httpClient.SendAsync(request);
-        HandleRateLimiting(response);
 
         if (!response.IsSuccessStatusCode)
         {
@@ -354,28 +359,29 @@ internal class OsmService : IOsmService
             ?? throw new InvalidOperationException("GateCode:FromEmail not configured");
         var subject = _configuration["GateCode:Subject"] ?? "Gate code";
 
-        var token = await GetAccessTokenAsync();
-        var request = new HttpRequestMessage(HttpMethod.Post, "/ext/members/email/?action=sendTemplate");
-        request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
-        request.Content = new FormUrlEncodedContent(new Dictionary<string, string>
+        var response = await SendWithRateLimitAsync(async () =>
         {
-            ["cc"] = "",
-            ["from"] = $"{fromName} <{fromEmail}>",
-            ["save_email_from"] = "false",
-            ["subject"] = subject,
-            ["emails"] = emailsJson,
-            ["edits"] = "{}",
-            ["sectionid"] = _sectionId,
-            ["campaign_id"] = campaignId,
-            ["email_session_key"] = "blank",
-            ["guid"] = Guid.NewGuid().ToString(),
-            ["current_section_id"] = _sectionId,
-            ["draft_email_id"] = "0",
-            ["scheduled_email_id"] = "0"
+            var token = await GetAccessTokenAsync();
+            var req = new HttpRequestMessage(HttpMethod.Post, "/ext/members/email/?action=sendTemplate");
+            req.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
+            req.Content = new FormUrlEncodedContent(new Dictionary<string, string>
+            {
+                ["cc"] = "",
+                ["from"] = $"{fromName} <{fromEmail}>",
+                ["save_email_from"] = "false",
+                ["subject"] = subject,
+                ["emails"] = emailsJson,
+                ["edits"] = "{}",
+                ["sectionid"] = _sectionId,
+                ["campaign_id"] = campaignId,
+                ["email_session_key"] = "blank",
+                ["guid"] = Guid.NewGuid().ToString(),
+                ["current_section_id"] = _sectionId,
+                ["draft_email_id"] = "0",
+                ["scheduled_email_id"] = "0"
+            });
+            return req;
         });
-
-        var response = await _httpClient.SendAsync(request);
-        HandleRateLimiting(response);
 
         if (!response.IsSuccessStatusCode)
         {
@@ -410,40 +416,62 @@ internal class OsmService : IOsmService
         };
     }
 
+    private static string? FirstHeader(HttpResponseMessage response, string name)
+        => response.Headers.TryGetValues(name, out var values) ? values.FirstOrDefault() : null;
+
+    /// <summary>
+    /// Sends a request and honours OSM's rate limits: pauses before sending if a
+    /// prior response said quota was nearly exhausted, and on a 429 waits for the
+    /// Retry-After / reset window and retries (the request is rebuilt each attempt
+    /// since an HttpRequestMessage and its content can only be sent once).
+    /// </summary>
+    private async Task<HttpResponseMessage> SendWithRateLimitAsync(
+        Func<Task<HttpRequestMessage>> requestFactory, CancellationToken ct = default)
+    {
+        const int maxAttempts = 4;
+        for (var attempt = 1; ; attempt++)
+        {
+            var wait = _cooldownUntil - DateTimeOffset.UtcNow;
+            if (wait > TimeSpan.Zero)
+            {
+                _logger.LogWarning("OSM rate limit: pausing {Seconds:F0}s before next request", wait.TotalSeconds);
+                await Task.Delay(wait, ct);
+            }
+
+            var request = await requestFactory();
+            var response = await _httpClient.SendAsync(request, ct);
+            HandleRateLimiting(response);
+
+            if (response.StatusCode != System.Net.HttpStatusCode.TooManyRequests || attempt >= maxAttempts)
+                return response;
+
+            var delay = OsmRateLimit.GetRetryAfterDelay(
+                FirstHeader(response, "Retry-After"),
+                FirstHeader(response, "X-RateLimit-Reset"),
+                DateTimeOffset.UtcNow);
+            _logger.LogWarning("OSM API rate limit hit (429); attempt {Attempt}/{Max}, backing off {Seconds:F0}s",
+                attempt, maxAttempts, delay.TotalSeconds);
+            response.Dispose();
+            await Task.Delay(delay, ct);
+        }
+    }
+
     private void HandleRateLimiting(HttpResponseMessage response)
     {
-        if (response.Headers.TryGetValues("X-RateLimit-Limit", out var limitValues))
-        {
-            var limit = limitValues.FirstOrDefault();
-            _logger.LogDebug("Rate limit: {Limit}", limit);
-        }
+        var remaining = FirstHeader(response, "X-RateLimit-Remaining");
+        var reset = FirstHeader(response, "X-RateLimit-Reset");
 
-        if (response.Headers.TryGetValues("X-RateLimit-Remaining", out var remainingValues))
-        {
-            var remaining = remainingValues.FirstOrDefault();
-            _logger.LogDebug("Rate limit remaining: {Remaining}", remaining);
+        _logger.LogDebug("Rate limit: {Limit}, remaining {Remaining}, reset {Reset}s",
+            FirstHeader(response, "X-RateLimit-Limit"), remaining, reset);
 
-            // Warn if getting low
-            if (int.TryParse(remaining, out var remainingInt) && remainingInt < 10)
-            {
-                _logger.LogWarning("OSM API rate limit running low: {Remaining} requests remaining", remaining);
-            }
-        }
-
-        if (response.Headers.TryGetValues("X-RateLimit-Reset", out var resetValues))
+        // Proactively pause once quota is nearly gone, so the next request waits
+        // for the window to refresh instead of triggering a 429.
+        var pause = OsmRateLimit.GetProactiveDelay(remaining, reset, DateTimeOffset.UtcNow);
+        if (pause is not null)
         {
-            var reset = resetValues.FirstOrDefault();
-            _logger.LogDebug("Rate limit reset in: {Reset} seconds", reset);
-        }
-
-        // Check for rate limit exceeded
-        if (response.StatusCode == System.Net.HttpStatusCode.TooManyRequests)
-        {
-            if (response.Headers.TryGetValues("Retry-After", out var retryAfterValues))
-            {
-                var retryAfter = retryAfterValues.FirstOrDefault();
-                _logger.LogError("OSM API rate limit exceeded. Retry after: {RetryAfter} seconds", retryAfter);
-            }
+            _cooldownUntil = DateTimeOffset.UtcNow + pause.Value;
+            _logger.LogWarning("OSM API rate limit low ({Remaining} left); pausing {Seconds:F0}s until reset",
+                remaining, pause.Value.TotalSeconds);
         }
     }
 
