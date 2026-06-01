@@ -16,6 +16,18 @@ export interface Email {
   extractedBookingRef?: string;
 }
 
+// Mirrors GateCodeStatusEvaluator on the backend. Each value is the precise
+// reason a gate code has — or hasn't — been sent.
+export type GateCodeStatus =
+  | 'sent'
+  | 'not_required'
+  | 'awaiting_confirmation'
+  | 'awaiting_email_sync'
+  | 'no_email'
+  | 'arrival_passed'
+  | 'scheduled'
+  | 'pending';
+
 export interface Booking {
   id: number;
   osmBookingId: string;
@@ -25,7 +37,7 @@ export interface Booking {
   endDate: string;
   status: string;
   gateCodeSentAt?: string | null;
-  gateCodeStatus?: 'sent' | 'not_required' | 'pending';
+  gateCodeStatus?: GateCodeStatus;
 }
 
 // Summary of a linked email as returned by GET /api/bookings/{id}/links

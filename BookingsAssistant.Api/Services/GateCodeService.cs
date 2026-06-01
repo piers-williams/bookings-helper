@@ -67,13 +67,19 @@ public class GateCodeService : BackgroundService
             .Where(d => d.EndDate > windowStart && d.StartDate < windowEnd)
             .ToListAsync(ct);
 
-        // A booking is "covered" if any duty overlaps with the booking's arrival day
+        // A booking is sendable exactly when the shared evaluator says "pending".
+        // The DB query above already enforces the other conditions, so the
+        // evaluator only distinguishes covered-by-duty here — but routing through
+        // it guarantees the dashboard's reason and the sender never disagree.
         var bookings = candidates
             .Where(b =>
             {
                 var arrivalDayStart = b.StartDate.Date;
                 var arrivalDayEnd = arrivalDayStart.AddDays(1);
-                return !duties.Any(d => d.StartDate < arrivalDayEnd && d.EndDate > arrivalDayStart);
+                var coveredByDuty = duties.Any(d => d.StartDate < arrivalDayEnd && d.EndDate > arrivalDayStart);
+                return GateCodeStatusEvaluator.Evaluate(
+                    b.Status, b.StartDate, b.GateCodeSentAt, b.CustomerEmailHash,
+                    coveredByDuty, now, daysBefore) == GateCodeStatusEvaluator.Pending;
             })
             .ToList();
 

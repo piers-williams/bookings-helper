@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { bookingsApi, emailsApi, syncApi } from '../services/apiClient';
 import apiClient from '../services/apiClient';
-import type { Booking, BookingStats, Email } from '../types';
+import type { Booking, BookingStats, Email, GateCodeStatus } from '../types';
 
 interface StatCardProps {
   label: string;
@@ -18,6 +18,30 @@ function StatCard({ label, value, colorClass }: StatCardProps) {
       </p>
     </div>
   );
+}
+
+// Maps each gate-code status to a badge label and colour. Red == needs
+// attention (a code is due but something is blocking it).
+function gateCodeBadge(status: GateCodeStatus | undefined): { label: string; className: string } {
+  switch (status) {
+    case 'sent':
+      return { label: 'Gate code sent', className: 'bg-emerald-100 text-emerald-800' };
+    case 'not_required':
+      return { label: 'Wardens on site', className: 'bg-gray-100 text-gray-600' };
+    case 'scheduled':
+      return { label: 'Gate code scheduled', className: 'bg-blue-100 text-blue-800' };
+    case 'awaiting_confirmation':
+      return { label: 'Awaiting confirmation', className: 'bg-yellow-100 text-yellow-800' };
+    case 'awaiting_email_sync':
+      return { label: 'Email not synced yet', className: 'bg-red-100 text-red-800' };
+    case 'no_email':
+      return { label: 'No customer email', className: 'bg-red-100 text-red-800' };
+    case 'arrival_passed':
+      return { label: 'Not sent — arrival passed', className: 'bg-red-100 text-red-800' };
+    case 'pending':
+    default:
+      return { label: 'Gate code pending', className: 'bg-orange-100 text-orange-800' };
+  }
 }
 
 function formatLastSynced(iso: string | null): string {
@@ -189,7 +213,7 @@ export default function Dashboard() {
                         : ` — in ${daysUntil} days`}
                     </p>
                   </div>
-                  <div className="flex items-center gap-3 ml-4 flex-shrink-0">
+                  <div className="flex items-center ml-4 flex-shrink-0">
                     <span className={`px-2 py-1 text-xs rounded ${
                       booking.status === 'Provisional'
                         ? 'bg-yellow-100 text-yellow-800'
@@ -197,19 +221,14 @@ export default function Dashboard() {
                     }`}>
                       {booking.status}
                     </span>
-                    <span className={`px-2 py-1 text-xs rounded ${
-                      booking.gateCodeStatus === 'sent'
-                        ? 'bg-emerald-100 text-emerald-800'
-                        : booking.gateCodeStatus === 'not_required'
-                        ? 'bg-gray-100 text-gray-600'
-                        : 'bg-orange-100 text-orange-800'
-                    }`}>
-                      {booking.gateCodeStatus === 'sent'
-                        ? 'Gate code sent'
-                        : booking.gateCodeStatus === 'not_required'
-                        ? 'Wardens on site'
-                        : 'Gate code pending'}
-                    </span>
+                    {(() => {
+                      const badge = gateCodeBadge(booking.gateCodeStatus);
+                      return (
+                        <span className={`ml-2 px-2 py-1 text-xs rounded ${badge.className}`}>
+                          {badge.label}
+                        </span>
+                      );
+                    })()}
                   </div>
                 </a>
               );

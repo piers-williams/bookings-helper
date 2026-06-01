@@ -13,14 +13,16 @@ public class BookingsController : ControllerBase
     private readonly ILinkingService _linkingService;
     private readonly ApplicationDbContext _context;
     private readonly IOsmService _osmService;
+    private readonly IConfiguration _configuration;
     private readonly ILogger<BookingsController> _logger;
 
     public BookingsController(ILinkingService linkingService, ApplicationDbContext context,
-        IOsmService osmService, ILogger<BookingsController> logger)
+        IOsmService osmService, IConfiguration configuration, ILogger<BookingsController> logger)
     {
         _linkingService = linkingService;
         _context = context;
         _osmService = osmService;
+        _configuration = configuration;
         _logger = logger;
     }
 
@@ -32,9 +34,33 @@ public class BookingsController : ControllerBase
         if (!string.IsNullOrEmpty(status))
             query = query.Where(b => b.Status.ToLower() == status.ToLower());
 
-        var bookings = await query
+        // CustomerEmailHash is fetched only to derive the gate-code status (it is
+        // never exposed in the DTO — it's a PII matching hash).
+        var rows = await query
             .OrderBy(b => b.StartDate)
-            .Select(b => new BookingDto
+            .Select(b => new
+            {
+                b.Id,
+                b.OsmBookingId,
+                b.CustomerName,
+                b.StartDate,
+                b.EndDate,
+                b.Status,
+                b.GateCodeSentAt,
+                b.CustomerEmailHash
+            })
+            .ToListAsync();
+
+        var duties = await _context.SiteDuties.ToListAsync();
+        var now = DateTime.UtcNow;
+        var daysBefore = _configuration.GetValue("GateCode:DaysBefore", 2);
+
+        var bookings = rows.Select(b =>
+        {
+            var coveredByDuty = duties.Any(d =>
+                d.StartDate < b.StartDate.Date.AddDays(1) && d.EndDate > b.StartDate.Date);
+
+            return new BookingDto
             {
                 Id = b.Id,
                 OsmBookingId = b.OsmBookingId,
@@ -42,21 +68,12 @@ public class BookingsController : ControllerBase
                 StartDate = b.StartDate,
                 EndDate = b.EndDate,
                 Status = b.Status,
-                GateCodeSentAt = b.GateCodeSentAt
-            })
-            .ToListAsync();
-
-        var duties = await _context.SiteDuties.ToListAsync();
-
-        foreach (var b in bookings)
-        {
-            if (b.GateCodeSentAt != null)
-                b.GateCodeStatus = "sent";
-            else if (duties.Any(d => d.StartDate < b.StartDate.Date.AddDays(1) && d.EndDate > b.StartDate.Date))
-                b.GateCodeStatus = "not_required";
-            else
-                b.GateCodeStatus = "pending";
-        }
+                GateCodeSentAt = b.GateCodeSentAt,
+                GateCodeStatus = GateCodeStatusEvaluator.Evaluate(
+                    b.Status, b.StartDate, b.GateCodeSentAt, b.CustomerEmailHash,
+                    coveredByDuty, now, daysBefore)
+            };
+        }).ToList();
 
         return Ok(bookings);
     }
