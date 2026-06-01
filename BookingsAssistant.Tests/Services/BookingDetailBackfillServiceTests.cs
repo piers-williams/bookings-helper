@@ -40,16 +40,12 @@ public class BookingDetailBackfillServiceTests
         => new(provider.GetRequiredService<IServiceScopeFactory>(),
                NullLogger<BookingDetailBackfillService>.Instance);
 
-    private static string EmailDetailsJson(string email) => $$"""
-        { "data": [ { "label": "Contact email", "value": "{{email}}" } ] }
-        """;
-
     [Fact]
-    public async Task RunBatch_ResolvesAndHashesEmail_FromArrayShapedDetails()
+    public async Task RunBatch_HashesResolvedContactEmail()
     {
         var (provider, osm) = CreateServices();
         var today = DateTime.UtcNow.Date;
-        osm.DetailsJsonByBookingId["10"] = EmailDetailsJson("scout@example.com");
+        osm.ContactEmailByBookingId["10"] = "scout@example.com";
 
         using (var scope = provider.CreateScope())
         {
@@ -74,11 +70,10 @@ public class BookingDetailBackfillServiceTests
     }
 
     [Fact]
-    public async Task RunBatch_SetsNoEmailSentinel_WhenDetailsHaveNoEmail()
+    public async Task RunBatch_SetsNoEmailSentinel_WhenNoContactEmailResolves()
     {
-        var (provider, osm) = CreateServices();
+        var (provider, _) = CreateServices();
         var today = DateTime.UtcNow.Date;
-        osm.DetailsJsonByBookingId["20"] = """{ "data": [ { "label": "Group name", "value": "Beavers" } ] }""";
 
         using (var scope = provider.CreateScope())
         {
@@ -130,7 +125,7 @@ public class BookingDetailBackfillServiceTests
             });
             await db.SaveChangesAsync();
         }
-        osm.DetailsJsonByBookingId["imminent"] = EmailDetailsJson("tomorrow@example.com");
+        osm.ContactEmailByBookingId["imminent"] = "tomorrow@example.com";
 
         await CreateService(provider).RunBatchAsync(CancellationToken.None);
 
@@ -141,69 +136,5 @@ public class BookingDetailBackfillServiceTests
             Assert.NotNull(imminent.CustomerEmailHash);
             Assert.NotEqual("no-email", imminent.CustomerEmailHash);
         }
-    }
-
-    // Regression: the OSM items endpoint returns { "data": [ ... ] } where `data`
-    // is an Array. ExtractEmail must not throw InvalidOperationException when it
-    // calls TryGetProperty on a non-Object element.
-    [Fact]
-    public void ExtractEmail_WhenDataIsArray_DoesNotThrowAndFindsEmailByLabel()
-    {
-        var json = """
-        {
-            "data": [
-                { "label": "Customer name", "value": "Jane Smith" },
-                { "label": "Contact email", "value": "jane@example.com" }
-            ]
-        }
-        """;
-
-        var email = BookingDetailBackfillService.ExtractEmail(json);
-
-        Assert.Equal("jane@example.com", email);
-    }
-
-    [Fact]
-    public void ExtractEmail_WhenDataIsObjectWithContact_ReturnsEmail()
-    {
-        var json = """
-        { "data": { "contact": { "email": "bob@example.com" } } }
-        """;
-
-        var email = BookingDetailBackfillService.ExtractEmail(json);
-
-        Assert.Equal("bob@example.com", email);
-    }
-
-    [Fact]
-    public void ExtractEmail_WhenNoEmailPresent_ReturnsNull()
-    {
-        var json = """
-        { "data": [ { "label": "Customer name", "value": "Jane Smith" } ] }
-        """;
-
-        var email = BookingDetailBackfillService.ExtractEmail(json);
-
-        Assert.Null(email);
-    }
-
-    [Fact]
-    public void ExtractEmail_WhenDataIsArrayWithNonObjectItems_DoesNotThrow()
-    {
-        var json = """
-        { "data": [ "just-a-string", 42, null ] }
-        """;
-
-        var email = BookingDetailBackfillService.ExtractEmail(json);
-
-        Assert.Null(email);
-    }
-
-    [Fact]
-    public void ExtractEmail_WhenInvalidJson_ReturnsNull()
-    {
-        var email = BookingDetailBackfillService.ExtractEmail("not json");
-
-        Assert.Null(email);
     }
 }

@@ -1,5 +1,6 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using System.Text.RegularExpressions;
 using BookingsAssistant.Api.Models;
 
 namespace BookingsAssistant.Api.Services;
@@ -256,6 +257,47 @@ internal class OsmService : IOsmService
             _logger.LogError(ex, "Error sending gate code email for booking {BookingId}", osmBookingId);
             return false;
         }
+    }
+
+    public async Task<string?> GetBookingContactEmailAsync(string osmBookingId)
+    {
+        try
+        {
+            // Same path the sender uses, so we resolve exactly the address that
+            // would be emailed. The booking "items" endpoint has no contact data.
+            var memberId = await GetBookingMemberIdAsync(osmBookingId);
+            if (memberId == null) return null;
+
+            var emailsJson = await ResolveContactEmailsAsync(memberId);
+            if (emailsJson == null) return null;
+
+            var email = ExtractFirstEmail(emailsJson);
+            if (email == null)
+                // Never log the raw response — it contains PII.
+                _logger.LogWarning("Backfill: contacts response for booking {BookingId} had no extractable email (length {Length})",
+                    osmBookingId, emailsJson.Length);
+            return email;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Error resolving contact email for booking {BookingId}", osmBookingId);
+            return null;
+        }
+    }
+
+    private static readonly Regex EmailRegex = new(
+        @"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}", RegexOptions.Compiled);
+
+    /// <summary>
+    /// Extracts the first email address from the contacts JSON. The endpoint is
+    /// scoped to the primary campsite contact, so the first match is that
+    /// address — structure-agnostic, since OSM's exact shape isn't documented.
+    /// </summary>
+    internal static string? ExtractFirstEmail(string? json)
+    {
+        if (string.IsNullOrWhiteSpace(json)) return null;
+        var match = EmailRegex.Match(json);
+        return match.Success ? match.Value : null;
     }
 
     public string GetAuthorizationUrl(string redirectUri)
