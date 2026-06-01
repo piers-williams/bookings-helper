@@ -34,18 +34,24 @@ public class BookingDetailBackfillService : BackgroundService
         }
     }
 
-    private async Task RunBatchAsync(CancellationToken ct)
+    public async Task RunBatchAsync(CancellationToken ct)
     {
         using var scope = _scopeFactory.CreateScope();
         var context  = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
         var osm      = scope.ServiceProvider.GetRequiredService<IOsmService>();
         var hashing  = scope.ServiceProvider.GetRequiredService<IHashingService>();
 
+        // Process soonest-arriving bookings first. A code is needed before
+        // arrival, so an imminent booking must resolve its email ahead of the
+        // backlog — ordering by Id (insertion order) would leave new bookings
+        // at the back of the queue and risk missing their gate-code window.
+        var today = DateTime.UtcNow.Date;
         var bookings = await context.OsmBookings
             .Where(b => b.CustomerEmailHash == null
                      && b.Status != "Past"
                      && b.Status != "Cancelled")
-            .OrderBy(b => b.Id)
+            .OrderByDescending(b => b.StartDate >= today)
+            .ThenBy(b => b.StartDate)
             .Take(BatchSize)
             .ToListAsync(ct);
 

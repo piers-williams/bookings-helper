@@ -8,6 +8,7 @@ public class FakeOsmService : IOsmService
     public List<BookingDto> BookingsToReturn { get; set; } = new();
     public List<BookingDto>? ConfirmedBookingsToReturn { get; set; }
     public Dictionary<string, List<CommentDto>> CommentsByBookingId { get; } = new();
+    public Dictionary<string, string> DetailsJsonByBookingId { get; } = new();
     public CommentDto? CommentToReturn { get; set; }
     public bool ShouldFailSend { get; set; }
 
@@ -27,7 +28,10 @@ public class FakeOsmService : IOsmService
         var comments = CommentsByBookingId.TryGetValue(osmBookingId, out var list)
             ? list
             : new List<CommentDto>();
-        return Task.FromResult((string.Empty, comments));
+        var details = DetailsJsonByBookingId.TryGetValue(osmBookingId, out var json)
+            ? json
+            : string.Empty;
+        return Task.FromResult((details, comments));
     }
 
     public Task<CommentDto?> PostCommentAsync(string osmBookingId, string comment)
