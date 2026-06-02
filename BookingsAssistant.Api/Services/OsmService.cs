@@ -356,10 +356,24 @@ internal class OsmService : IOsmService
         var content = await response.Content.ReadAsStringAsync();
         using var doc = JsonDocument.Parse(content);
 
-        if (doc.RootElement.TryGetProperty("data", out var data) &&
-            data.TryGetProperty("member_id", out var memberId))
+        if (doc.RootElement.TryGetProperty("data", out var data) && data.ValueKind == JsonValueKind.Object)
         {
-            return memberId.ToString();
+            // Diagnostic: list the id-like fields on the booking so we can confirm
+            // which identifier the contacts/email API expects (ids only, PII-safe).
+            static bool LooksLikeId(string n) =>
+                n.Equals("id", StringComparison.OrdinalIgnoreCase) ||
+                n.EndsWith("_id", StringComparison.OrdinalIgnoreCase) ||
+                n.Contains("member", StringComparison.OrdinalIgnoreCase) ||
+                n.Contains("scout", StringComparison.OrdinalIgnoreCase) ||
+                n.Contains("contact", StringComparison.OrdinalIgnoreCase);
+            var idFields = data.EnumerateObject()
+                .Where(p => LooksLikeId(p.Name) &&
+                            p.Value.ValueKind is JsonValueKind.Number or JsonValueKind.String)
+                .Select(p => $"{p.Name}={p.Value}");
+            _logger.LogInformation("Booking {BookingId} detail id-fields: {Ids}", osmBookingId, string.Join(", ", idFields));
+
+            if (data.TryGetProperty("member_id", out var memberId))
+                return memberId.ToString();
         }
 
         if (doc.RootElement.TryGetProperty("member_id", out var rootMemberId))
@@ -381,10 +395,9 @@ internal class OsmService : IOsmService
             req.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
             req.Content = new FormUrlEncodedContent(new Dictionary<string, string>
             {
-                // The email can live on the member's own record or a parent
-                // contact, not only the campsite-specific group — request all
-                // primary contact groups so we find it wherever OSM stores it.
-                ["contactGroups"] = "[\"contact_primary_member\",\"contact_primary_1\",\"contact_primary_2\",\"contact_primary_campsite\"]",
+                // Matches OSM's own send flow (captured HAR): the single primary
+                // campsite contact group, keyed by the member/scout id.
+                ["contactGroups"] = "[\"contact_primary_campsite\"]",
                 ["scouts"] = memberId
             });
             return req;
@@ -400,22 +413,25 @@ internal class OsmService : IOsmService
         var content = await response.Content.ReadAsStringAsync();
         using var doc = JsonDocument.Parse(content);
 
-        // Real shape: { "emails": [ "a@b.com", ... ], "count": N, ... }.
-        if (doc.RootElement.TryGetProperty("emails", out var emails) && emails.ValueKind == JsonValueKind.Array)
+        // Response shape: { "emails": <map>, "count": N, ... }. When populated,
+        // "emails" is an object keyed by member id —
+        //   {"3360824":{...,"emails":["a@b.com"]}} — which is exactly
+        // sendTemplate's "emails" payload. PHP encodes the empty case as []. So
+        // return the raw "emails" object for the sender; callers extract the
+        // address from it. Treat empty as "no email".
+        if (doc.RootElement.TryGetProperty("emails", out var emails))
         {
-            if (emails.GetArrayLength() == 0)
+            var isEmpty = (emails.ValueKind == JsonValueKind.Array && emails.GetArrayLength() == 0)
+                       || (emails.ValueKind == JsonValueKind.Object && !emails.EnumerateObject().Any());
+            if (isEmpty)
             {
-                _logger.LogWarning("getSelectedEmailsFromContacts: no emails for member {MemberId} across primary contact groups", memberId);
+                _logger.LogWarning("getSelectedEmailsFromContacts: no emails for member {MemberId} (contact_primary_campsite)", memberId);
                 return null;
             }
             return emails.GetRawText();
         }
 
-        // Tolerate an older/alternative shape, but never log the raw body (PII).
-        if (doc.RootElement.TryGetProperty("data", out var data))
-            return data.GetRawText();
-
-        _logger.LogWarning("getSelectedEmailsFromContacts: unexpected shape for member {MemberId} (keys: {Keys})",
+        _logger.LogWarning("getSelectedEmailsFromContacts: no 'emails' field for member {MemberId} (keys: {Keys})",
             memberId, string.Join(", ", doc.RootElement.EnumerateObject().Select(p => p.Name)));
         return null;
     }

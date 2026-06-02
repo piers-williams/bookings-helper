@@ -20,6 +20,13 @@ public class OsmServiceEmailExtractionTests
             OsmService.ExtractFirstEmail("""{"value":"first.last+tag@sub.example.co.uk"}"""));
 
     [Fact]
+    public void ExtractFirstEmail_FindsAddressInMemberKeyedObject()
+        // The real OSM shape: emails keyed by member id (as in sendTemplate).
+        => Assert.Equal("prwilliams92@gmail.com",
+            OsmService.ExtractFirstEmail(
+                """{"3360824":{"firstname":"PIERS","lastname":"WILLIAMS","member_id":3360824,"emails":["prwilliams92@gmail.com"]}}"""));
+
+    [Fact]
     public void ExtractFirstEmail_ReturnsNull_WhenNoEmail()
         => Assert.Null(OsmService.ExtractFirstEmail("""{ "data": [], "status": true }"""));
 
