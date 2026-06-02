@@ -385,7 +385,48 @@ internal class OsmService : IOsmService
         return null;
     }
 
+    // OSM stores a member's contact email under several "primary" contact
+    // groups. The send UI queries only the campsite-specific one, which works
+    // for members booked through the camp's own section. External bookers (e.g.
+    // "1st Great Horkesley: Beavers" — booking 155867, member 3217785) have an
+    // empty campsite group but a real address under the lead/member primary
+    // groups. We try the campsite group first (byte-identical to OSM's UI, so
+    // normal bookings are unaffected) and only fall back to the broader set when
+    // it's empty.
+    private const string PrimaryCampsiteGroup = "[\"contact_primary_campsite\"]";
+    private const string AllPrimaryGroups =
+        "[\"contact_primary_campsite\",\"contact_primary_member\",\"contact_primary_1\",\"contact_primary_2\"]";
+
     private async Task<string?> ResolveContactEmailsAsync(string memberId)
+    {
+        // First: exactly what OSM's send UI does.
+        var emails = await QueryContactEmailsAsync(memberId, PrimaryCampsiteGroup);
+        if (emails != null)
+            return emails;
+
+        // Fallback: the campsite group was empty. Widen to the other primary
+        // contact groups, where external bookers' addresses live.
+        emails = await QueryContactEmailsAsync(memberId, AllPrimaryGroups);
+        if (emails != null)
+        {
+            _logger.LogInformation(
+                "getSelectedEmailsFromContacts: resolved member {MemberId} via broader primary groups (campsite group was empty)",
+                memberId);
+            return emails;
+        }
+
+        _logger.LogWarning(
+            "getSelectedEmailsFromContacts: no email for member {MemberId} in any primary contact group", memberId);
+        return null;
+    }
+
+    /// <summary>
+    /// Queries OSM's getSelectedEmailsFromContacts for one member across the
+    /// given contact groups. Returns the raw "emails" payload (an object keyed
+    /// by member id — exactly sendTemplate's "emails" shape) when populated, or
+    /// null when the group(s) hold no address. Never logs the address.
+    /// </summary>
+    private async Task<string?> QueryContactEmailsAsync(string memberId, string contactGroupsJson)
     {
         var response = await SendWithRateLimitAsync(async () =>
         {
@@ -395,9 +436,9 @@ internal class OsmService : IOsmService
             req.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
             req.Content = new FormUrlEncodedContent(new Dictionary<string, string>
             {
-                // Matches OSM's own send flow (captured HAR): the single primary
-                // campsite contact group, keyed by the member/scout id.
-                ["contactGroups"] = "[\"contact_primary_campsite\"]",
+                // Contact group(s) keyed by the member/scout id, matching OSM's
+                // send flow (captured HAR).
+                ["contactGroups"] = contactGroupsJson,
                 ["scouts"] = memberId
             });
             return req;
@@ -423,12 +464,7 @@ internal class OsmService : IOsmService
         {
             var isEmpty = (emails.ValueKind == JsonValueKind.Array && emails.GetArrayLength() == 0)
                        || (emails.ValueKind == JsonValueKind.Object && !emails.EnumerateObject().Any());
-            if (isEmpty)
-            {
-                _logger.LogWarning("getSelectedEmailsFromContacts: no emails for member {MemberId} (contact_primary_campsite)", memberId);
-                return null;
-            }
-            return emails.GetRawText();
+            return isEmpty ? null : emails.GetRawText();
         }
 
         _logger.LogWarning("getSelectedEmailsFromContacts: no 'emails' field for member {MemberId} (keys: {Keys})",
