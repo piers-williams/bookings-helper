@@ -381,7 +381,10 @@ internal class OsmService : IOsmService
             req.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
             req.Content = new FormUrlEncodedContent(new Dictionary<string, string>
             {
-                ["contactGroups"] = "[\"contact_primary_campsite\"]",
+                // The email can live on the member's own record or a parent
+                // contact, not only the campsite-specific group — request all
+                // primary contact groups so we find it wherever OSM stores it.
+                ["contactGroups"] = "[\"contact_primary_member\",\"contact_primary_1\",\"contact_primary_2\",\"contact_primary_campsite\"]",
                 ["scouts"] = memberId
             });
             return req;
@@ -397,11 +400,23 @@ internal class OsmService : IOsmService
         var content = await response.Content.ReadAsStringAsync();
         using var doc = JsonDocument.Parse(content);
 
+        // Real shape: { "emails": [ "a@b.com", ... ], "count": N, ... }.
+        if (doc.RootElement.TryGetProperty("emails", out var emails) && emails.ValueKind == JsonValueKind.Array)
+        {
+            if (emails.GetArrayLength() == 0)
+            {
+                _logger.LogWarning("getSelectedEmailsFromContacts: no emails for member {MemberId} across primary contact groups", memberId);
+                return null;
+            }
+            return emails.GetRawText();
+        }
+
+        // Tolerate an older/alternative shape, but never log the raw body (PII).
         if (doc.RootElement.TryGetProperty("data", out var data))
             return data.GetRawText();
 
-        _logger.LogError("Unexpected getSelectedEmailsFromContacts response for member {MemberId}: {Response}",
-            memberId, content);
+        _logger.LogWarning("getSelectedEmailsFromContacts: unexpected shape for member {MemberId} (keys: {Keys})",
+            memberId, string.Join(", ", doc.RootElement.EnumerateObject().Select(p => p.Name)));
         return null;
     }
 
