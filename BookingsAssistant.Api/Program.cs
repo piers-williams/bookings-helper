@@ -83,6 +83,40 @@ using (var scope = app.Services.CreateScope())
     if (bookingsToHash.Count > 0)
         await context.SaveChangesAsync();
 
+    // One-time fix: versions 0.9.10–0.9.15 resolved the customer email from the
+    // wrong OSM endpoint and wrongly stamped bookings with the "no-email"
+    // sentinel — which the backfill never retries. Clear it once for active
+    // bookings so the corrected resolver (0.9.16+) can populate them. Guarded by
+    // a marker in the persistent keys dir so it runs only once.
+    try
+    {
+        var resetMarker = Path.Combine(keysDir, "email-hash-reset-v1.done");
+        if (!File.Exists(resetMarker))
+        {
+            var stuck = await context.OsmBookings
+                .Where(b => b.CustomerEmailHash == "no-email"
+                         && b.Status != "Past"
+                         && b.Status != "Cancelled")
+                .ToListAsync();
+            foreach (var b in stuck)
+                b.CustomerEmailHash = null;
+            if (stuck.Count > 0)
+                await context.SaveChangesAsync();
+
+            Directory.CreateDirectory(keysDir);
+            await File.WriteAllTextAsync(resetMarker, DateTime.UtcNow.ToString("o"));
+
+            var resetLogger = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
+            resetLogger.LogInformation(
+                "Email-hash reset: cleared 'no-email' on {Count} active bookings for re-resolution", stuck.Count);
+        }
+    }
+    catch (Exception ex)
+    {
+        var resetLogger = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
+        resetLogger.LogWarning(ex, "Email-hash reset step failed (non-fatal)");
+    }
+
     // If OSM tokens are already stored (e.g. after addon update), sync on startup
     try
     {
