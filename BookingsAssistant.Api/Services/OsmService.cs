@@ -265,17 +265,31 @@ internal class OsmService : IOsmService
         {
             // Same path the sender uses, so we resolve exactly the address that
             // would be emailed. The booking "items" endpoint has no contact data.
+            // Each step logs why it failed so we can pinpoint the cause without
+            // leaking PII (we never log the raw response, only its shape).
             var memberId = await GetBookingMemberIdAsync(osmBookingId);
-            if (memberId == null) return null;
+            if (memberId == null)
+            {
+                _logger.LogWarning("Email resolve: no member_id for booking {BookingId}", osmBookingId);
+                return null;
+            }
 
             var emailsJson = await ResolveContactEmailsAsync(memberId);
-            if (emailsJson == null) return null;
+            if (emailsJson == null)
+            {
+                _logger.LogWarning("Email resolve: contacts call returned nothing for booking {BookingId} (member {MemberId})",
+                    osmBookingId, memberId);
+                return null;
+            }
 
             var email = ExtractFirstEmail(emailsJson);
             if (email == null)
-                // Never log the raw response — it contains PII.
-                _logger.LogWarning("Backfill: contacts response for booking {BookingId} had no extractable email (length {Length})",
-                    osmBookingId, emailsJson.Length);
+                // "contains '@'" tells us whether the address is present at all:
+                // true → our extraction missed it; false → the contacts query
+                // (member/contact-group) returned no email to begin with.
+                _logger.LogWarning(
+                    "Email resolve: no email extracted for booking {BookingId} (member {MemberId}, contacts length {Length}, contains '@': {ContainsAt})",
+                    osmBookingId, memberId, emailsJson.Length, emailsJson.Contains('@'));
             return email;
         }
         catch (Exception ex)

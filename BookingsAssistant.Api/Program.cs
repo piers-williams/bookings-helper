@@ -83,14 +83,15 @@ using (var scope = app.Services.CreateScope())
     if (bookingsToHash.Count > 0)
         await context.SaveChangesAsync();
 
-    // One-time fix: versions 0.9.10–0.9.15 resolved the customer email from the
-    // wrong OSM endpoint and wrongly stamped bookings with the "no-email"
-    // sentinel — which the backfill never retries. Clear it once for active
-    // bookings so the corrected resolver (0.9.16+) can populate them. Guarded by
-    // a marker in the persistent keys dir so it runs only once.
+    // One-time fix: earlier versions stamped bookings with the "no-email"
+    // sentinel (first from the wrong OSM endpoint, then from genuine resolver
+    // failures), which the backfill never retries. Clear it once for active
+    // bookings so the now-retryable backfill (0.9.19+) keeps re-resolving them.
+    // Bumped to v2 because v1 ran before the backfill stopped re-stamping
+    // "no-email"; guarded by a marker in the persistent keys dir so it runs once.
     try
     {
-        var resetMarker = Path.Combine(keysDir, "email-hash-reset-v1.done");
+        var resetMarker = Path.Combine(keysDir, "email-hash-reset-v2.done");
         if (!File.Exists(resetMarker))
         {
             var stuck = await context.OsmBookings

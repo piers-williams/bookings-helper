@@ -68,10 +68,11 @@ public class BookingDetailBackfillService : BackgroundService
             {
                 var email = await osm.GetBookingContactEmailAsync(booking.OsmBookingId);
 
-                // "no-email" sentinel prevents retrying bookings that genuinely have no email
-                booking.CustomerEmailHash = email != null
-                    ? hashing.HashValue(email)
-                    : "no-email";
+                // OSM customers must register with an email, so a null result is
+                // a resolution failure, not a genuine absence. Leave the hash null
+                // so it's retried next cycle rather than permanently giving up.
+                if (email != null)
+                    booking.CustomerEmailHash = hashing.HashValue(email);
 
                 if (booking.CustomerNameHash == null)
                     booking.CustomerNameHash = hashing.HashValue(booking.CustomerName);

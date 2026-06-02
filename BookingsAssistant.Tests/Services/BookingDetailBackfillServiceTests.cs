@@ -69,8 +69,10 @@ public class BookingDetailBackfillServiceTests
         }
     }
 
+    // OSM customers always have an email, so a failed resolution is left null
+    // (retried next cycle), not stamped with a permanent sentinel.
     [Fact]
-    public async Task RunBatch_SetsNoEmailSentinel_WhenNoContactEmailResolves()
+    public async Task RunBatch_LeavesHashNull_WhenEmailDoesNotResolve()
     {
         var (provider, _) = CreateServices();
         var today = DateTime.UtcNow.Date;
@@ -92,7 +94,7 @@ public class BookingDetailBackfillServiceTests
         {
             var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
             var booking = await db.OsmBookings.SingleAsync(b => b.OsmBookingId == "20");
-            Assert.Equal("no-email", booking.CustomerEmailHash);
+            Assert.Null(booking.CustomerEmailHash);
         }
     }
 
