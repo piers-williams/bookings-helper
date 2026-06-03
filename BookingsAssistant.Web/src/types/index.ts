@@ -22,8 +22,6 @@ export type GateCodeStatus =
   | 'sent'
   | 'not_required'
   | 'awaiting_confirmation'
-  | 'awaiting_email_sync'
-  | 'no_email'
   | 'arrival_passed'
   | 'scheduled'
   | 'pending';

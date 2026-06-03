@@ -14,20 +14,25 @@ public static class GateCodeStatusEvaluator
     public const string Sent = "sent";
     public const string NotRequired = "not_required";
     public const string AwaitingConfirmation = "awaiting_confirmation";
-    public const string AwaitingEmailSync = "awaiting_email_sync";
-    public const string NoEmail = "no_email";
     public const string ArrivalPassed = "arrival_passed";
     public const string Scheduled = "scheduled";
     public const string Pending = "pending";
 
     /// <summary>
     /// A booking is sendable exactly when this returns <see cref="Pending"/>.
+    ///
+    /// Note: this deliberately does NOT consider whether we've pre-resolved the
+    /// customer's email. Sending is a self-contained OSM workflow keyed off the
+    /// booking id (<see cref="OsmService.SendBookingTemplateEmailAsync"/>), which
+    /// resolves the recipient itself at send time. A booking is "pending" when
+    /// it's eligible by timing/state; if the recipient can't be resolved the send
+    /// fails loudly and is retried next run, rather than the booking being
+    /// silently excluded here.
     /// </summary>
     public static string Evaluate(
         string status,
         DateTime startDate,
         DateTime? gateCodeSentAt,
-        string? customerEmailHash,
         bool coveredByDuty,
         DateTime nowUtc,
         int daysBefore)
@@ -44,19 +49,13 @@ public static class GateCodeStatusEvaluator
         if (!string.Equals(status, "Confirmed", StringComparison.OrdinalIgnoreCase))
             return AwaitingConfirmation;
 
-        // Backfill hasn't populated the customer email hash yet.
-        if (customerEmailHash == null) return AwaitingEmailSync;
-
-        // OSM has no usable email for this booking ("no-email" sentinel).
-        if (customerEmailHash == "no-email") return NoEmail;
-
         // Arrival is in the past but nothing was ever sent.
         if (startDate.Date < nowUtc.Date) return ArrivalPassed;
 
         // Confirmed and ready, but still outside the send window.
         if (startDate > nowUtc.AddDays(daysBefore)) return Scheduled;
 
-        // Within the window, has an email, not covered — sends on the next run.
+        // Within the window, confirmed, not covered — sends on the next run.
         return Pending;
     }
 }

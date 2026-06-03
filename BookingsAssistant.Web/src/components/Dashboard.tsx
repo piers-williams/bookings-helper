@@ -32,10 +32,6 @@ function gateCodeBadge(status: GateCodeStatus | undefined): { label: string; cla
       return { label: 'Gate code scheduled', className: 'bg-blue-100 text-blue-800' };
     case 'awaiting_confirmation':
       return { label: 'Awaiting confirmation', className: 'bg-yellow-100 text-yellow-800' };
-    case 'awaiting_email_sync':
-      return { label: 'Email not synced yet', className: 'bg-red-100 text-red-800' };
-    case 'no_email':
-      return { label: 'No customer email', className: 'bg-red-100 text-red-800' };
     case 'arrival_passed':
       return { label: 'Not sent — arrival passed', className: 'bg-red-100 text-red-800' };
     case 'pending':

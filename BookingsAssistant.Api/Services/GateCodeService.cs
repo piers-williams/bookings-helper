@@ -44,13 +44,16 @@ public class GateCodeService : BackgroundService
         var cutoff = DateTime.UtcNow.AddDays(daysBefore);
         var now = DateTime.UtcNow;
 
+        // Eligibility is purely about timing and state. We do NOT require a
+        // pre-resolved email here: SendBookingTemplateEmailAsync resolves the
+        // recipient from the booking id itself, so a booking whose email the
+        // backfill couldn't pre-resolve still gets a real send attempt (and a
+        // loud failure + retry) rather than being silently excluded.
         var candidates = await context.OsmBookings
             .Where(b => b.Status == "Confirmed"
                      && b.StartDate <= cutoff
                      && b.StartDate >= now.Date
-                     && b.GateCodeSentAt == null
-                     && b.CustomerEmailHash != null
-                     && b.CustomerEmailHash != "no-email")
+                     && b.GateCodeSentAt == null)
             .OrderBy(b => b.StartDate)
             .ToListAsync(ct);
 
@@ -78,7 +81,7 @@ public class GateCodeService : BackgroundService
                 var arrivalDayEnd = arrivalDayStart.AddDays(1);
                 var coveredByDuty = duties.Any(d => d.StartDate < arrivalDayEnd && d.EndDate > arrivalDayStart);
                 return GateCodeStatusEvaluator.Evaluate(
-                    b.Status, b.StartDate, b.GateCodeSentAt, b.CustomerEmailHash,
+                    b.Status, b.StartDate, b.GateCodeSentAt,
                     coveredByDuty, now, daysBefore) == GateCodeStatusEvaluator.Pending;
             })
             .ToList();

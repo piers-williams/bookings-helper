@@ -11,13 +11,11 @@ public class GateCodeStatusEvaluatorTests
         string status = "Confirmed",
         DateTime? startDate = null,
         DateTime? gateCodeSentAt = null,
-        string? customerEmailHash = "hash",
         bool coveredByDuty = false)
         => GateCodeStatusEvaluator.Evaluate(
             status,
             startDate ?? Now.Date.AddDays(1),
             gateCodeSentAt,
-            customerEmailHash,
             coveredByDuty,
             Now,
             DaysBefore);
@@ -38,24 +36,9 @@ public class GateCodeStatusEvaluatorTests
             Evaluate(coveredByDuty: true));
 
     [Fact]
-    public void WhenCoveredByDuty_TakesPriorityOverMissingEmail()
-        => Assert.Equal(GateCodeStatusEvaluator.NotRequired,
-            Evaluate(coveredByDuty: true, customerEmailHash: null));
-
-    [Fact]
     public void WhenNotConfirmed_ReturnsAwaitingConfirmation()
         => Assert.Equal(GateCodeStatusEvaluator.AwaitingConfirmation,
             Evaluate(status: "Provisional"));
-
-    [Fact]
-    public void WhenEmailHashNull_ReturnsAwaitingEmailSync()
-        => Assert.Equal(GateCodeStatusEvaluator.AwaitingEmailSync,
-            Evaluate(customerEmailHash: null));
-
-    [Fact]
-    public void WhenEmailHashIsNoEmailSentinel_ReturnsNoEmail()
-        => Assert.Equal(GateCodeStatusEvaluator.NoEmail,
-            Evaluate(customerEmailHash: "no-email"));
 
     [Fact]
     public void WhenArrivalInPast_ReturnsArrivalPassed()
@@ -68,7 +51,7 @@ public class GateCodeStatusEvaluatorTests
             Evaluate(startDate: Now.Date.AddDays(5)));
 
     [Fact]
-    public void WhenWithinWindowConfirmedAndHasEmail_ReturnsPending()
+    public void WhenWithinWindowAndConfirmed_ReturnsPending()
         => Assert.Equal(GateCodeStatusEvaluator.Pending,
             Evaluate(startDate: Now.Date.AddDays(1)));
 

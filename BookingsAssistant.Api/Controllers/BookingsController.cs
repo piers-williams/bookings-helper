@@ -34,8 +34,6 @@ public class BookingsController : ControllerBase
         if (!string.IsNullOrEmpty(status))
             query = query.Where(b => b.Status.ToLower() == status.ToLower());
 
-        // CustomerEmailHash is fetched only to derive the gate-code status (it is
-        // never exposed in the DTO — it's a PII matching hash).
         var rows = await query
             .OrderBy(b => b.StartDate)
             .Select(b => new
@@ -46,8 +44,7 @@ public class BookingsController : ControllerBase
                 b.StartDate,
                 b.EndDate,
                 b.Status,
-                b.GateCodeSentAt,
-                b.CustomerEmailHash
+                b.GateCodeSentAt
             })
             .ToListAsync();
 
@@ -70,7 +67,7 @@ public class BookingsController : ControllerBase
                 Status = b.Status,
                 GateCodeSentAt = b.GateCodeSentAt,
                 GateCodeStatus = GateCodeStatusEvaluator.Evaluate(
-                    b.Status, b.StartDate, b.GateCodeSentAt, b.CustomerEmailHash,
+                    b.Status, b.StartDate, b.GateCodeSentAt,
                     coveredByDuty, now, daysBefore)
             };
         }).ToList();

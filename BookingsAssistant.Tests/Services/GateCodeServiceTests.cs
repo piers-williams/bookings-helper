@@ -159,8 +159,12 @@ public class GateCodeServiceTests
     }
 
     [Fact]
-    public async Task SkipsBooking_WhenNoEmail()
+    public async Task AttemptsSend_RegardlessOfPreResolvedEmailHash()
     {
+        // The send is a self-contained OSM workflow that resolves the recipient
+        // itself, so a missing/"no-email" pre-resolved hash must NOT exclude an
+        // otherwise-eligible booking — it gets a real attempt (and would fail
+        // loudly + retry if OSM truly has no address).
         var fakeOsm = new FakeOsmService();
         var (provider, _) = CreateServices(fakeOsm);
         var today = DateTime.UtcNow.Date;
@@ -171,7 +175,7 @@ public class GateCodeServiceTests
             db.OsmBookings.AddRange(
                 new OsmBooking
                 {
-                    OsmBookingId = "500", CustomerName = "No Email Group",
+                    OsmBookingId = "500", CustomerName = "No Email Sentinel Group",
                     Status = "Confirmed",
                     StartDate = today.AddDays(1), EndDate = today.AddDays(3),
                     CustomerEmailHash = "no-email",
@@ -191,7 +195,9 @@ public class GateCodeServiceTests
         var service = CreateService(provider);
         await service.ProcessPendingBookingsAsync(CancellationToken.None);
 
-        Assert.Empty(fakeOsm.EmailsSent);
+        Assert.Equal(2, fakeOsm.EmailsSent.Count);
+        Assert.Contains("500", fakeOsm.EmailsSent);
+        Assert.Contains("501", fakeOsm.EmailsSent);
     }
 
     [Fact]
