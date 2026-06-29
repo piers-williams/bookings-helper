@@ -93,3 +93,16 @@ export interface BookingStats {
   provisional: number;
   lastSynced: string | null;
 }
+
+export interface BookingItem {
+  itemId: string;
+  /** "site" or "activity" */
+  type: string;
+  siteId?: string;
+  activityId?: string;
+  startDate?: string;
+  endDate?: string;
+  startTime?: string;
+  endTime?: string;
+  label: string;
+}

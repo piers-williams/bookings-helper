@@ -337,6 +337,39 @@ internal class OsmService : IOsmService
         }
     }
 
+    public async Task<List<BookingItemDto>> GetBookingItemsAsync(string osmBookingId)
+    {
+        var url = $"/v3/campsites/{_campsiteId}/items?booking_id={osmBookingId}&mode=booking&audience=venue";
+
+        _logger.LogInformation("Fetching OSM items for booking {BookingId}", osmBookingId);
+
+        var response = await SendWithRateLimitAsync(async () =>
+        {
+            var token = await GetAccessTokenAsync();
+            var req = new HttpRequestMessage(HttpMethod.Get, url);
+            req.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
+            return req;
+        });
+
+        if (!response.IsSuccessStatusCode)
+        {
+            _logger.LogError("OSM items endpoint returned {StatusCode} for booking {BookingId}",
+                response.StatusCode, osmBookingId);
+
+            if (response.StatusCode == System.Net.HttpStatusCode.Unauthorized)
+                throw new InvalidOperationException($"OSM authentication failed fetching items for booking {osmBookingId}");
+
+            return new List<BookingItemDto>();
+        }
+
+        var content = await response.Content.ReadAsStringAsync();
+
+        // DEFERRED SEAM: parsing the real OSM items response into BookingItemDto is
+        // pending example data from a live response. Do not implement until the
+        // shape is confirmed. The controller maps this to HTTP 501.
+        throw new NotImplementedException("OSM item parsing not yet wired — pending example data");
+    }
+
     private async Task<string?> GetBookingMemberIdAsync(string osmBookingId)
     {
         var response = await SendWithRateLimitAsync(async () =>

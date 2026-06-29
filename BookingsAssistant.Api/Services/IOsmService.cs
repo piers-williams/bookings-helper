@@ -22,6 +22,14 @@ public interface IOsmService
     /// </summary>
     Task<string?> GetBookingContactEmailAsync(string osmBookingId);
 
+    // Items
+    /// <summary>
+    /// Fetches the line-items (sites and activities) for a booking.
+    /// NOTE: OSM item parsing is a deferred seam — the implementation throws
+    /// NotImplementedException until real response data is available to wire it up.
+    /// </summary>
+    Task<List<BookingItemDto>> GetBookingItemsAsync(string osmBookingId);
+
     // Auth
     string GetAuthorizationUrl(string redirectUri);
     Task<bool> HandleOAuthCallbackAsync(string code, int userId, string redirectUri);

@@ -2,6 +2,7 @@ import axios from 'axios';
 import type {
   Booking,
   BookingDetail,
+  BookingItem,
   Email,
   Link,
   CreateLinkRequest,
@@ -67,6 +68,11 @@ export const bookingsApi = {
 
   postComment: async (id: number, comment: string): Promise<void> => {
     await apiClient.post(`/bookings/${id}/comments`, { comment });
+  },
+
+  getItems: async (id: number): Promise<BookingItem[]> => {
+    const response = await apiClient.get<BookingItem[]>(`/bookings/${id}/items`);
+    return response.data;
   },
 };
 

@@ -52,6 +52,17 @@ public class FakeOsmService : IOsmService
     public Task<string?> GetBookingContactEmailAsync(string osmBookingId)
         => Task.FromResult(ContactEmailByBookingId.TryGetValue(osmBookingId, out var email) ? email : null);
 
+    // Items
+    public List<BookingItemDto> ItemsToReturn { get; set; } = new();
+    public bool ThrowNotImplementedForItems { get; set; }
+
+    public Task<List<BookingItemDto>> GetBookingItemsAsync(string osmBookingId)
+    {
+        if (ThrowNotImplementedForItems)
+            throw new NotImplementedException("OSM item parsing not yet wired — pending example data");
+        return Task.FromResult(ItemsToReturn);
+    }
+
     public string GetAuthorizationUrl(string redirectUri)
     {
         return string.Empty;

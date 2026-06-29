@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { bookingsApi } from '../services/apiClient';
-import type { BookingDetail as BookingDetailType } from '../types';
+import type { BookingDetail as BookingDetailType, BookingItem } from '../types';
 
 export default function BookingDetail() {
   const { id } = useParams<{ id: string }>();
@@ -12,6 +12,9 @@ export default function BookingDetail() {
   const [newComment, setNewComment] = useState('');
   const [posting, setPosting] = useState(false);
   const [postError, setPostError] = useState<string | null>(null);
+  const [items, setItems] = useState<BookingItem[] | null>(null);
+  const [itemsLoading, setItemsLoading] = useState(false);
+  const [itemsUnavailable, setItemsUnavailable] = useState(false);
 
   useEffect(() => {
     const fetchBooking = async () => {
@@ -30,6 +33,31 @@ export default function BookingDetail() {
     };
 
     fetchBooking();
+  }, [id]);
+
+  useEffect(() => {
+    const fetchItems = async () => {
+      if (!id) return;
+      setItemsLoading(true);
+      setItemsUnavailable(false);
+      try {
+        const data = await bookingsApi.getItems(parseInt(id));
+        setItems(data);
+      } catch (err: unknown) {
+        // 501 = OSM parsing seam not yet wired; show graceful message rather than crashing
+        const status = (err as { response?: { status?: number } })?.response?.status;
+        if (status === 501) {
+          setItemsUnavailable(true);
+        } else {
+          setItemsUnavailable(true);
+          console.error('Failed to load items', err);
+        }
+      } finally {
+        setItemsLoading(false);
+      }
+    };
+
+    fetchItems();
   }, [id]);
 
   const handlePostComment = async () => {
@@ -208,6 +236,49 @@ export default function BookingDetail() {
           </div>
         ) : (
           <p className="text-gray-500">No emails linked to this booking.</p>
+        )}
+      </div>
+
+      {/* Items */}
+      <div className="bg-white rounded-lg shadow p-6 mb-6">
+        <h2 className="text-xl font-semibold text-gray-800 mb-4">Items</h2>
+        {itemsLoading ? (
+          <p className="text-gray-500">Loading items...</p>
+        ) : itemsUnavailable ? (
+          <p className="text-gray-400 italic">Items not available yet.</p>
+        ) : items && items.length > 0 ? (
+          <div className="space-y-3">
+            {items.map((item) => (
+              <div key={item.itemId} className="p-4 border border-gray-200 rounded bg-gray-50">
+                <div className="flex items-center gap-2 mb-1">
+                  <span className={`px-2 py-0.5 rounded text-xs font-medium ${
+                    item.type === 'site' ? 'bg-green-100 text-green-800' : 'bg-purple-100 text-purple-800'
+                  }`}>
+                    {item.type}
+                  </span>
+                  <span className="font-semibold text-gray-800">{item.label}</span>
+                </div>
+                <div className="text-sm text-gray-600 space-y-0.5">
+                  {item.siteId && <div>Site: {item.siteId}</div>}
+                  {item.activityId && <div>Activity: {item.activityId}</div>}
+                  {item.startDate && (
+                    <div>
+                      Start: {new Date(item.startDate).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
+                      {item.startTime && ` at ${item.startTime}`}
+                    </div>
+                  )}
+                  {item.endDate && (
+                    <div>
+                      End: {new Date(item.endDate).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
+                      {item.endTime && ` at ${item.endTime}`}
+                    </div>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <p className="text-gray-500">No items on this booking.</p>
         )}
       </div>
 
