@@ -391,6 +391,26 @@ internal class OsmService : IOsmService
         return ParseDeleteSucceeded(json);
     }
 
+    public async Task<List<AvailableSiteDto>> GetAvailableSitesAsync(string osmBookingId)
+    {
+        // The bookable site/pitch catalogue comes from the same /items catalogue endpoint
+        // (the item-type tree), filtered to the site categories. See ParseAvailableSites.
+        var url = $"/v3/campsites/{_campsiteId}/items?booking_id={Uri.EscapeDataString(osmBookingId)}&mode=booking&audience=venue";
+
+        var response = await SendAuthorizedAsync(HttpMethod.Get, url, null);
+        if (!response.IsSuccessStatusCode)
+        {
+            if (response.StatusCode == System.Net.HttpStatusCode.Unauthorized)
+                throw new InvalidOperationException($"OSM authentication failed fetching sites for booking {osmBookingId}");
+
+            _logger.LogError("OSM catalogue endpoint returned {StatusCode} for booking {BookingId}",
+                response.StatusCode, osmBookingId);
+            return new List<AvailableSiteDto>();
+        }
+
+        return ParseAvailableSites(await response.Content.ReadAsStringAsync());
+    }
+
     private async Task ReplayQuestionAnswersAsync(string itemId, IReadOnlyDictionary<int, string> answersByDefId)
     {
         try
@@ -652,6 +672,62 @@ internal class OsmService : IOsmService
                     Answer = GetString(q, "answer") ?? string.Empty
                 });
         return list;
+    }
+
+    /// <summary>
+    /// Parses the OSM item-type catalogue (GET /v3/campsites/{id}/items?mode=booking) into the bookable
+    /// sites/pitches: the leaf item-types (nodes that are not themselves parents) under the "Campsites" and
+    /// "Indoor Accommodation" categories. Category nodes and the (separate) "Activities" tree are excluded.
+    /// Pure/static for testing.
+    /// </summary>
+    internal static List<AvailableSiteDto> ParseAvailableSites(string? catalogueJson)
+    {
+        var sites = new List<AvailableSiteDto>();
+        if (string.IsNullOrWhiteSpace(catalogueJson)) return sites;
+
+        using var doc = JsonDocument.Parse(catalogueJson);
+        if (!doc.RootElement.TryGetProperty("data", out var data) || data.ValueKind != JsonValueKind.Array)
+            return sites;
+
+        // First pass: index nodes by id, group children by parent, find the site category roots
+        // (by name), and record which ids are themselves parents (i.e. categories, not leaves).
+        var nameById = new Dictionary<int, string>();
+        var childrenByParent = new Dictionary<int, List<int>>();
+        var parentIds = new HashSet<int>();
+        var siteCategoryIds = new List<int>();
+        foreach (var node in data.EnumerateArray())
+        {
+            var id = GetInt(node, "id");
+            var name = GetString(node, "name") ?? string.Empty;
+            nameById[id] = name;
+            if (node.TryGetProperty("parent_id", out var p) && p.TryGetInt32(out var pid))
+            {
+                parentIds.Add(pid);
+                (childrenByParent.TryGetValue(pid, out var list) ? list : childrenByParent[pid] = new List<int>()).Add(id);
+            }
+            if (name is "Campsites" or "Indoor Accommodation")
+                siteCategoryIds.Add(id);
+        }
+
+        // Walk all descendants of the site categories; the bookable sites are the leaves
+        // (nodes that are not themselves parents of anything). Handles arbitrary nesting depth.
+        var queue = new Queue<int>(siteCategoryIds);
+        var seen = new HashSet<int>(siteCategoryIds);
+        while (queue.Count > 0)
+        {
+            var current = queue.Dequeue();
+            if (!childrenByParent.TryGetValue(current, out var children)) continue;
+            foreach (var child in children)
+            {
+                if (!seen.Add(child)) continue;
+                if (parentIds.Contains(child))
+                    queue.Enqueue(child);   // sub-category — descend
+                else
+                    sites.Add(new AvailableSiteDto { Id = child.ToString(), Name = nameById[child] });
+            }
+        }
+
+        return sites;
     }
 
     /// <summary>Splits an OSM "yyyy-MM-dd HH:mm:ss" timestamp into a date and the "HH:mm" portion of the time.</summary>

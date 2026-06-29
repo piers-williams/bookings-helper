@@ -1,7 +1,26 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { bookingsApi } from '../services/apiClient';
-import type { BookingDetail as BookingDetailType, BookingItem } from '../types';
+import type {
+  AvailableSite,
+  BookingActionResult,
+  BookingDetail as BookingDetailType,
+  BookingItem,
+  ChangeSiteRequest,
+  MoveActivityRequest,
+} from '../types';
+
+type ItemActionKind = 'move-activity' | 'change-site';
+
+/** Tailwind classes for the action result banner, keyed by BookingActionResult.status. */
+function actionBannerClass(status: string): string {
+  switch (status) {
+    case 'completed': return 'bg-green-100 border-green-400 text-green-800';
+    case 'completed_with_warnings': return 'bg-amber-100 border-amber-400 text-amber-800';
+    case 'rolled_back': return 'bg-blue-100 border-blue-400 text-blue-800';
+    default: return 'bg-red-100 border-red-400 text-red-800'; // failed
+  }
+}
 
 export default function BookingDetail() {
   const { id } = useParams<{ id: string }>();
@@ -15,6 +34,23 @@ export default function BookingDetail() {
   const [items, setItems] = useState<BookingItem[] | null>(null);
   const [itemsLoading, setItemsLoading] = useState(false);
   const [itemsUnavailable, setItemsUnavailable] = useState(false);
+
+  // Booking actions (move-dates here; per-item actions added alongside)
+  const [actionInProgress, setActionInProgress] = useState(false);
+  const [actionResult, setActionResult] = useState<BookingActionResult | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
+  const [dayShift, setDayShift] = useState('');
+  const [confirmingMoveDates, setConfirmingMoveDates] = useState(false);
+
+  // Per-item actions (move-activity / change-site)
+  const [availableSites, setAvailableSites] = useState<AvailableSite[]>([]);
+  const [activeItemAction, setActiveItemAction] = useState<{ itemId: string; kind: ItemActionKind } | null>(null);
+  // Confirm-gate flag for whichever per-item action is currently open (only one at a time).
+  const [confirmingItemAction, setConfirmingItemAction] = useState(false);
+  const [newStartDate, setNewStartDate] = useState('');
+  const [newStartTime, setNewStartTime] = useState('');
+  const [newEndTime, setNewEndTime] = useState('');
+  const [newSiteId, setNewSiteId] = useState('');
 
   useEffect(() => {
     const fetchBooking = async () => {
@@ -56,6 +92,14 @@ export default function BookingDetail() {
     fetchItems();
   }, [id]);
 
+  useEffect(() => {
+    if (!id) return;
+    // Sites for the change-site dropdown; best-effort (empty list disables change-site).
+    bookingsApi.getAvailableSites(parseInt(id))
+      .then(setAvailableSites)
+      .catch(() => setAvailableSites([]));
+  }, [id]);
+
   const handlePostComment = async () => {
     if (!newComment.trim() || !id) return;
     setPosting(true);
@@ -72,6 +116,59 @@ export default function BookingDetail() {
     } finally {
       setPosting(false);
     }
+  };
+
+  // Runs a booking action: shows progress, then renders the result banner and
+  // refreshes the items list in place from the action response (no extra fetch).
+  const runAction = async (fn: () => Promise<BookingActionResult>) => {
+    setActionInProgress(true);
+    setActionError(null);
+    setActionResult(null);
+    try {
+      const result = await fn();
+      setActionResult(result);
+      setItems(result.items);
+    } catch (err) {
+      setActionError('The action could not be completed. Please try again.');
+      console.error(err);
+    } finally {
+      setActionInProgress(false);
+      setConfirmingMoveDates(false);
+      setActiveItemAction(null);
+      setConfirmingItemAction(false);
+    }
+  };
+
+  const handleMoveDates = () => {
+    const shift = parseInt(dayShift, 10);
+    if (!id || Number.isNaN(shift) || shift === 0) return;
+    runAction(() => bookingsApi.moveDates(parseInt(id), { dayShift: shift }));
+  };
+
+  // Opens a per-item form. Always resets the (component-level, shared) form fields so
+  // values from a previously-opened item can't leak into the new form.
+  const openItemAction = (itemId: string, kind: ItemActionKind) => {
+    setActiveItemAction({ itemId, kind });
+    setConfirmingItemAction(false);
+    setNewStartDate('');
+    setNewStartTime('');
+    setNewEndTime('');
+    setNewSiteId('');
+  };
+
+  const handleMoveActivity = (itemId: string) => {
+    if (!id) return;
+    const req: MoveActivityRequest = { itemId };
+    if (newStartDate) req.newStartDate = newStartDate;
+    if (newStartTime) req.newStartTime = newStartTime;
+    if (newEndTime) req.newEndTime = newEndTime;
+    runAction(() => bookingsApi.moveActivity(parseInt(id), req));
+  };
+
+  const handleChangeSite = (itemId: string) => {
+    if (!id || !newSiteId) return;
+    const req: ChangeSiteRequest = { itemId, newSiteId };
+    runAction(() => bookingsApi.changeSite(parseInt(id), req));
   };
 
   if (loading) {
@@ -235,6 +332,68 @@ export default function BookingDetail() {
         )}
       </div>
 
+      {/* Booking Actions */}
+      <div className="bg-white rounded-lg shadow p-6 mb-6">
+        <h2 className="text-xl font-semibold text-gray-800 mb-4">Booking Actions</h2>
+
+        {actionResult && (
+          <div role="status" className={`mb-4 p-3 border rounded ${actionBannerClass(actionResult.status)}`}>
+            {actionResult.message}
+          </div>
+        )}
+        {actionError && (
+          <div role="status" className="mb-4 p-3 border rounded bg-red-100 border-red-400 text-red-800">
+            {actionError}
+          </div>
+        )}
+
+        <div className="border-t pt-4">
+          <label htmlFor="dayShift" className="block text-sm font-medium text-gray-700 mb-1">
+            Shift all booking dates by (days)
+          </label>
+          <div className="flex flex-wrap items-center gap-2">
+            <input
+              id="dayShift"
+              type="number"
+              value={dayShift}
+              onChange={(e) => setDayShift(e.target.value)}
+              disabled={actionInProgress}
+              className="w-24 p-2 border border-gray-300 rounded"
+            />
+            {!confirmingMoveDates ? (
+              <button
+                onClick={() => {
+                  const shift = parseInt(dayShift, 10);
+                  if (!Number.isNaN(shift) && shift !== 0) setConfirmingMoveDates(true);
+                }}
+                disabled={actionInProgress}
+                className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50"
+              >
+                Move dates
+              </button>
+            ) : (
+              <span className="text-sm text-gray-700">
+                Recreate every item shifted by {dayShift} day(s), then delete the originals?
+                <button
+                  onClick={handleMoveDates}
+                  disabled={actionInProgress}
+                  className="ml-2 px-3 py-1 bg-red-600 text-white rounded hover:bg-red-700 disabled:opacity-50"
+                >
+                  {actionInProgress ? 'Working…' : 'Confirm'}
+                </button>
+                <button
+                  onClick={() => setConfirmingMoveDates(false)}
+                  disabled={actionInProgress}
+                  className="ml-2 px-3 py-1 bg-gray-300 text-gray-800 rounded hover:bg-gray-400 disabled:opacity-50"
+                >
+                  Cancel
+                </button>
+              </span>
+            )}
+          </div>
+        </div>
+      </div>
+
       {/* Items */}
       <div className="bg-white rounded-lg shadow p-6 mb-6">
         <h2 className="text-xl font-semibold text-gray-800 mb-4">Items</h2>
@@ -270,6 +429,117 @@ export default function BookingDetail() {
                     </div>
                   )}
                 </div>
+
+                {/* Per-item action trigger */}
+                {activeItemAction?.itemId !== item.itemId && (
+                  <div className="mt-2">
+                    {item.type === 'activity' && (
+                      <button
+                        onClick={() => openItemAction(item.itemId, 'move-activity')}
+                        disabled={actionInProgress}
+                        className="px-3 py-1 text-sm bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50"
+                      >
+                        Move activity
+                      </button>
+                    )}
+                    {item.type === 'site' && (
+                      <button
+                        onClick={() => openItemAction(item.itemId, 'change-site')}
+                        disabled={actionInProgress}
+                        className="px-3 py-1 text-sm bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50"
+                      >
+                        Change site
+                      </button>
+                    )}
+                  </div>
+                )}
+
+                {/* Move-activity form */}
+                {activeItemAction?.itemId === item.itemId && activeItemAction.kind === 'move-activity' && (
+                  <div className="mt-3 border-t pt-3 space-y-2">
+                    <div>
+                      <label htmlFor={`sd-${item.itemId}`} className="block text-sm font-medium text-gray-700">New date</label>
+                      <input id={`sd-${item.itemId}`} type="date" value={newStartDate}
+                        onChange={(e) => setNewStartDate(e.target.value)} disabled={actionInProgress}
+                        className="p-2 border border-gray-300 rounded" />
+                    </div>
+                    <div>
+                      <label htmlFor={`st-${item.itemId}`} className="block text-sm font-medium text-gray-700">New start time</label>
+                      <input id={`st-${item.itemId}`} type="time" value={newStartTime}
+                        onChange={(e) => setNewStartTime(e.target.value)} disabled={actionInProgress}
+                        className="p-2 border border-gray-300 rounded" />
+                    </div>
+                    <div>
+                      <label htmlFor={`et-${item.itemId}`} className="block text-sm font-medium text-gray-700">New end time</label>
+                      <input id={`et-${item.itemId}`} type="time" value={newEndTime}
+                        onChange={(e) => setNewEndTime(e.target.value)} disabled={actionInProgress}
+                        className="p-2 border border-gray-300 rounded" />
+                    </div>
+                    {!confirmingItemAction ? (
+                      <div>
+                        {/* Require at least one changed field — an all-empty move is a pointless recreate+delete. */}
+                        <button onClick={() => setConfirmingItemAction(true)}
+                          disabled={actionInProgress || !(newStartDate || newStartTime || newEndTime)}
+                          className="px-3 py-1 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50">Move</button>
+                        <button onClick={() => setActiveItemAction(null)} disabled={actionInProgress}
+                          className="ml-2 px-3 py-1 bg-gray-300 text-gray-800 rounded hover:bg-gray-400">Cancel</button>
+                      </div>
+                    ) : (
+                      <div className="text-sm text-gray-700">
+                        Recreate this activity at the new time, then delete the original?
+                        <button onClick={() => handleMoveActivity(item.itemId)} disabled={actionInProgress}
+                          className="ml-2 px-3 py-1 bg-red-600 text-white rounded hover:bg-red-700 disabled:opacity-50">
+                          {actionInProgress ? 'Working…' : 'Confirm'}</button>
+                        <button onClick={() => setConfirmingItemAction(false)} disabled={actionInProgress}
+                          className="ml-2 px-3 py-1 bg-gray-300 text-gray-800 rounded hover:bg-gray-400">Cancel</button>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Change-site form. IIFE so we can derive otherSites once for both the
+                    empty-state check and the dropdown. */}
+                {activeItemAction?.itemId === item.itemId && activeItemAction.kind === 'change-site' && (() => {
+                  const otherSites = availableSites.filter((s) => s.id !== item.siteId);
+                  return (
+                    <div className="mt-3 border-t pt-3 space-y-2">
+                      {otherSites.length === 0 ? (
+                        <p className="text-sm text-gray-500">No alternative sites available.</p>
+                      ) : (
+                        <>
+                          <label htmlFor={`site-${item.itemId}`} className="block text-sm font-medium text-gray-700">New site</label>
+                          <select id={`site-${item.itemId}`} value={newSiteId}
+                            onChange={(e) => setNewSiteId(e.target.value)} disabled={actionInProgress}
+                            className="p-2 border border-gray-300 rounded">
+                            <option value="">Select a site…</option>
+                            {otherSites.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+                          </select>
+                          {!confirmingItemAction ? (
+                            <div>
+                              <button onClick={() => { if (newSiteId) setConfirmingItemAction(true); }} disabled={actionInProgress || !newSiteId}
+                                className="px-3 py-1 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50">Change</button>
+                              <button onClick={() => setActiveItemAction(null)} disabled={actionInProgress}
+                                className="ml-2 px-3 py-1 bg-gray-300 text-gray-800 rounded hover:bg-gray-400">Cancel</button>
+                            </div>
+                          ) : (
+                            <div className="text-sm text-gray-700">
+                              Recreate this booking on the new site, then delete the original?
+                              <button onClick={() => handleChangeSite(item.itemId)} disabled={actionInProgress}
+                                className="ml-2 px-3 py-1 bg-red-600 text-white rounded hover:bg-red-700 disabled:opacity-50">
+                                {actionInProgress ? 'Working…' : 'Confirm'}</button>
+                              <button onClick={() => setConfirmingItemAction(false)} disabled={actionInProgress}
+                                className="ml-2 px-3 py-1 bg-gray-300 text-gray-800 rounded hover:bg-gray-400">Cancel</button>
+                            </div>
+                          )}
+                        </>
+                      )}
+                      {otherSites.length === 0 && (
+                        <button onClick={() => setActiveItemAction(null)}
+                          className="px-3 py-1 bg-gray-300 text-gray-800 rounded hover:bg-gray-400">Close</button>
+                      )}
+                    </div>
+                  );
+                })()}
               </div>
             ))}
           </div>

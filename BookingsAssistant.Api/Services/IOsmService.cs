@@ -41,6 +41,12 @@ public interface IOsmService
     /// </summary>
     Task<bool> DeleteBookingItemAsync(string osmBookingId, string itemId);
 
+    /// <summary>
+    /// Lists the bookable sites/pitches a booked item could be moved to (for change-site),
+    /// sourced from the OSM item-type catalogue.
+    /// </summary>
+    Task<List<AvailableSiteDto>> GetAvailableSitesAsync(string osmBookingId);
+
     // Auth
     string GetAuthorizationUrl(string redirectUri);
     Task<bool> HandleOAuthCallbackAsync(string code, int userId, string redirectUri);
