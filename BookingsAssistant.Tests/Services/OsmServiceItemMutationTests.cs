@@ -33,6 +33,21 @@ public class OsmServiceItemMutationTests
             Fixture("availability-1387.json"),
             new DateTime(2030, 1, 1), new DateTime(2030, 1, 2)));
 
+    [Fact]
+    public void ResolveSlotId_SkipsUnavailableSlot_AndPicksAvailableMatch()
+    {
+        // Two slots share the same date span; the first is unavailable and must be skipped.
+        const string json = """
+        {"status":true,"data":[
+            {"start":"2027-12-04 00:01:00","end":"2027-12-05 23:59:00","available":false,"id":111},
+            {"start":"2027-12-04 00:01:00","end":"2027-12-05 23:59:00","available":true,"id":222}
+        ]}
+        """;
+
+        Assert.Equal("222", OsmService.ResolveSlotId(json,
+            new DateTime(2027, 12, 4), new DateTime(2027, 12, 5)));
+    }
+
     // ── BuildCreateForm ────────────────────────────────────────────────────────
 
     [Fact]
@@ -70,6 +85,11 @@ public class OsmServiceItemMutationTests
         => Assert.Throws<InvalidOperationException>(() => OsmService.ParseCreatedItemId(
             """{"status":false,"error":"insufficient scope","data":null,"meta":[]}"""));
 
+    [Fact]
+    public void ParseCreatedItemId_Throws_WhenDataIdMissing()
+        => Assert.Throws<InvalidOperationException>(() => OsmService.ParseCreatedItemId(
+            """{"status":true,"error":null,"data":{},"meta":[]}"""));
+
     // ── ParseDeleteSucceeded ───────────────────────────────────────────────────
 
     [Fact]
@@ -79,6 +99,13 @@ public class OsmServiceItemMutationTests
     [Fact]
     public void ParseDeleteSucceeded_FalseOnStatusFalse()
         => Assert.False(OsmService.ParseDeleteSucceeded("""{"status":false,"error":"nope","data":[],"meta":[]}"""));
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("   ")]
+    public void ParseDeleteSucceeded_FalseOnBlankInput(string? input)
+        => Assert.False(OsmService.ParseDeleteSucceeded(input));
 
     // ── ParseItemQuestions ─────────────────────────────────────────────────────
 
@@ -134,5 +161,16 @@ public class OsmServiceItemMutationTests
 
         Assert.Contains("\"id\":555001", json);
         Assert.DoesNotContain("555002", json);
+    }
+
+    [Fact]
+    public void BuildAnswersJson_SkipsQuestion_WhenOriginalAnswerIsEmptyString()
+    {
+        // An original answer that is present but blank should not be replayed (the
+        // clone's row is already blank).
+        var originalByDefId = new Dictionary<int, string> { [989] = "" };
+        var cloneQuestions = new List<OsmItemQuestion> { new(555001, 989, "") };
+
+        Assert.Equal("[]", OsmService.BuildAnswersJson(originalByDefId, cloneQuestions));
     }
 }

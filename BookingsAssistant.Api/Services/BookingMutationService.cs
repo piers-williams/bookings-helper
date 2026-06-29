@@ -149,11 +149,11 @@ public class BookingMutationService : IBookingMutationService
     {
         var original = replacement.Original;
 
-        // The item-type id lives in SiteId (sites) or ActivityId (activities); change-site
-        // swaps it for the target site.
-        var campsiteItemId = replacement.NewSiteId
-            ?? (original.Type == "activity" ? original.ActivityId : original.SiteId)
-            ?? string.Empty;
+        // The clone's item-type id: change-site substitutes the target site's type id;
+        // otherwise reuse whichever type field the original item carries (sites store it
+        // in SiteId, activities in ActivityId).
+        var originalTypeId = original.Type == "activity" ? original.ActivityId : original.SiteId;
+        var campsiteItemId = replacement.NewSiteId ?? originalTypeId ?? string.Empty;
 
         return new BookingItemCreateSpec
         {

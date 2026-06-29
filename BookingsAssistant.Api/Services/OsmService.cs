@@ -349,7 +349,7 @@ internal class OsmService : IOsmService
         var availUrl = $"/v3/campsites/items/{Uri.EscapeDataString(spec.CampsiteItemId)}/availability?booking_id={Uri.EscapeDataString(osmBookingId)}";
         var availResponse = await SendAuthorizedAsync(HttpMethod.Get, availUrl, null);
         if (!availResponse.IsSuccessStatusCode)
-            throw await BuildOsmExceptionAsync(availResponse, $"fetching availability for item {spec.CampsiteItemId}");
+            throw await CreateOsmExceptionAsync(availResponse, $"fetching availability for item {spec.CampsiteItemId}");
 
         var availJson = await availResponse.Content.ReadAsStringAsync();
         var slotId = ResolveSlotId(availJson, spec.StartDate.Value, spec.EndDate.Value)
@@ -362,7 +362,7 @@ internal class OsmService : IOsmService
         var createResponse = await SendAuthorizedAsync(HttpMethod.Post, createUrl,
             () => new FormUrlEncodedContent(form));
         if (!createResponse.IsSuccessStatusCode)
-            throw await BuildOsmExceptionAsync(createResponse, $"creating item {spec.CampsiteItemId} for booking {osmBookingId}");
+            throw await CreateOsmExceptionAsync(createResponse, $"creating item {spec.CampsiteItemId} for booking {osmBookingId}");
 
         var createJson = await createResponse.Content.ReadAsStringAsync();
         var newItemId = ParseCreatedItemId(createJson);
@@ -430,7 +430,7 @@ internal class OsmService : IOsmService
             return req;
         });
 
-    private async Task<Exception> BuildOsmExceptionAsync(HttpResponseMessage response, string context)
+    private async Task<Exception> CreateOsmExceptionAsync(HttpResponseMessage response, string context)
     {
         if (response.StatusCode == System.Net.HttpStatusCode.Unauthorized)
             return new InvalidOperationException($"OSM authentication failed {context}");
@@ -453,13 +453,17 @@ internal class OsmService : IOsmService
 
         foreach (var slot in data.EnumerateArray())
         {
+            // OSM marks booked-out slots with available:false; an absent flag counts as
+            // available. ("available_until" is a separate deadline field, not this flag.)
             if (slot.TryGetProperty("available", out var avail) && avail.ValueKind == JsonValueKind.False)
                 continue;
 
+            // Slots are matched on date span only; the exact times within the window are
+            // flexible and supplied separately in the create form.
             var (slotStart, _) = SplitTimestamp(GetString(slot, "start"));
             var (slotEnd, _) = SplitTimestamp(GetString(slot, "end"));
             if (slotStart == startDate.Date && slotEnd == endDate.Date)
-                return GetString(slot, "id");
+                return GetString(slot, "id");   // first slot matching the date span
         }
 
         return null;
@@ -543,7 +547,7 @@ internal class OsmService : IOsmService
         // Booked items live on the booking-detail resource, NOT the /items catalogue
         // endpoint (which lists bookable item-types). Confirmed from captured OSM data
         // (see BookingsAssistant.Tests/Fixtures/OsmItems/README.md).
-        var url = $"/v3/campsites/bookings/{osmBookingId}";
+        var url = $"/v3/campsites/bookings/{Uri.EscapeDataString(osmBookingId)}";
 
         _logger.LogInformation("Fetching OSM items for booking {BookingId}", osmBookingId);
 
@@ -650,7 +654,7 @@ internal class OsmService : IOsmService
         return list;
     }
 
-    /// <summary>Splits an OSM "yyyy-MM-dd HH:mm:ss" timestamp into a date and an "HH:mm" time.</summary>
+    /// <summary>Splits an OSM "yyyy-MM-dd HH:mm:ss" timestamp into a date and the "HH:mm" portion of the time.</summary>
     private static (DateTime? Date, string? Time) SplitTimestamp(string? timestamp)
     {
         if (string.IsNullOrWhiteSpace(timestamp))

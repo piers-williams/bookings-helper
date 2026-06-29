@@ -241,4 +241,24 @@ public class BookingMutationServiceTests
         Assert.Equal("15:00", spec.EndTime);
         Assert.Equal(12, spec.NumberPeople);
     }
+
+    [Fact]
+    public async Task BuildSpec_CarriesOriginalQuestionAnswers_KeyedByQuestionDefId()
+    {
+        var fake = new FakeOsmService { ItemsToReturn = new List<BookingItemDto>() };
+
+        var original = MakeItem("orig-1");
+        original.Questions = new List<BookingItemQuestion>
+        {
+            new() { QuestionDefId = 989, Answer = "-" },
+            new() { QuestionDefId = 991, Answer = "yes" }
+        };
+
+        var svc = CreateService(fake);
+        await svc.ReplaceItemsAsync("booking-99", new List<ItemReplacement> { new() { Original = original } });
+
+        var spec = Assert.Single(fake.CapturedSpecs);
+        Assert.Equal("-", spec.QuestionAnswers[989]);
+        Assert.Equal("yes", spec.QuestionAnswers[991]);
+    }
 }

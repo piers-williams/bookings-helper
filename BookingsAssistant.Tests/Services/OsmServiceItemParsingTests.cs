@@ -45,6 +45,7 @@ public class OsmServiceItemParsingTests
         Assert.Equal("4961", activity.ActivityId);
         Assert.Null(activity.SiteId);
         Assert.Equal(new DateTime(2027, 12, 5), activity.StartDate);
+        Assert.Equal(new DateTime(2027, 12, 5), activity.EndDate);
         Assert.Equal("09:00", activity.StartTime);
         Assert.Equal("10:00", activity.EndTime);
         Assert.Equal(10, activity.NumberPeople);
