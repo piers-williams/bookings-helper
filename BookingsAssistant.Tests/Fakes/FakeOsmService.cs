@@ -63,6 +63,64 @@ public class FakeOsmService : IOsmService
         return Task.FromResult(ItemsToReturn);
     }
 
+    // Create / Delete — configurable for mutation service tests
+    public List<string> CreatedItemIds { get; set; } = new();
+    private int _createCallCount;
+
+    /// <summary>
+    /// Captures each cloneJson passed to CreateBookingItemAsync.
+    /// </summary>
+    public List<string> CapturedCloneJsons { get; } = new();
+
+    /// <summary>
+    /// List of (osmBookingId, itemId) calls to DeleteBookingItemAsync.
+    /// </summary>
+    public List<(string OsmBookingId, string ItemId)> DeletedItems { get; } = new();
+
+    /// <summary>
+    /// Combined ordered call log — entries are either ("create", newItemId) or ("delete", itemId).
+    /// Lets tests assert that all creates happen before any deletes.
+    /// </summary>
+    public List<(string Op, string ItemId)> CallLog { get; } = new();
+
+    /// <summary>
+    /// If set, the Nth create call (1-based) will throw this exception.
+    /// </summary>
+    public (int CallNumber, Exception Error)? FailCreateOnCall { get; set; }
+
+    /// <summary>
+    /// Item ids whose delete should return false instead of true.
+    /// </summary>
+    public HashSet<string> DeleteReturnFalseForIds { get; } = new();
+
+    /// <summary>
+    /// Item ids whose delete should throw.
+    /// </summary>
+    public HashSet<string> DeleteThrowForIds { get; } = new();
+
+    public Task<string> CreateBookingItemAsync(string osmBookingId, string cloneJson)
+    {
+        _createCallCount++;
+        if (FailCreateOnCall is { } fail && fail.CallNumber == _createCallCount)
+            throw fail.Error;
+
+        CapturedCloneJsons.Add(cloneJson);
+        var newId = _createCallCount <= CreatedItemIds.Count
+            ? CreatedItemIds[_createCallCount - 1]
+            : $"new-item-{_createCallCount}";
+        CallLog.Add(("create", newId));
+        return Task.FromResult(newId);
+    }
+
+    public Task<bool> DeleteBookingItemAsync(string osmBookingId, string itemId)
+    {
+        if (DeleteThrowForIds.Contains(itemId))
+            throw new InvalidOperationException($"Fake: delete forced to throw for item {itemId}");
+        CallLog.Add(("delete", itemId));
+        DeletedItems.Add((osmBookingId, itemId));
+        return Task.FromResult(!DeleteReturnFalseForIds.Contains(itemId));
+    }
+
     public string GetAuthorizationUrl(string redirectUri)
     {
         return string.Empty;

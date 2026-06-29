@@ -30,6 +30,22 @@ public interface IOsmService
     /// </summary>
     Task<List<BookingItemDto>> GetBookingItemsAsync(string osmBookingId);
 
+    /// <summary>
+    /// Creates a new booking item by cloning the provided JSON payload.
+    /// Returns the new item id assigned by OSM.
+    /// NOTE: DEFERRED SEAM — real implementation pending example OSM request/response data.
+    /// The real OsmService throws NotImplementedException("... pending example data").
+    /// </summary>
+    Task<string> CreateBookingItemAsync(string osmBookingId, string cloneJson);
+
+    /// <summary>
+    /// Deletes the specified booking item.
+    /// Returns true on success, false on failure.
+    /// NOTE: DEFERRED SEAM — real implementation pending example OSM request/response data.
+    /// The real OsmService throws NotImplementedException("... pending example data").
+    /// </summary>
+    Task<bool> DeleteBookingItemAsync(string osmBookingId, string itemId);
+
     // Auth
     string GetAuthorizationUrl(string redirectUri);
     Task<bool> HandleOAuthCallbackAsync(string code, int userId, string redirectUri);

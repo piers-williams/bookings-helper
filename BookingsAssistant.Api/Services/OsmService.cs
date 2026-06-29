@@ -337,6 +337,20 @@ internal class OsmService : IOsmService
         }
     }
 
+    public Task<string> CreateBookingItemAsync(string osmBookingId, string cloneJson)
+    {
+        // DEFERRED SEAM: creating an OSM booking item is pending example request/response
+        // data to confirm the endpoint URL and payload shape.
+        throw new NotImplementedException("OSM CreateBookingItem not yet wired — pending example data");
+    }
+
+    public Task<bool> DeleteBookingItemAsync(string osmBookingId, string itemId)
+    {
+        // DEFERRED SEAM: deleting an OSM booking item is pending example request/response
+        // data to confirm the endpoint URL and payload shape.
+        throw new NotImplementedException("OSM DeleteBookingItem not yet wired — pending example data");
+    }
+
     public async Task<List<BookingItemDto>> GetBookingItemsAsync(string osmBookingId)
     {
         var url = $"/v3/campsites/{_campsiteId}/items?booking_id={osmBookingId}&mode=booking&audience=venue";
