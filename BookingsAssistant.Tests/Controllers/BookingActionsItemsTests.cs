@@ -114,7 +114,7 @@ public class BookingActionsItemsTests : IClassFixture<WebApplicationFactory<Prog
     }
 
     [Fact]
-    public async Task GetItems_Returns501_WhenOsmParseNotImplemented()
+    public async Task GetItems_Returns200WithEmptyList_WhenBookingHasNoItems()
     {
         int bookingId;
 
@@ -124,7 +124,7 @@ public class BookingActionsItemsTests : IClassFixture<WebApplicationFactory<Prog
             var booking = new OsmBooking
             {
                 OsmBookingId = "77002",
-                CustomerName = "Scout Group Unimplemented",
+                CustomerName = "Scout Group Empty",
                 StartDate = new DateTime(2026, 9, 1, 0, 0, 0, DateTimeKind.Utc),
                 EndDate = new DateTime(2026, 9, 3, 0, 0, 0, DateTimeKind.Utc),
                 Status = "Provisional"
@@ -134,11 +134,14 @@ public class BookingActionsItemsTests : IClassFixture<WebApplicationFactory<Prog
             bookingId = booking.Id;
         }
 
-        _fakeOsm.ThrowNotImplementedForItems = true;
+        _fakeOsm.ItemsToReturn = new List<BookingItemDto>();
 
         var client = _factory.CreateClient();
         var response = await client.GetAsync($"/api/bookings/{bookingId}/items");
 
-        Assert.Equal(HttpStatusCode.NotImplemented, response.StatusCode);
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var items = await response.Content.ReadFromJsonAsync<List<BookingItemDto>>();
+        Assert.NotNull(items);
+        Assert.Empty(items);
     }
 }

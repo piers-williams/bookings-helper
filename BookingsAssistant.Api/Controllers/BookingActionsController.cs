@@ -29,7 +29,6 @@ public class BookingActionsController : ControllerBase
 
     /// <summary>
     /// Returns the line-items (sites and activities) for a booking.
-    /// Returns 501 while the OSM item parsing seam is not yet wired up.
     /// </summary>
     [HttpGet("{id}/items")]
     public async Task<ActionResult<List<BookingItemDto>>> GetItems(int id)
@@ -42,11 +41,6 @@ public class BookingActionsController : ControllerBase
         {
             var items = await _osmService.GetBookingItemsAsync(booking.OsmBookingId);
             return Ok(items);
-        }
-        catch (NotImplementedException ex)
-        {
-            _logger.LogInformation("OSM item retrieval not yet implemented for booking {Id}: {Message}", id, ex.Message);
-            return StatusCode(501, new { message = "OSM item retrieval not yet implemented" });
         }
         catch (InvalidOperationException ex) when (ex.Message.Contains("OSM"))
         {
@@ -63,14 +57,13 @@ public class BookingActionsController : ControllerBase
     // - 400 Bad Request: missing/invalid request parameters (checked before OSM calls)
     // - 404 Not Found: booking not in DB, or item not in booking's current item list
     // - 401 Unauthorized: InvalidOperationException whose message contains "OSM" (auth)
-    // - 501 Not Implemented: NotImplementedException (OSM seam stubs not yet wired)
+    // - 502 Bad Gateway: other OSM failures (e.g. no available slot, OSM rejected the create)
     // - 200 OK for all engine outcomes (completed/completed_with_warnings/rolled_back/failed):
     //   the caller reads result.Status — using 200 keeps the response contract simple and
     //   avoids conflating HTTP transport errors with application-level partial failures.
 
     /// <summary>
     /// Moves an activity item within the booking (changes start/end date or start/end time).
-    /// Returns 501 while the OSM create/delete seam is not yet wired up.
     /// </summary>
     [HttpPost("{id}/actions/move-activity")]
     public async Task<ActionResult<BookingActionResult>> MoveActivity(int id, [FromBody] MoveActivityRequest request)
@@ -100,11 +93,6 @@ public class BookingActionsController : ControllerBase
             var result = await _mutationService.ReplaceItemsAsync(booking.OsmBookingId, new[] { replacement });
             return Ok(result);
         }
-        catch (NotImplementedException ex)
-        {
-            _logger.LogInformation("OSM move-activity not yet implemented for booking {Id}: {Message}", id, ex.Message);
-            return StatusCode(501, new { message = "OSM item mutation not yet implemented" });
-        }
         catch (InvalidOperationException ex) when (ex.Message.Contains("OSM"))
         {
             return Unauthorized(new { message = "OSM authentication required", detail = ex.Message });
@@ -118,7 +106,6 @@ public class BookingActionsController : ControllerBase
 
     /// <summary>
     /// Moves a site item to a different site within the booking.
-    /// Returns 501 while the OSM create/delete seam is not yet wired up.
     /// </summary>
     [HttpPost("{id}/actions/change-site")]
     public async Task<ActionResult<BookingActionResult>> ChangeSite(int id, [FromBody] ChangeSiteRequest request)
@@ -149,11 +136,6 @@ public class BookingActionsController : ControllerBase
             var result = await _mutationService.ReplaceItemsAsync(booking.OsmBookingId, new[] { replacement });
             return Ok(result);
         }
-        catch (NotImplementedException ex)
-        {
-            _logger.LogInformation("OSM change-site not yet implemented for booking {Id}: {Message}", id, ex.Message);
-            return StatusCode(501, new { message = "OSM item mutation not yet implemented" });
-        }
         catch (InvalidOperationException ex) when (ex.Message.Contains("OSM"))
         {
             return Unauthorized(new { message = "OSM authentication required", detail = ex.Message });
@@ -169,7 +151,6 @@ public class BookingActionsController : ControllerBase
     /// Shifts all items in the booking by the given number of days (positive = forward, negative = back).
     /// Each item with a StartDate gets a replacement with both StartDate and EndDate shifted.
     /// Items without a date are included unchanged.
-    /// Returns 501 while the OSM create/delete seam is not yet wired up.
     /// </summary>
     [HttpPost("{id}/actions/move-dates")]
     public async Task<ActionResult<BookingActionResult>> MoveDates(int id, [FromBody] MoveDatesRequest request)
@@ -199,11 +180,6 @@ public class BookingActionsController : ControllerBase
 
             var result = await _mutationService.ReplaceItemsAsync(booking.OsmBookingId, replacements);
             return Ok(result);
-        }
-        catch (NotImplementedException ex)
-        {
-            _logger.LogInformation("OSM move-dates not yet implemented for booking {Id}: {Message}", id, ex.Message);
-            return StatusCode(501, new { message = "OSM item mutation not yet implemented" });
         }
         catch (InvalidOperationException ex) when (ex.Message.Contains("OSM"))
         {

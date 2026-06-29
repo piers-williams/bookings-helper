@@ -54,14 +54,9 @@ public class FakeOsmService : IOsmService
 
     // Items
     public List<BookingItemDto> ItemsToReturn { get; set; } = new();
-    public bool ThrowNotImplementedForItems { get; set; }
 
     public Task<List<BookingItemDto>> GetBookingItemsAsync(string osmBookingId)
-    {
-        if (ThrowNotImplementedForItems)
-            throw new NotImplementedException("OSM item parsing not yet wired — pending example data");
-        return Task.FromResult(ItemsToReturn);
-    }
+        => Task.FromResult(ItemsToReturn);
 
     // Create / Delete — configurable for mutation service tests
     public List<string> CreatedItemIds { get; set; } = new();
