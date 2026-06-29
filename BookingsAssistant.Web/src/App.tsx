@@ -1,12 +1,14 @@
 import { Routes, Route } from 'react-router-dom';
 import Dashboard from './components/Dashboard';
 import BookingDetail from './components/BookingDetail';
+import BookingList from './components/BookingList';
 
 function App() {
   return (
     <div className="min-h-screen bg-gray-100">
       <Routes>
         <Route path="/" element={<Dashboard />} />
+        <Route path="/bookings" element={<BookingList />} />
         <Route path="/bookings/:id" element={<BookingDetail />} />
       </Routes>
     </div>
