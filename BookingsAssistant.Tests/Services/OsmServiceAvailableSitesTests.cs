@@ -56,4 +56,23 @@ public class OsmServiceAvailableSitesTests
     [Fact]
     public void ParseAvailableSites_ReturnsEmpty_ForBlankInput()
         => Assert.Empty(OsmService.ParseAvailableSites(""));
+
+    [Fact]
+    public void ParseAvailableSites_HandlesSitesNestedUnderASubCategory()
+    {
+        // Campsites(1) → "Tents" sub-category(2) → leaf pitch(3). The leaf is a site;
+        // the sub-category (itself a parent) is excluded.
+        const string json = """
+        {"data":[
+            {"id":1,"parent_id":0,"name":"Campsites"},
+            {"id":2,"parent_id":1,"name":"Tents"},
+            {"id":3,"parent_id":2,"name":"Tent Pitch A"}
+        ]}
+        """;
+        var sites = OsmService.ParseAvailableSites(json);
+        // The leaf pitch is surfaced even though it's nested under a sub-category...
+        Assert.Contains(sites, s => s.Id == "3" && s.Name == "Tent Pitch A");
+        // ...and the intermediate sub-category (itself a parent) is not.
+        Assert.DoesNotContain(sites, s => s.Id == "2");
+    }
 }

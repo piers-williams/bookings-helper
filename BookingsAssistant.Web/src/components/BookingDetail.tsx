@@ -45,6 +45,7 @@ export default function BookingDetail() {
   // Per-item actions (move-activity / change-site)
   const [availableSites, setAvailableSites] = useState<AvailableSite[]>([]);
   const [activeItemAction, setActiveItemAction] = useState<{ itemId: string; kind: ItemActionKind } | null>(null);
+  // Confirm-gate flag for whichever per-item action is currently open (only one at a time).
   const [confirmingItemAction, setConfirmingItemAction] = useState(false);
   const [newStartDate, setNewStartDate] = useState('');
   const [newStartTime, setNewStartTime] = useState('');
@@ -144,6 +145,8 @@ export default function BookingDetail() {
     runAction(() => bookingsApi.moveDates(parseInt(id), { dayShift: shift }));
   };
 
+  // Opens a per-item form. Always resets the (component-level, shared) form fields so
+  // values from a previously-opened item can't leak into the new form.
   const openItemAction = (itemId: string, kind: ItemActionKind) => {
     setActiveItemAction({ itemId, kind });
     setConfirmingItemAction(false);
@@ -474,7 +477,9 @@ export default function BookingDetail() {
                     </div>
                     {!confirmingItemAction ? (
                       <div>
-                        <button onClick={() => setConfirmingItemAction(true)} disabled={actionInProgress}
+                        {/* Require at least one changed field — an all-empty move is a pointless recreate+delete. */}
+                        <button onClick={() => setConfirmingItemAction(true)}
+                          disabled={actionInProgress || !(newStartDate || newStartTime || newEndTime)}
                           className="px-3 py-1 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50">Move</button>
                         <button onClick={() => setActiveItemAction(null)} disabled={actionInProgress}
                           className="ml-2 px-3 py-1 bg-gray-300 text-gray-800 rounded hover:bg-gray-400">Cancel</button>
@@ -492,7 +497,8 @@ export default function BookingDetail() {
                   </div>
                 )}
 
-                {/* Change-site form */}
+                {/* Change-site form. IIFE so we can derive otherSites once for both the
+                    empty-state check and the dropdown. */}
                 {activeItemAction?.itemId === item.itemId && activeItemAction.kind === 'change-site' && (() => {
                   const otherSites = availableSites.filter((s) => s.id !== item.siteId);
                   return (

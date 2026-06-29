@@ -60,6 +60,31 @@ describe('move-activity action', () => {
     }));
     expect(await screen.findByRole('status')).toHaveTextContent(/replaced 1 item/i);
   });
+
+  it('submits a new date when only the date field is filled', async () => {
+    api.moveActivity.mockResolvedValue(ok([activity]));
+    const user = userEvent.setup();
+    renderDetail();
+    await screen.findByText(/Booking #179743/);
+
+    await user.click(screen.getByRole('button', { name: /move activity/i }));
+    await user.type(screen.getByLabelText(/new date/i), '2027-12-20');
+    await user.click(screen.getByRole('button', { name: /^move$/i }));
+    await user.click(screen.getByRole('button', { name: /confirm/i }));
+
+    await waitFor(() => expect(api.moveActivity).toHaveBeenCalledWith(1, {
+      itemId: '411468', newStartDate: '2027-12-20',
+    }));
+  });
+
+  it('disables Move until at least one field is changed (no pointless no-op)', async () => {
+    const user = userEvent.setup();
+    renderDetail();
+    await screen.findByText(/Booking #179743/);
+
+    await user.click(screen.getByRole('button', { name: /move activity/i }));
+    expect(screen.getByRole('button', { name: /^move$/i })).toBeDisabled();
+  });
 });
 
 describe('change-site action', () => {

@@ -60,8 +60,14 @@ public class FakeOsmService : IOsmService
 
     public List<AvailableSiteDto> AvailableSitesToReturn { get; set; } = new();
 
+    /// <summary>If set, GetAvailableSitesAsync throws this (to exercise the controller's 401/502 paths).</summary>
+    public Exception? GetSitesError { get; set; }
+
     public Task<List<AvailableSiteDto>> GetAvailableSitesAsync(string osmBookingId)
-        => Task.FromResult(AvailableSitesToReturn);
+    {
+        if (GetSitesError != null) throw GetSitesError;
+        return Task.FromResult(AvailableSitesToReturn);
+    }
 
     // Create / Delete — configurable for mutation service tests
     public List<string> CreatedItemIds { get; set; } = new();

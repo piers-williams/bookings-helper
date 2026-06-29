@@ -676,8 +676,9 @@ internal class OsmService : IOsmService
 
     /// <summary>
     /// Parses the OSM item-type catalogue (GET /v3/campsites/{id}/items?mode=booking) into the bookable
-    /// sites/pitches: the leaf item-types directly under the "Campsites" and "Indoor Accommodation"
-    /// categories. Category nodes and the (separate) "Activities" tree are excluded. Pure/static for testing.
+    /// sites/pitches: the leaf item-types (nodes that are not themselves parents) under the "Campsites" and
+    /// "Indoor Accommodation" categories. Category nodes and the (separate) "Activities" tree are excluded.
+    /// Pure/static for testing.
     /// </summary>
     internal static List<AvailableSiteDto> ParseAvailableSites(string? catalogueJson)
     {
@@ -688,31 +689,42 @@ internal class OsmService : IOsmService
         if (!doc.RootElement.TryGetProperty("data", out var data) || data.ValueKind != JsonValueKind.Array)
             return sites;
 
-        // Site categories (by name) and the set of nodes that are themselves parents (i.e. categories,
-        // not bookable leaves).
-        var siteCategoryIds = new HashSet<int>();
+        // First pass: index nodes by id, group children by parent, find the site category roots
+        // (by name), and record which ids are themselves parents (i.e. categories, not leaves).
+        var nameById = new Dictionary<int, string>();
+        var childrenByParent = new Dictionary<int, List<int>>();
         var parentIds = new HashSet<int>();
-        foreach (var node in data.EnumerateArray())
-        {
-            if (node.TryGetProperty("parent_id", out var p) && p.TryGetInt32(out var pid))
-                parentIds.Add(pid);
-            var name = GetString(node, "name");
-            if (name is "Campsites" or "Indoor Accommodation")
-                siteCategoryIds.Add(GetInt(node, "id"));
-        }
-
+        var siteCategoryIds = new List<int>();
         foreach (var node in data.EnumerateArray())
         {
             var id = GetInt(node, "id");
-            var parentId = node.TryGetProperty("parent_id", out var p) && p.TryGetInt32(out var pid) ? pid : 0;
+            var name = GetString(node, "name") ?? string.Empty;
+            nameById[id] = name;
+            if (node.TryGetProperty("parent_id", out var p) && p.TryGetInt32(out var pid))
+            {
+                parentIds.Add(pid);
+                (childrenByParent.TryGetValue(pid, out var list) ? list : childrenByParent[pid] = new List<int>()).Add(id);
+            }
+            if (name is "Campsites" or "Indoor Accommodation")
+                siteCategoryIds.Add(id);
+        }
 
-            // A bookable site = a child of a site category that is not itself a (sub-)category.
-            if (siteCategoryIds.Contains(parentId) && !parentIds.Contains(id))
-                sites.Add(new AvailableSiteDto
-                {
-                    Id = id.ToString(),
-                    Name = GetString(node, "name") ?? string.Empty
-                });
+        // Walk all descendants of the site categories; the bookable sites are the leaves
+        // (nodes that are not themselves parents of anything). Handles arbitrary nesting depth.
+        var queue = new Queue<int>(siteCategoryIds);
+        var seen = new HashSet<int>(siteCategoryIds);
+        while (queue.Count > 0)
+        {
+            var current = queue.Dequeue();
+            if (!childrenByParent.TryGetValue(current, out var children)) continue;
+            foreach (var child in children)
+            {
+                if (!seen.Add(child)) continue;
+                if (parentIds.Contains(child))
+                    queue.Enqueue(child);   // sub-category — descend
+                else
+                    sites.Add(new AvailableSiteDto { Id = child.ToString(), Name = nameById[child] });
+            }
         }
 
         return sites;

@@ -80,4 +80,40 @@ public class BookingActionsAvailableSitesTests : IClassFixture<WebApplicationFac
         var response = await _factory.CreateClient().GetAsync("/api/bookings/999999/available-sites");
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
     }
+
+    [Fact]
+    public async Task GetAvailableSites_Returns200WithEmptyList_WhenNoSites()
+    {
+        var bookingId = await SeedBookingAsync("88002");
+        _fakeOsm.AvailableSitesToReturn = new List<AvailableSiteDto>();
+
+        var response = await _factory.CreateClient().GetAsync($"/api/bookings/{bookingId}/available-sites");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var sites = await response.Content.ReadFromJsonAsync<List<AvailableSiteDto>>();
+        Assert.NotNull(sites);
+        Assert.Empty(sites!);
+    }
+
+    [Fact]
+    public async Task GetAvailableSites_Returns401_WhenOsmAuthFails()
+    {
+        var bookingId = await SeedBookingAsync("88003");
+        _fakeOsm.GetSitesError = new InvalidOperationException("OSM authentication failed fetching sites");
+
+        var response = await _factory.CreateClient().GetAsync($"/api/bookings/{bookingId}/available-sites");
+
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task GetAvailableSites_Returns502_WhenOsmErrors()
+    {
+        var bookingId = await SeedBookingAsync("88004");
+        _fakeOsm.GetSitesError = new Exception("OSM unreachable");
+
+        var response = await _factory.CreateClient().GetAsync($"/api/bookings/{bookingId}/available-sites");
+
+        Assert.Equal(HttpStatusCode.BadGateway, response.StatusCode);
+    }
 }

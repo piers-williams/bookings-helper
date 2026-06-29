@@ -64,6 +64,23 @@ describe('move-dates action', () => {
 
     await waitFor(() => expect(api.moveDates).toHaveBeenCalledWith(1, { dayShift: 7 }));
     expect(await screen.findByRole('status')).toHaveTextContent(/replaced 1 item/i);
+    // Items list is refreshed in place from result.items (shifted date now shown)
+    expect(await screen.findByText(/11 Dec 2027/)).toBeInTheDocument();
+  });
+
+  it('shows a red error banner when the action call throws', async () => {
+    api.moveDates.mockRejectedValue(new Error('network down'));
+    const user = userEvent.setup();
+    renderDetail();
+    await screen.findByText(/Booking #179743/);
+
+    await user.type(screen.getByLabelText(/shift all booking dates/i), '5');
+    await user.click(screen.getByRole('button', { name: /^move dates$/i }));
+    await user.click(screen.getByRole('button', { name: /confirm/i }));
+
+    const banner = await screen.findByRole('status');
+    expect(banner).toHaveTextContent(/could not be completed/i);
+    expect(banner.className).toMatch(/red/);
   });
 
   it('shows an amber warnings banner for completed_with_warnings', async () => {
