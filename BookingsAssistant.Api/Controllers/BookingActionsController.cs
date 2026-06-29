@@ -53,6 +53,32 @@ public class BookingActionsController : ControllerBase
         }
     }
 
+    /// <summary>
+    /// Lists the bookable sites/pitches the booking's site items could be moved to (for change-site).
+    /// </summary>
+    [HttpGet("{id}/available-sites")]
+    public async Task<ActionResult<List<AvailableSiteDto>>> GetAvailableSites(int id)
+    {
+        var booking = await _context.OsmBookings.FindAsync(id);
+        if (booking == null)
+            return NotFound();
+
+        try
+        {
+            var sites = await _osmService.GetAvailableSitesAsync(booking.OsmBookingId);
+            return Ok(sites);
+        }
+        catch (InvalidOperationException ex) when (ex.Message.Contains("OSM"))
+        {
+            return Unauthorized(new { message = "OSM authentication required", detail = ex.Message });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error fetching available sites for booking {Id}", id);
+            return StatusCode(502, new { message = "Error fetching sites from OSM", detail = ex.Message });
+        }
+    }
+
     // ── Error mapping convention for mutation endpoints ───────────────────────
     // - 400 Bad Request: missing/invalid request parameters (checked before OSM calls)
     // - 404 Not Found: booking not in DB, or item not in booking's current item list

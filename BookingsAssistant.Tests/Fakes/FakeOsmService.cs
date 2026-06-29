@@ -58,6 +58,11 @@ public class FakeOsmService : IOsmService
     public Task<List<BookingItemDto>> GetBookingItemsAsync(string osmBookingId)
         => Task.FromResult(ItemsToReturn);
 
+    public List<AvailableSiteDto> AvailableSitesToReturn { get; set; } = new();
+
+    public Task<List<AvailableSiteDto>> GetAvailableSitesAsync(string osmBookingId)
+        => Task.FromResult(AvailableSitesToReturn);
+
     // Create / Delete — configurable for mutation service tests
     public List<string> CreatedItemIds { get; set; } = new();
     private int _createCallCount;

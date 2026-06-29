@@ -139,3 +139,9 @@ export interface ChangeSiteRequest {
 export interface MoveDatesRequest {
   dayShift: number;
 }
+
+/** A bookable site/pitch a booked item can be moved to (for change-site). */
+export interface AvailableSite {
+  id: string;
+  name: string;
+}

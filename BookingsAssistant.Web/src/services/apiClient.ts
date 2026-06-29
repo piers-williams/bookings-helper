@@ -1,5 +1,6 @@
 import axios from 'axios';
 import type {
+  AvailableSite,
   Booking,
   BookingActionResult,
   BookingDetail,
@@ -76,6 +77,11 @@ export const bookingsApi = {
 
   getItems: async (id: number): Promise<BookingItem[]> => {
     const response = await apiClient.get<BookingItem[]>(`/bookings/${id}/items`);
+    return response.data;
+  },
+
+  getAvailableSites: async (id: number): Promise<AvailableSite[]> => {
+    const response = await apiClient.get<AvailableSite[]>(`/bookings/${id}/available-sites`);
     return response.data;
   },
 

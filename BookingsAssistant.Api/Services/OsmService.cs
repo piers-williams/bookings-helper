@@ -391,6 +391,26 @@ internal class OsmService : IOsmService
         return ParseDeleteSucceeded(json);
     }
 
+    public async Task<List<AvailableSiteDto>> GetAvailableSitesAsync(string osmBookingId)
+    {
+        // The bookable site/pitch catalogue comes from the same /items catalogue endpoint
+        // (the item-type tree), filtered to the site categories. See ParseAvailableSites.
+        var url = $"/v3/campsites/{_campsiteId}/items?booking_id={Uri.EscapeDataString(osmBookingId)}&mode=booking&audience=venue";
+
+        var response = await SendAuthorizedAsync(HttpMethod.Get, url, null);
+        if (!response.IsSuccessStatusCode)
+        {
+            if (response.StatusCode == System.Net.HttpStatusCode.Unauthorized)
+                throw new InvalidOperationException($"OSM authentication failed fetching sites for booking {osmBookingId}");
+
+            _logger.LogError("OSM catalogue endpoint returned {StatusCode} for booking {BookingId}",
+                response.StatusCode, osmBookingId);
+            return new List<AvailableSiteDto>();
+        }
+
+        return ParseAvailableSites(await response.Content.ReadAsStringAsync());
+    }
+
     private async Task ReplayQuestionAnswersAsync(string itemId, IReadOnlyDictionary<int, string> answersByDefId)
     {
         try
@@ -652,6 +672,50 @@ internal class OsmService : IOsmService
                     Answer = GetString(q, "answer") ?? string.Empty
                 });
         return list;
+    }
+
+    /// <summary>
+    /// Parses the OSM item-type catalogue (GET /v3/campsites/{id}/items?mode=booking) into the bookable
+    /// sites/pitches: the leaf item-types directly under the "Campsites" and "Indoor Accommodation"
+    /// categories. Category nodes and the (separate) "Activities" tree are excluded. Pure/static for testing.
+    /// </summary>
+    internal static List<AvailableSiteDto> ParseAvailableSites(string? catalogueJson)
+    {
+        var sites = new List<AvailableSiteDto>();
+        if (string.IsNullOrWhiteSpace(catalogueJson)) return sites;
+
+        using var doc = JsonDocument.Parse(catalogueJson);
+        if (!doc.RootElement.TryGetProperty("data", out var data) || data.ValueKind != JsonValueKind.Array)
+            return sites;
+
+        // Site categories (by name) and the set of nodes that are themselves parents (i.e. categories,
+        // not bookable leaves).
+        var siteCategoryIds = new HashSet<int>();
+        var parentIds = new HashSet<int>();
+        foreach (var node in data.EnumerateArray())
+        {
+            if (node.TryGetProperty("parent_id", out var p) && p.TryGetInt32(out var pid))
+                parentIds.Add(pid);
+            var name = GetString(node, "name");
+            if (name is "Campsites" or "Indoor Accommodation")
+                siteCategoryIds.Add(GetInt(node, "id"));
+        }
+
+        foreach (var node in data.EnumerateArray())
+        {
+            var id = GetInt(node, "id");
+            var parentId = node.TryGetProperty("parent_id", out var p) && p.TryGetInt32(out var pid) ? pid : 0;
+
+            // A bookable site = a child of a site category that is not itself a (sub-)category.
+            if (siteCategoryIds.Contains(parentId) && !parentIds.Contains(id))
+                sites.Add(new AvailableSiteDto
+                {
+                    Id = id.ToString(),
+                    Name = GetString(node, "name") ?? string.Empty
+                });
+        }
+
+        return sites;
     }
 
     /// <summary>Splits an OSM "yyyy-MM-dd HH:mm:ss" timestamp into a date and the "HH:mm" portion of the time.</summary>
