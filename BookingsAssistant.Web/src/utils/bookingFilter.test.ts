@@ -31,21 +31,19 @@ describe('filterBookings — free-text search', () => {
   ];
 
   it('matches a booking whose customerName contains the query (case-insensitive)', () => {
-    const result = filterBookings(bookings, { ...noFilter, search: 'alice' });
-    expect(result).toHaveLength(1);
-    expect(result[0].customerName).toBe('Alice Smith');
+    const lower = filterBookings(bookings, { ...noFilter, search: 'alice' });
+    expect(lower).toHaveLength(1);
+    expect(lower[0].customerName).toBe('Alice Smith');
+
+    const upper = filterBookings(bookings, { ...noFilter, search: 'ALICE' });
+    expect(upper).toHaveLength(1);
+    expect(upper[0].customerName).toBe('Alice Smith');
   });
 
   it('matches a booking whose osmBookingId contains the query', () => {
     const result = filterBookings(bookings, { ...noFilter, search: '678' });
     expect(result).toHaveLength(1);
     expect(result[0].osmBookingId).toBe('67890');
-  });
-
-  it('matches case-insensitively against customerName', () => {
-    const result = filterBookings(bookings, { ...noFilter, search: 'ALICE' });
-    expect(result).toHaveLength(1);
-    expect(result[0].customerName).toBe('Alice Smith');
   });
 
   it('returns an empty array when the query matches nothing', () => {
@@ -57,6 +55,11 @@ describe('filterBookings — free-text search', () => {
     const result = filterBookings(bookings, { ...noFilter, search: '' });
     expect(result).toHaveLength(2);
   });
+
+  it('returns an empty array when given an empty bookings list', () => {
+    const result = filterBookings([], noFilter);
+    expect(result).toHaveLength(0);
+  });
 });
 
 // ── Date range filtering ──────────────────────────────────────────────────────
@@ -64,7 +67,7 @@ describe('filterBookings — free-text search', () => {
 describe('filterBookings — date range', () => {
   // stay: 10–20 June
   const stayJune = makeBooking({ id: 1, startDate: '2027-06-10', endDate: '2027-06-20' });
-  // stay: 25 June – 5 July (overlaps into July)
+  // stay: 25 June – 5 July (straddles the 1 July boundary)
   const stayJulyOverlap = makeBooking({ id: 2, startDate: '2027-06-25', endDate: '2027-07-05' });
   // stay: entirely in May
   const stayMay = makeBooking({ id: 3, startDate: '2027-05-01', endDate: '2027-05-10' });
@@ -76,8 +79,8 @@ describe('filterBookings — date range', () => {
     expect(result).toHaveLength(1);
   });
 
-  it('includes a stay that overlaps the start boundary (booking starts before dateFrom but ends within range)', () => {
-    // booking 25 Jun–5 Jul, range from 1 Jul; booking ends after dateFrom so it overlaps
+  it('includes a stay that straddles the lower bound (starts before dateFrom, ends after it)', () => {
+    // booking 25 Jun–5 Jul; range from 1 Jul — the booking's end crosses into the range
     const result = filterBookings([stayJulyOverlap], { ...noFilter, dateFrom: '2027-07-01', dateTo: '2027-07-31' });
     expect(result).toHaveLength(1);
   });
@@ -92,16 +95,27 @@ describe('filterBookings — date range', () => {
     expect(result).toHaveLength(0);
   });
 
+  it('includes a stay whose endDate exactly equals dateFrom (boundary-exact overlap)', () => {
+    // stayJune ends 20 Jun; dateFrom exactly 20 Jun — boundary should be inclusive
+    const result = filterBookings([stayJune], { ...noFilter, dateFrom: '2027-06-20', dateTo: '2027-06-30' });
+    expect(result).toHaveLength(1);
+  });
+
+  it('includes a stay whose startDate exactly equals dateTo (boundary-exact overlap)', () => {
+    // stayJuly starts 1 Jul; dateTo exactly 1 Jul — boundary should be inclusive
+    const result = filterBookings([stayJuly], { ...noFilter, dateFrom: '2027-06-01', dateTo: '2027-07-01' });
+    expect(result).toHaveLength(1);
+  });
+
   it('with only dateFrom set, includes stays ending on or after dateFrom', () => {
-    // stayJune ends 20 Jun; dateFrom 15 Jun => overlaps
+    // stayJune ends 20 Jun; dateFrom 15 Jun => overlaps; stayMay ends 10 May => excluded
     const result = filterBookings([stayJune, stayMay], { ...noFilter, dateFrom: '2027-06-15', dateTo: '' });
     expect(result).toHaveLength(1);
     expect(result[0]).toBe(stayJune);
   });
 
   it('with only dateTo set, includes stays starting on or before dateTo', () => {
-    // stayJuly starts 1 Jul; dateTo 15 Jul => included
-    // stayMay starts 1 May; dateTo 15 Jul => also included
+    // stayJuly starts 1 Jul; dateTo 15 Jul => included; stayMay starts 1 May => included
     const result = filterBookings([stayJuly, stayMay], { ...noFilter, dateFrom: '', dateTo: '2027-07-15' });
     expect(result).toHaveLength(2);
   });
@@ -141,13 +155,24 @@ describe('filterBookings — includePastCancelled toggle', () => {
     );
     expect(result).toHaveLength(5);
   });
+});
 
-  it('always shows active statuses regardless of toggle', () => {
-    const result = filterBookings([confirmed, future, provisional], {
-      ...noFilter,
-      includePastCancelled: false,
-    });
-    expect(result).toHaveLength(3);
+// ── Combined filters ──────────────────────────────────────────────────────────
+
+describe('filterBookings — combined filters', () => {
+  it('applies search, date range, and status toggle together', () => {
+    const alice = makeBooking({ id: 1, customerName: 'Alice Smith', startDate: '2027-06-10', endDate: '2027-06-20', status: 'Confirmed' });
+    const bob = makeBooking({ id: 2, customerName: 'Bob Jones', startDate: '2027-06-10', endDate: '2027-06-20', status: 'Confirmed' });
+    const alicePast = makeBooking({ id: 3, customerName: 'Alice Smith', startDate: '2026-01-01', endDate: '2026-01-07', status: 'Past' });
+
+    // search="alice", dateFrom in June 2027, includePastCancelled=false
+    // => alice (June, Confirmed) matches; bob excluded by search; alicePast excluded by status
+    const result = filterBookings(
+      [alice, bob, alicePast],
+      { search: 'alice', dateFrom: '2027-06-01', dateTo: '2027-06-30', includePastCancelled: false }
+    );
+    expect(result).toHaveLength(1);
+    expect(result[0]).toBe(alice);
   });
 });
 

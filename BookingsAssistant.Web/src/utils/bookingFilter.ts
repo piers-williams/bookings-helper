@@ -41,8 +41,8 @@ export function filterBookings(
       // Date range overlap: booking's [startDate, endDate] intersects [dateFrom, dateTo]
       // Overlap condition: bookingStart <= dateTo AND bookingEnd >= dateFrom
       if (dateFrom || dateTo) {
-        const bookingStart = b.startDate.slice(0, 10);
-        const bookingEnd = b.endDate.slice(0, 10);
+        const bookingStart = b.startDate.slice(0, 10); // take YYYY-MM-DD from ISO string
+        const bookingEnd = b.endDate.slice(0, 10);     // take YYYY-MM-DD from ISO string
 
         if (dateTo && bookingStart > dateTo) return false;
         if (dateFrom && bookingEnd < dateFrom) return false;
