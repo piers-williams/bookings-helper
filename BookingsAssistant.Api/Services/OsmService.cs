@@ -337,18 +337,205 @@ internal class OsmService : IOsmService
         }
     }
 
-    public Task<string> CreateBookingItemAsync(string osmBookingId, string cloneJson)
+    public async Task<string> CreateBookingItemAsync(string osmBookingId, BookingItemCreateSpec spec)
     {
-        // DEFERRED SEAM: creating an OSM booking item is pending example request/response
-        // data to confirm the endpoint URL and payload shape.
-        throw new NotImplementedException("OSM CreateBookingItem not yet wired — pending example data");
+        if (spec.StartDate is null || spec.EndDate is null)
+            throw new InvalidOperationException(
+                $"Cannot create OSM item {spec.CampsiteItemId} for booking {osmBookingId} without start/end dates");
+
+        // 1. Resolve the availability slot for the requested date window. OSM's addItem
+        //    requires a slot_id, which is NOT a property of the item — it's looked up from
+        //    the item-type's availability for this booking.
+        var availUrl = $"/v3/campsites/items/{Uri.EscapeDataString(spec.CampsiteItemId)}/availability?booking_id={Uri.EscapeDataString(osmBookingId)}";
+        var availResponse = await SendAuthorizedAsync(HttpMethod.Get, availUrl, null);
+        if (!availResponse.IsSuccessStatusCode)
+            throw await BuildOsmExceptionAsync(availResponse, $"fetching availability for item {spec.CampsiteItemId}");
+
+        var availJson = await availResponse.Content.ReadAsStringAsync();
+        var slotId = ResolveSlotId(availJson, spec.StartDate.Value, spec.EndDate.Value)
+            ?? throw new InvalidOperationException(
+                $"No available OSM slot for item {spec.CampsiteItemId} on {spec.StartDate:yyyy-MM-dd}..{spec.EndDate:yyyy-MM-dd}");
+
+        // 2. Create (add) the item.
+        var createUrl = $"/v3/campsites/bookings/{Uri.EscapeDataString(osmBookingId)}/addItem/{Uri.EscapeDataString(spec.CampsiteItemId)}";
+        var form = BuildCreateForm(spec, slotId);
+        var createResponse = await SendAuthorizedAsync(HttpMethod.Post, createUrl,
+            () => new FormUrlEncodedContent(form));
+        if (!createResponse.IsSuccessStatusCode)
+            throw await BuildOsmExceptionAsync(createResponse, $"creating item {spec.CampsiteItemId} for booking {osmBookingId}");
+
+        var createJson = await createResponse.Content.ReadAsStringAsync();
+        var newItemId = ParseCreatedItemId(createJson);
+        _logger.LogInformation("Created OSM item {NewItemId} on booking {BookingId}", newItemId, osmBookingId);
+
+        // 3. Replay the original item's question answers onto the clone (best-effort —
+        //    OSM creates blank question rows on add, and the clone's row ids differ from
+        //    the original's, so we match on the stable question-definition id).
+        if (spec.QuestionAnswers.Count > 0)
+            await ReplayQuestionAnswersAsync(newItemId, spec.QuestionAnswers);
+
+        return newItemId;
     }
 
-    public Task<bool> DeleteBookingItemAsync(string osmBookingId, string itemId)
+    public async Task<bool> DeleteBookingItemAsync(string osmBookingId, string itemId)
     {
-        // DEFERRED SEAM: deleting an OSM booking item is pending example request/response
-        // data to confirm the endpoint URL and payload shape.
-        throw new NotImplementedException("OSM DeleteBookingItem not yet wired — pending example data");
+        var url = $"/v3/campsites/bookings/items/{Uri.EscapeDataString(itemId)}/delete";
+        var response = await SendAuthorizedAsync(HttpMethod.Post, url, null);
+        if (!response.IsSuccessStatusCode)
+        {
+            _logger.LogWarning("OSM delete returned {StatusCode} for item {ItemId}", response.StatusCode, itemId);
+            return false;
+        }
+
+        var json = await response.Content.ReadAsStringAsync();
+        return ParseDeleteSucceeded(json);
+    }
+
+    private async Task ReplayQuestionAnswersAsync(string itemId, IReadOnlyDictionary<int, string> answersByDefId)
+    {
+        try
+        {
+            var url = $"/v3/campsites/bookings/items/{Uri.EscapeDataString(itemId)}/questions";
+            var getResponse = await SendAuthorizedAsync(HttpMethod.Get, url, null);
+            if (!getResponse.IsSuccessStatusCode)
+            {
+                _logger.LogWarning("Could not fetch questions for cloned item {ItemId}; answers not replayed", itemId);
+                return;
+            }
+
+            var cloneQuestions = ParseItemQuestions(await getResponse.Content.ReadAsStringAsync());
+            var answersJson = BuildAnswersJson(answersByDefId, cloneQuestions);
+            if (answersJson == "[]") return;   // nothing to replay
+
+            var postResponse = await SendAuthorizedAsync(HttpMethod.Post, url,
+                () => new FormUrlEncodedContent(new Dictionary<string, string> { ["answers"] = answersJson }));
+            if (!postResponse.IsSuccessStatusCode)
+                _logger.LogWarning("Replaying answers to cloned item {ItemId} returned {StatusCode}", itemId, postResponse.StatusCode);
+        }
+        catch (Exception ex)
+        {
+            // Answer replay is best-effort: a failure here must not fail the whole mutation.
+            _logger.LogWarning(ex, "Failed to replay question answers to cloned item {ItemId}", itemId);
+        }
+    }
+
+    private Task<HttpResponseMessage> SendAuthorizedAsync(
+        HttpMethod method, string url, Func<HttpContent>? contentFactory)
+        => SendWithRateLimitAsync(async () =>
+        {
+            var token = await GetAccessTokenAsync();
+            var req = new HttpRequestMessage(method, url);
+            req.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
+            if (contentFactory != null) req.Content = contentFactory();   // fresh content per attempt
+            return req;
+        });
+
+    private async Task<Exception> BuildOsmExceptionAsync(HttpResponseMessage response, string context)
+    {
+        if (response.StatusCode == System.Net.HttpStatusCode.Unauthorized)
+            return new InvalidOperationException($"OSM authentication failed {context}");
+        var body = await response.Content.ReadAsStringAsync();
+        return new InvalidOperationException($"OSM error {(int)response.StatusCode} {context}: {body}");
+    }
+
+    /// <summary>
+    /// Finds the availability slot id whose date window matches the requested start/end
+    /// dates (times within the slot are flexible and supplied separately). Returns null
+    /// when no available slot covers the window.
+    /// </summary>
+    internal static string? ResolveSlotId(string? availabilityJson, DateTime startDate, DateTime endDate)
+    {
+        if (string.IsNullOrWhiteSpace(availabilityJson)) return null;
+
+        using var doc = JsonDocument.Parse(availabilityJson);
+        if (!doc.RootElement.TryGetProperty("data", out var data) || data.ValueKind != JsonValueKind.Array)
+            return null;
+
+        foreach (var slot in data.EnumerateArray())
+        {
+            if (slot.TryGetProperty("available", out var avail) && avail.ValueKind == JsonValueKind.False)
+                continue;
+
+            var (slotStart, _) = SplitTimestamp(GetString(slot, "start"));
+            var (slotEnd, _) = SplitTimestamp(GetString(slot, "end"));
+            if (slotStart == startDate.Date && slotEnd == endDate.Date)
+                return GetString(slot, "id");
+        }
+
+        return null;
+    }
+
+    /// <summary>Builds the OSM addItem form fields from a create spec and resolved slot id.</summary>
+    internal static Dictionary<string, string> BuildCreateForm(BookingItemCreateSpec spec, string slotId)
+        => new()
+        {
+            ["slot_id"] = slotId,
+            ["start"] = spec.StartDate?.ToString("yyyy-MM-dd") ?? string.Empty,
+            ["end"] = spec.EndDate?.ToString("yyyy-MM-dd") ?? string.Empty,
+            ["number_people"] = spec.NumberPeople?.ToString() ?? string.Empty,
+            ["start_time"] = spec.StartTime ?? string.Empty,
+            ["end_time"] = spec.EndTime ?? string.Empty
+        };
+
+    /// <summary>Reads the new booked-item id from an addItem response; throws if OSM rejected the create.</summary>
+    internal static string ParseCreatedItemId(string json)
+    {
+        using var doc = JsonDocument.Parse(json);
+        var root = doc.RootElement;
+
+        if (root.TryGetProperty("status", out var status) && status.ValueKind == JsonValueKind.False)
+            throw new InvalidOperationException($"OSM rejected item creation: {GetString(root, "error") ?? "unknown error"}");
+
+        if (root.TryGetProperty("data", out var data) && data.ValueKind == JsonValueKind.Object &&
+            data.TryGetProperty("id", out var id))
+            return id.ValueKind == JsonValueKind.Number ? id.GetInt64().ToString() : id.GetString() ?? string.Empty;
+
+        throw new InvalidOperationException("OSM create response missing data.id");
+    }
+
+    /// <summary>True when an OSM delete response reports success.</summary>
+    internal static bool ParseDeleteSucceeded(string? json)
+    {
+        if (string.IsNullOrWhiteSpace(json)) return false;
+        using var doc = JsonDocument.Parse(json);
+        return doc.RootElement.TryGetProperty("status", out var status) &&
+               status.ValueKind == JsonValueKind.True;
+    }
+
+    /// <summary>Parses an OSM per-item questions response into row/definition/answer triples.</summary>
+    internal static List<OsmItemQuestion> ParseItemQuestions(string? json)
+    {
+        var result = new List<OsmItemQuestion>();
+        if (string.IsNullOrWhiteSpace(json)) return result;
+
+        using var doc = JsonDocument.Parse(json);
+        if (!doc.RootElement.TryGetProperty("data", out var data) || data.ValueKind != JsonValueKind.Object)
+            return result;
+        if (!data.TryGetProperty("questions", out var questions) || questions.ValueKind != JsonValueKind.Array)
+            return result;
+
+        foreach (var q in questions.EnumerateArray())
+            result.Add(new OsmItemQuestion(
+                GetInt(q, "id"),
+                GetInt(q, "campsite_booking_question_id"),
+                GetString(q, "answer") ?? string.Empty));
+
+        return result;
+    }
+
+    /// <summary>
+    /// Builds the OSM questions-POST payload (a JSON array of {id, answer}) by mapping the
+    /// original answers (keyed by question-definition id) onto the clone's answer-row ids.
+    /// Only questions with a non-empty original answer are included.
+    /// </summary>
+    internal static string BuildAnswersJson(
+        IReadOnlyDictionary<int, string> answersByDefId, IEnumerable<OsmItemQuestion> cloneQuestions)
+    {
+        var payload = cloneQuestions
+            .Where(q => answersByDefId.TryGetValue(q.QuestionDefId, out var a) && !string.IsNullOrEmpty(a))
+            .Select(q => new { id = q.RowId, answer = answersByDefId[q.QuestionDefId] })
+            .ToList();
+        return JsonSerializer.Serialize(payload);
     }
 
     public async Task<List<BookingItemDto>> GetBookingItemsAsync(string osmBookingId)
@@ -445,8 +632,22 @@ internal class OsmService : IOsmService
             EndTime = endTime,
             NumberPeople = item.TryGetProperty("number_people", out var np) &&
                            np.TryGetInt32(out var npVal) ? npVal : null,
-            Label = label
+            Label = label,
+            Questions = ParseBookingQuestions(item)
         };
+    }
+
+    private static List<BookingItemQuestion> ParseBookingQuestions(JsonElement item)
+    {
+        var list = new List<BookingItemQuestion>();
+        if (item.TryGetProperty("booking_questions", out var bq) && bq.ValueKind == JsonValueKind.Array)
+            foreach (var q in bq.EnumerateArray())
+                list.Add(new BookingItemQuestion
+                {
+                    QuestionDefId = GetInt(q, "campsite_booking_question_id"),
+                    Answer = GetString(q, "answer") ?? string.Empty
+                });
+        return list;
     }
 
     /// <summary>Splits an OSM "yyyy-MM-dd HH:mm:ss" timestamp into a date and an "HH:mm" time.</summary>

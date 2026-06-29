@@ -115,7 +115,7 @@ public class BookingActionsTests : IClassFixture<WebApplicationFactory<Program>>
     }
 
     [Fact]
-    public async Task MoveActivity_OverridesReachEngine_ViaCloneJson()
+    public async Task MoveActivity_OverridesReachEngine_ViaSpec()
     {
         var bookingId = await SeedBookingAsync("99011");
         _fakeOsm.ItemsToReturn = new List<BookingItemDto> { MakeActivityItem("act-item-1") };
@@ -131,12 +131,10 @@ public class BookingActionsTests : IClassFixture<WebApplicationFactory<Program>>
                 NewEndTime = "11:00"
             });
 
-        Assert.Single(_fakeOsm.CapturedCloneJsons);
-        var cloneJson = _fakeOsm.CapturedCloneJsons[0];
-        Assert.Contains("09:00", cloneJson);
-        Assert.Contains("11:00", cloneJson);
-        // The shifted start date should appear in the serialised clone
-        Assert.Contains("2026-08-03", cloneJson);
+        var spec = Assert.Single(_fakeOsm.CapturedSpecs);
+        Assert.Equal("09:00", spec.StartTime);
+        Assert.Equal("11:00", spec.EndTime);
+        Assert.Equal(new DateTime(2026, 8, 3, 0, 0, 0, DateTimeKind.Utc), spec.StartDate);
     }
 
     [Fact]
@@ -204,9 +202,9 @@ public class BookingActionsTests : IClassFixture<WebApplicationFactory<Program>>
         Assert.Contains("site-item-new", result.Created);
         Assert.Contains("site-item-1", result.Deleted);
 
-        // Clone JSON should contain the new site id
-        Assert.Single(_fakeOsm.CapturedCloneJsons);
-        Assert.Contains("site-99", _fakeOsm.CapturedCloneJsons[0]);
+        // The new site id becomes the clone's item-type id
+        var spec = Assert.Single(_fakeOsm.CapturedSpecs);
+        Assert.Equal("site-99", spec.CampsiteItemId);
     }
 
     [Fact]
@@ -311,10 +309,10 @@ public class BookingActionsTests : IClassFixture<WebApplicationFactory<Program>>
         Assert.Equal(BookingActionStatus.Completed, result.Status);
 
         // One create per item
-        Assert.Equal(3, _fakeOsm.CapturedCloneJsons.Count);
+        Assert.Equal(3, _fakeOsm.CapturedSpecs.Count);
 
         // Dates should be shifted by 7 days — site-item-1 starts 2026-08-01, shifted to 2026-08-08
-        Assert.Contains("2026-08-08", _fakeOsm.CapturedCloneJsons[0]);
+        Assert.Equal(new DateTime(2026, 8, 8, 0, 0, 0, DateTimeKind.Utc), _fakeOsm.CapturedSpecs[0].StartDate);
     }
 
     [Fact]
@@ -339,13 +337,12 @@ public class BookingActionsTests : IClassFixture<WebApplicationFactory<Program>>
             $"/api/bookings/{bookingId}/actions/move-dates",
             new MoveDatesRequest { DayShift = 3 });
 
-        Assert.Single(_fakeOsm.CapturedCloneJsons);
-        var cloneJson = _fakeOsm.CapturedCloneJsons[0];
+        var spec = Assert.Single(_fakeOsm.CapturedSpecs);
         // Date shifted: 2026-08-02 + 3 days = 2026-08-05
-        Assert.Contains("2026-08-05", cloneJson);
+        Assert.Equal(new DateTime(2026, 8, 5, 0, 0, 0, DateTimeKind.Utc), spec.StartDate);
         // Times preserved
-        Assert.Contains("10:00", cloneJson);
-        Assert.Contains("12:00", cloneJson);
+        Assert.Equal("10:00", spec.StartTime);
+        Assert.Equal("12:00", spec.EndTime);
     }
 
     [Fact]
@@ -383,16 +380,14 @@ public class BookingActionsTests : IClassFixture<WebApplicationFactory<Program>>
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
 
         // Fan-out: one replacement per item regardless of whether it has dates
-        Assert.Equal(2, _fakeOsm.CapturedCloneJsons.Count);
+        Assert.Equal(2, _fakeOsm.CapturedSpecs.Count);
 
         // Dated item clone: start date shifted from 2026-08-01 by 7 days → 2026-08-08
-        var datedCloneJson = _fakeOsm.CapturedCloneJsons[0];
-        Assert.Contains("2026-08-08", datedCloneJson);
+        Assert.Equal(new DateTime(2026, 8, 8, 0, 0, 0, DateTimeKind.Utc), _fakeOsm.CapturedSpecs[0].StartDate);
 
-        // Dateless item clone: no date override — null dates are not shifted,
-        // so the clone JSON must NOT contain any date value
-        var datelessCloneJson = _fakeOsm.CapturedCloneJsons[1];
-        Assert.DoesNotContain("2026-08", datelessCloneJson);
+        // Dateless item clone: null dates are not shifted, so they remain null
+        Assert.Null(_fakeOsm.CapturedSpecs[1].StartDate);
+        Assert.Null(_fakeOsm.CapturedSpecs[1].EndDate);
     }
 
     // ── Status propagation ────────────────────────────────────────────────────

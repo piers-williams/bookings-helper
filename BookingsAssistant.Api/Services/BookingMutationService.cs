@@ -1,4 +1,3 @@
-using System.Text.Json;
 using BookingsAssistant.Api.Models;
 
 namespace BookingsAssistant.Api.Services;
@@ -38,8 +37,8 @@ public class BookingMutationService : IBookingMutationService
         {
             try
             {
-                var cloneJson = BuildCloneJson(replacement);
-                var newId = await _osmService.CreateBookingItemAsync(osmBookingId, cloneJson);
+                var spec = BuildCreateSpec(replacement);
+                var newId = await _osmService.CreateBookingItemAsync(osmBookingId, spec);
                 created.Add(newId);
                 _logger.LogInformation(
                     "ReplaceItemsAsync: created item {NewId} for booking {BookingId}",
@@ -141,33 +140,31 @@ public class BookingMutationService : IBookingMutationService
     }
 
     /// <summary>
-    /// Builds the clone JSON for a replacement by copying the original item and
-    /// applying any provided overrides.
-    ///
-    /// INTERIM CLONE REPRESENTATION: this serialises BookingItemDto with overrides.
-    /// The real raw-JSON-preserving clone (preserving unmapped OSM fields) is deferred
-    /// to the osm-payload-mapping chunk pending example response data.
+    /// Builds the create spec for a replacement: the original item's fields with any
+    /// overrides applied. The "site/activity id" is the OSM item-type id used to re-add
+    /// the item; change-site overrides it with the target site. Original question answers
+    /// (keyed by question-definition id) are carried through for replay onto the clone.
     /// </summary>
-    private static string BuildCloneJson(ItemReplacement replacement)
+    private static BookingItemCreateSpec BuildCreateSpec(ItemReplacement replacement)
     {
         var original = replacement.Original;
 
-        // Copy the original item — note ItemId is intentionally excluded from
-        // the clone payload (OSM will assign a new one on creation).
-        var clone = new BookingItemDto
+        // The item-type id lives in SiteId (sites) or ActivityId (activities); change-site
+        // swaps it for the target site.
+        var campsiteItemId = replacement.NewSiteId
+            ?? (original.Type == "activity" ? original.ActivityId : original.SiteId)
+            ?? string.Empty;
+
+        return new BookingItemCreateSpec
         {
-            ItemId = string.Empty,   // excluded from payload; OSM assigns on create
-            Type = original.Type,
-            SiteId = replacement.NewSiteId ?? original.SiteId,
-            ActivityId = original.ActivityId,
-            Label = original.Label,
+            CampsiteItemId = campsiteItemId,
             StartDate = replacement.NewStartDate ?? original.StartDate,
             EndDate = replacement.NewEndDate ?? original.EndDate,
             StartTime = replacement.NewStartTime ?? original.StartTime,
-            EndTime = replacement.NewEndTime ?? original.EndTime
+            EndTime = replacement.NewEndTime ?? original.EndTime,
+            NumberPeople = original.NumberPeople,
+            QuestionAnswers = original.Questions.ToDictionary(q => q.QuestionDefId, q => q.Answer)
         };
-
-        return JsonSerializer.Serialize(clone);
     }
 
     private async Task<List<BookingItemDto>> GetItemsSafeAsync(string osmBookingId)

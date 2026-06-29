@@ -68,9 +68,9 @@ public class FakeOsmService : IOsmService
     private int _createCallCount;
 
     /// <summary>
-    /// Captures each cloneJson passed to CreateBookingItemAsync.
+    /// Captures each spec passed to CreateBookingItemAsync (in call order).
     /// </summary>
-    public List<string> CapturedCloneJsons { get; } = new();
+    public List<BookingItemCreateSpec> CapturedSpecs { get; } = new();
 
     /// <summary>
     /// List of (osmBookingId, itemId) calls to DeleteBookingItemAsync.
@@ -98,13 +98,13 @@ public class FakeOsmService : IOsmService
     /// </summary>
     public HashSet<string> DeleteThrowForIds { get; } = new();
 
-    public Task<string> CreateBookingItemAsync(string osmBookingId, string cloneJson)
+    public Task<string> CreateBookingItemAsync(string osmBookingId, BookingItemCreateSpec spec)
     {
         _createCallCount++;
         if (FailCreateOnCall is { } fail && fail.CallNumber == _createCallCount)
             throw fail.Error;
 
-        CapturedCloneJsons.Add(cloneJson);
+        CapturedSpecs.Add(spec);
         var newId = _createCallCount <= CreatedItemIds.Count
             ? CreatedItemIds[_createCallCount - 1]
             : $"new-item-{_createCallCount}";

@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+
 namespace BookingsAssistant.Api.Models;
 
 public class BookingItemDto
@@ -23,4 +25,12 @@ public class BookingItemDto
     public int? NumberPeople { get; set; }
 
     public string Label { get; set; } = string.Empty;
+
+    /// <summary>
+    /// The item's question answers (from the booking-detail response). Carried so a
+    /// clone can replay them; not part of the public items contract (it could contain
+    /// free-text), so excluded from JSON serialisation.
+    /// </summary>
+    [JsonIgnore]
+    public List<BookingItemQuestion> Questions { get; set; } = new();
 }

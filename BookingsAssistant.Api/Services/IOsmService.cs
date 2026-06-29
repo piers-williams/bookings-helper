@@ -24,25 +24,20 @@ public interface IOsmService
 
     // Items
     /// <summary>
-    /// Fetches the line-items (sites and activities) for a booking.
-    /// NOTE: OSM item parsing is a deferred seam — the implementation throws
-    /// NotImplementedException until real response data is available to wire it up.
+    /// Fetches the line-items (sites and activities) for a booking from the OSM
+    /// booking-detail resource.
     /// </summary>
     Task<List<BookingItemDto>> GetBookingItemsAsync(string osmBookingId);
 
     /// <summary>
-    /// Creates a new booking item by cloning the provided JSON payload.
-    /// Returns the new item id assigned by OSM.
-    /// NOTE: DEFERRED SEAM — real implementation pending example OSM request/response data.
-    /// The real OsmService throws NotImplementedException("... pending example data").
+    /// Creates a new booking item from the given spec (an existing item with overrides
+    /// applied). The adapter resolves the OSM availability slot, posts the addItem form,
+    /// and replays the original item's question answers. Returns the new item id.
     /// </summary>
-    Task<string> CreateBookingItemAsync(string osmBookingId, string cloneJson);
+    Task<string> CreateBookingItemAsync(string osmBookingId, BookingItemCreateSpec spec);
 
     /// <summary>
-    /// Deletes the specified booking item.
-    /// Returns true on success, false on failure.
-    /// NOTE: DEFERRED SEAM — real implementation pending example OSM request/response data.
-    /// The real OsmService throws NotImplementedException("... pending example data").
+    /// Deletes the specified booking item. Returns true on success, false on failure.
     /// </summary>
     Task<bool> DeleteBookingItemAsync(string osmBookingId, string itemId);
 

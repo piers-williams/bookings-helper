@@ -52,6 +52,17 @@ public class OsmServiceItemParsingTests
     }
 
     [Fact]
+    public void ParseBookingItems_CapturesQuestionAnswers_KeyedByQuestionDefId()
+    {
+        var site = ParseRealBooking().Single(i => i.ItemId == "411467");
+
+        // Original answers are needed to replay onto a clone (matched by question-def id)
+        Assert.Equal(3, site.Questions.Count);
+        Assert.Equal(989, site.Questions[0].QuestionDefId);
+        Assert.Equal("-", site.Questions[0].Answer);
+    }
+
+    [Fact]
     public void ParseBookingItems_ReturnsEmpty_WhenNoItems()
         => Assert.Empty(OsmService.ParseBookingItems(
             """{"status":true,"error":null,"data":{"id":1,"items":[]},"meta":[]}"""));

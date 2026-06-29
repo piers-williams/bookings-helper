@@ -1,4 +1,3 @@
-using System.Text.Json;
 using BookingsAssistant.Api.Models;
 using BookingsAssistant.Api.Services;
 using BookingsAssistant.Tests.Fakes;
@@ -162,7 +161,7 @@ public class BookingMutationServiceTests
     // ── Override fidelity ─────────────────────────────────────────────────────
 
     [Fact]
-    public async Task Override_NewSiteId_ReflectedInCloneJson_OtherFieldsUnchanged()
+    public async Task Override_NewSiteId_ReflectedInSpec_OtherFieldsUnchanged()
     {
         var fake = new FakeOsmService
         {
@@ -181,22 +180,16 @@ public class BookingMutationServiceTests
 
         await svc.ReplaceItemsAsync("booking-99", replacements);
 
-        Assert.Single(fake.CapturedCloneJsons);
-        var cloneJson = fake.CapturedCloneJsons[0];
-
-        // Parse the clone JSON and verify override was applied
-        var cloned = JsonSerializer.Deserialize<BookingItemDto>(cloneJson,
-            new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
-        Assert.NotNull(cloned);
-        Assert.Equal("site-NEW", cloned!.SiteId);          // overridden
-        Assert.Equal("08:00", cloned.StartTime);           // unchanged
-        Assert.Equal("16:00", cloned.EndTime);             // unchanged
-        Assert.Equal(original.StartDate, cloned.StartDate); // unchanged
-        Assert.Equal(original.EndDate, cloned.EndDate);     // unchanged
+        var spec = Assert.Single(fake.CapturedSpecs);
+        Assert.Equal("site-NEW", spec.CampsiteItemId);     // overridden (site → new item-type id)
+        Assert.Equal("08:00", spec.StartTime);             // unchanged
+        Assert.Equal("16:00", spec.EndTime);               // unchanged
+        Assert.Equal(original.StartDate, spec.StartDate);  // unchanged
+        Assert.Equal(original.EndDate, spec.EndDate);      // unchanged
     }
 
     [Fact]
-    public async Task Override_NewStartTime_ReflectedInCloneJson_OtherFieldsUnchanged()
+    public async Task Override_NewStartTime_ReflectedInSpec_OtherFieldsUnchanged()
     {
         var fake = new FakeOsmService
         {
@@ -213,17 +206,14 @@ public class BookingMutationServiceTests
 
         await svc.ReplaceItemsAsync("booking-99", replacements);
 
-        Assert.Single(fake.CapturedCloneJsons);
-        var cloned = JsonSerializer.Deserialize<BookingItemDto>(fake.CapturedCloneJsons[0],
-            new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
-        Assert.NotNull(cloned);
-        Assert.Equal("14:00", cloned!.StartTime);  // overridden
-        Assert.Equal("18:00", cloned.EndTime);      // overridden
-        Assert.Equal("site-42", cloned.SiteId);     // unchanged
+        var spec = Assert.Single(fake.CapturedSpecs);
+        Assert.Equal("14:00", spec.StartTime);       // overridden
+        Assert.Equal("18:00", spec.EndTime);         // overridden
+        Assert.Equal("site-42", spec.CampsiteItemId); // unchanged
     }
 
     [Fact]
-    public async Task NoOverrides_CloneJsonMatchesOriginalFields()
+    public async Task NoOverrides_SpecMatchesOriginalFields()
     {
         var fake = new FakeOsmService
         {
@@ -234,6 +224,7 @@ public class BookingMutationServiceTests
         original.Label = "Camping Pitch";
         original.Type = "site";
         original.ActivityId = null;
+        original.NumberPeople = 12;
 
         var svc = CreateService(fake);
         var replacements = new List<ItemReplacement>
@@ -244,14 +235,10 @@ public class BookingMutationServiceTests
 
         await svc.ReplaceItemsAsync("booking-99", replacements);
 
-        Assert.Single(fake.CapturedCloneJsons);
-        var cloned = JsonSerializer.Deserialize<BookingItemDto>(fake.CapturedCloneJsons[0],
-            new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
-        Assert.NotNull(cloned);
-        Assert.Equal("site-77", cloned!.SiteId);
-        Assert.Equal("10:00", cloned.StartTime);
-        Assert.Equal("15:00", cloned.EndTime);
-        Assert.Equal("Camping Pitch", cloned.Label);
-        Assert.Equal("site", cloned.Type);
+        var spec = Assert.Single(fake.CapturedSpecs);
+        Assert.Equal("site-77", spec.CampsiteItemId);
+        Assert.Equal("10:00", spec.StartTime);
+        Assert.Equal("15:00", spec.EndTime);
+        Assert.Equal(12, spec.NumberPeople);
     }
 }
