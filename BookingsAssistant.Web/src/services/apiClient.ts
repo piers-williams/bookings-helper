@@ -1,12 +1,16 @@
 import axios from 'axios';
 import type {
   Booking,
+  BookingActionResult,
   BookingDetail,
   BookingItem,
+  ChangeSiteRequest,
   Email,
   Link,
   CreateLinkRequest,
   BookingStats,
+  MoveActivityRequest,
+  MoveDatesRequest,
   PagedResult
 } from '../types';
 
@@ -72,6 +76,21 @@ export const bookingsApi = {
 
   getItems: async (id: number): Promise<BookingItem[]> => {
     const response = await apiClient.get<BookingItem[]>(`/bookings/${id}/items`);
+    return response.data;
+  },
+
+  moveActivity: async (id: number, req: MoveActivityRequest): Promise<BookingActionResult> => {
+    const response = await apiClient.post<BookingActionResult>(`/bookings/${id}/actions/move-activity`, req);
+    return response.data;
+  },
+
+  changeSite: async (id: number, req: ChangeSiteRequest): Promise<BookingActionResult> => {
+    const response = await apiClient.post<BookingActionResult>(`/bookings/${id}/actions/change-site`, req);
+    return response.data;
+  },
+
+  moveDates: async (id: number, req: MoveDatesRequest): Promise<BookingActionResult> => {
+    const response = await apiClient.post<BookingActionResult>(`/bookings/${id}/actions/move-dates`, req);
     return response.data;
   },
 };
