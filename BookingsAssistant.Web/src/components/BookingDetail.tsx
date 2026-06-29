@@ -46,12 +46,8 @@ export default function BookingDetail() {
       } catch (err: unknown) {
         // 501 = OSM parsing seam not yet wired; show graceful message rather than crashing
         const status = (err as { response?: { status?: number } })?.response?.status;
-        if (status === 501) {
-          setItemsUnavailable(true);
-        } else {
-          setItemsUnavailable(true);
-          console.error('Failed to load items', err);
-        }
+        setItemsUnavailable(true);
+        if (status !== 501) console.error('Failed to load items', err);
       } finally {
         setItemsLoading(false);
       }

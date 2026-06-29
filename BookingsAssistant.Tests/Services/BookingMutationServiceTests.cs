@@ -120,6 +120,7 @@ public class BookingMutationServiceTests
 
         // The first create succeeded and must be rolled back
         Assert.Empty(result.Created);
+        Assert.Empty(result.Deleted);
         Assert.Contains(("booking-99", "new-1"), fake.DeletedItems);
 
         // Original items must NOT have been deleted
