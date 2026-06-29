@@ -93,3 +93,49 @@ export interface BookingStats {
   provisional: number;
   lastSynced: string | null;
 }
+
+export interface BookingItem {
+  itemId: string;
+  /** "site" or "activity" */
+  type: string;
+  siteId?: string;
+  activityId?: string;
+  startDate?: string;
+  endDate?: string;
+  startTime?: string;
+  endTime?: string;
+  label: string;
+}
+
+/** Result of a booking mutation operation (item replacement). Mirrors BookingActionResult on the backend. */
+export interface BookingActionResult {
+  /** Ids of items successfully created during this operation. */
+  created: string[];
+  /** Ids of items successfully deleted during this operation. */
+  deleted: string[];
+  /** One of: "completed", "completed_with_warnings", "rolled_back", "failed". */
+  status: string;
+  /** Human-readable explanation of the outcome. */
+  message: string;
+  /** The booking's items after the operation completes. */
+  items: BookingItem[];
+}
+
+/** Request to move an activity item (change time or date). */
+export interface MoveActivityRequest {
+  itemId: string;
+  newStartDate?: string;
+  newStartTime?: string;
+  newEndTime?: string;
+}
+
+/** Request to move a site item to a different site. */
+export interface ChangeSiteRequest {
+  itemId: string;
+  newSiteId: string;
+}
+
+/** Request to shift all items in a booking by the given number of days. */
+export interface MoveDatesRequest {
+  dayShift: number;
+}

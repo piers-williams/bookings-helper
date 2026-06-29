@@ -1,0 +1,29 @@
+{
+  "request": {
+    "method": "POST",
+    "url_template": "/v3/campsites/bookings/items/{itemId}/questions",
+    "content_type": "application/x-www-form-urlencoded",
+    "form_field": "answers",
+    "raw_body": "answers=%5B%7B%22id%22%3A234758%2C%22answer%22%3A%22-%22%7D%2C%7B%22id%22%3A234759%2C%22answer%22%3A%22-%22%7D%2C%7B%22id%22%3A234760%2C%22answer%22%3A%22-%22%7D%5D",
+    "decoded_answers": [
+      {
+        "id": 234758,
+        "answer": "-"
+      },
+      {
+        "id": 234759,
+        "answer": "-"
+      },
+      {
+        "id": 234760,
+        "answer": "-"
+      }
+    ]
+  },
+  "response": {
+    "status": true,
+    "error": null,
+    "data": [],
+    "meta": []
+  }
+}

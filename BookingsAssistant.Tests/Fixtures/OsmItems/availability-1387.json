@@ -1,0 +1,97 @@
+{
+  "status": true,
+  "error": null,
+  "data": [
+    {
+      "start": "2027-12-04 00:01:00",
+      "start_time": "00:01:00",
+      "cost": {
+        "id": 11199,
+        "campsite_effective_from_id": 7160,
+        "campsite_organisation_id": 1502,
+        "price_per_person": 0,
+        "price_per_session": 0,
+        "free_people_per_session": 0,
+        "minimum_price": 0,
+        "deposit_amount": 0,
+        "deposit_percent": 0,
+        "created_at": "2022-10-15 11:27:59",
+        "updated_at": "2022-10-15 11:27:59"
+      },
+      "end": "2027-12-04 23:59:00",
+      "end_time": "23:59:00",
+      "available": true,
+      "unavailable_reason": null,
+      "available_until": false,
+      "minimum_sessions": 1,
+      "multi_day": false,
+      "id": 6185,
+      "flexible_times": true,
+      "flexible_price_mode": "session",
+      "flexible_minimum_duration": 120,
+      "flexible_existing_bookings": []
+    },
+    {
+      "start": "2027-12-04 00:01:00",
+      "start_time": "00:01:00",
+      "cost": {
+        "id": 11199,
+        "campsite_effective_from_id": 7160,
+        "campsite_organisation_id": 1502,
+        "price_per_person": 0,
+        "price_per_session": 0,
+        "free_people_per_session": 0,
+        "minimum_price": 0,
+        "deposit_amount": 0,
+        "deposit_percent": 0,
+        "created_at": "2022-10-15 11:27:59",
+        "updated_at": "2022-10-15 11:27:59"
+      },
+      "end": "2027-12-05 23:59:00",
+      "end_time": "23:59:00",
+      "available": true,
+      "unavailable_reason": null,
+      "available_until": "2027-12-05 23:59:00",
+      "minimum_sessions": 1,
+      "multi_day": true,
+      "id": 8279,
+      "flexible_times": true,
+      "flexible_price_mode": null,
+      "flexible_minimum_duration": null,
+      "flexible_existing_bookings": []
+    },
+    {
+      "start": "2027-12-05 00:01:00",
+      "start_time": "00:01:00",
+      "cost": {
+        "id": 11199,
+        "campsite_effective_from_id": 7160,
+        "campsite_organisation_id": 1502,
+        "price_per_person": 0,
+        "price_per_session": 0,
+        "free_people_per_session": 0,
+        "minimum_price": 0,
+        "deposit_amount": 0,
+        "deposit_percent": 0,
+        "created_at": "2022-10-15 11:27:59",
+        "updated_at": "2022-10-15 11:27:59"
+      },
+      "end": "2027-12-05 23:59:00",
+      "end_time": "23:59:00",
+      "available": true,
+      "unavailable_reason": null,
+      "available_until": false,
+      "minimum_sessions": 1,
+      "multi_day": false,
+      "id": 6185,
+      "flexible_times": true,
+      "flexible_price_mode": "session",
+      "flexible_minimum_duration": 120,
+      "flexible_existing_bookings": []
+    }
+  ],
+  "meta": {
+    "min_people": 0,
+    "max_people": 38
+  }
+}

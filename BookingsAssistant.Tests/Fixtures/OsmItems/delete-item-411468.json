@@ -1,0 +1,14 @@
+{
+  "request": {
+    "method": "POST",
+    "url_template": "/v3/campsites/bookings/items/{bookedItemId}/delete",
+    "actual_url": "https://www.onlinescoutmanager.co.uk/v3/campsites/bookings/items/411468/delete",
+    "body": ""
+  },
+  "response": {
+    "status": true,
+    "error": null,
+    "data": [],
+    "meta": []
+  }
+}

@@ -28,6 +28,9 @@ builder.Services.AddHttpClient<IOsmService, OsmService>();
 // Add linking service
 builder.Services.AddScoped<ILinkingService, LinkingService>();
 
+// Add booking mutation service (scoped — depends on IOsmService which is per-request via HttpClient)
+builder.Services.AddScoped<IBookingMutationService, BookingMutationService>();
+
 // Add hashing service (singleton — loaded once at startup with the secret)
 builder.Services.AddSingleton<IHashingService, HashingService>();
 

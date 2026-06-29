@@ -24,4 +24,9 @@
     <ProjectReference Include="..\BookingsAssistant.Api\BookingsAssistant.Api.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <!-- Captured OSM request/response samples used as parser fixtures (see Fixtures/OsmItems/README.md) -->
+    <Content Include="Fixtures\**\*.json" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
 </Project>
