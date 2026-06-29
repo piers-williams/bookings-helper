@@ -1,7 +1,17 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { bookingsApi } from '../services/apiClient';
-import type { BookingDetail as BookingDetailType, BookingItem } from '../types';
+import type { BookingActionResult, BookingDetail as BookingDetailType, BookingItem } from '../types';
+
+/** Tailwind classes for the action result banner, keyed by BookingActionResult.status. */
+function actionBannerClass(status: string): string {
+  switch (status) {
+    case 'completed': return 'bg-green-100 border-green-400 text-green-800';
+    case 'completed_with_warnings': return 'bg-amber-100 border-amber-400 text-amber-800';
+    case 'rolled_back': return 'bg-blue-100 border-blue-400 text-blue-800';
+    default: return 'bg-red-100 border-red-400 text-red-800'; // failed
+  }
+}
 
 export default function BookingDetail() {
   const { id } = useParams<{ id: string }>();
@@ -15,6 +25,13 @@ export default function BookingDetail() {
   const [items, setItems] = useState<BookingItem[] | null>(null);
   const [itemsLoading, setItemsLoading] = useState(false);
   const [itemsUnavailable, setItemsUnavailable] = useState(false);
+
+  // Booking actions (move-dates here; per-item actions added alongside)
+  const [actionInProgress, setActionInProgress] = useState(false);
+  const [actionResult, setActionResult] = useState<BookingActionResult | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
+  const [dayShift, setDayShift] = useState('');
+  const [confirmingMoveDates, setConfirmingMoveDates] = useState(false);
 
   useEffect(() => {
     const fetchBooking = async () => {
@@ -72,6 +89,31 @@ export default function BookingDetail() {
     } finally {
       setPosting(false);
     }
+  };
+
+  // Runs a booking action: shows progress, then renders the result banner and
+  // refreshes the items list in place from the action response (no extra fetch).
+  const runAction = async (fn: () => Promise<BookingActionResult>) => {
+    setActionInProgress(true);
+    setActionError(null);
+    setActionResult(null);
+    try {
+      const result = await fn();
+      setActionResult(result);
+      setItems(result.items);
+    } catch (err) {
+      setActionError('The action could not be completed. Please try again.');
+      console.error(err);
+    } finally {
+      setActionInProgress(false);
+      setConfirmingMoveDates(false);
+    }
+  };
+
+  const handleMoveDates = () => {
+    const shift = parseInt(dayShift, 10);
+    if (!id || Number.isNaN(shift) || shift === 0) return;
+    runAction(() => bookingsApi.moveDates(parseInt(id), { dayShift: shift }));
   };
 
   if (loading) {
@@ -233,6 +275,68 @@ export default function BookingDetail() {
         ) : (
           <p className="text-gray-500">No emails linked to this booking.</p>
         )}
+      </div>
+
+      {/* Booking Actions */}
+      <div className="bg-white rounded-lg shadow p-6 mb-6">
+        <h2 className="text-xl font-semibold text-gray-800 mb-4">Booking Actions</h2>
+
+        {actionResult && (
+          <div role="status" className={`mb-4 p-3 border rounded ${actionBannerClass(actionResult.status)}`}>
+            {actionResult.message}
+          </div>
+        )}
+        {actionError && (
+          <div role="status" className="mb-4 p-3 border rounded bg-red-100 border-red-400 text-red-800">
+            {actionError}
+          </div>
+        )}
+
+        <div className="border-t pt-4">
+          <label htmlFor="dayShift" className="block text-sm font-medium text-gray-700 mb-1">
+            Shift all booking dates by (days)
+          </label>
+          <div className="flex flex-wrap items-center gap-2">
+            <input
+              id="dayShift"
+              type="number"
+              value={dayShift}
+              onChange={(e) => setDayShift(e.target.value)}
+              disabled={actionInProgress}
+              className="w-24 p-2 border border-gray-300 rounded"
+            />
+            {!confirmingMoveDates ? (
+              <button
+                onClick={() => {
+                  const shift = parseInt(dayShift, 10);
+                  if (!Number.isNaN(shift) && shift !== 0) setConfirmingMoveDates(true);
+                }}
+                disabled={actionInProgress}
+                className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50"
+              >
+                Move dates
+              </button>
+            ) : (
+              <span className="text-sm text-gray-700">
+                Recreate every item shifted by {dayShift} day(s), then delete the originals?
+                <button
+                  onClick={handleMoveDates}
+                  disabled={actionInProgress}
+                  className="ml-2 px-3 py-1 bg-red-600 text-white rounded hover:bg-red-700 disabled:opacity-50"
+                >
+                  {actionInProgress ? 'Working…' : 'Confirm'}
+                </button>
+                <button
+                  onClick={() => setConfirmingMoveDates(false)}
+                  disabled={actionInProgress}
+                  className="ml-2 px-3 py-1 bg-gray-300 text-gray-800 rounded hover:bg-gray-400 disabled:opacity-50"
+                >
+                  Cancel
+                </button>
+              </span>
+            )}
+          </div>
+        </div>
       </div>
 
       {/* Items */}
