@@ -1,0 +1,233 @@
+{
+  "status": true,
+  "error": null,
+  "data": {
+    "id": 179743,
+    "campsite_site_id": 219,
+    "campsite_organisation_id": 1502,
+    "member_id": null,
+    "group_name": "REDACTED",
+    "start_date": "2027-12-04",
+    "end_date": "2027-12-05",
+    "number_leaders": 0,
+    "number_participants": 0,
+    "status": "draft",
+    "deposit": 0,
+    "deposit_due": null,
+    "total_price": 50,
+    "total_paid": 0,
+    "card_payments_config": null,
+    "campsite_users_card_account_id": 0,
+    "remaining_deposit": 0,
+    "formatted_created_at": "29/06/2026",
+    "items": [
+      {
+        "id": 411467,
+        "campsite_item_id": 1387,
+        "campsite_booking_id": 179743,
+        "start_timestamp": "2027-12-04 00:01:00",
+        "end_timestamp": "2027-12-05 23:59:00",
+        "number_sessions": 1,
+        "price_per_person": "0.00",
+        "price_per_session": "0.00",
+        "free_people_per_session": 0,
+        "minimum_price": "0.00",
+        "deposit_amount": 0,
+        "deposit_percent": 0,
+        "flexible_times": true,
+        "flexible_price_mode": null,
+        "min_people": 0,
+        "number_people": 20,
+        "calculated_deposit": "0.00",
+        "calculated_price": "0.00",
+        "number_instructors_required": 0,
+        "number_instructors_required_override": null,
+        "number_instructors": 0,
+        "campsite_instructor_type_id": 0,
+        "item": {
+          "id": 1387,
+          "parent_id": 3867,
+          "campsite_session_id": 728,
+          "campsite_price_type_id": 802,
+          "availability_rules": [
+            848
+          ],
+          "also_check": [],
+          "name": "Hayvern",
+          "description": "Hayvern is our medium-sized building and provides sleeping accommodation for up to 38 individuals within its 5 sleeping areas. There are 3 bedrooms with 2 bunk beds, 1 bedroom with a bunk bed, and then a large dormitory with 12 bunk beds.\n\n**PLEASE SEE ATTACHED FLOOR PLAN FOR SLEEPING ARRANGEMENTS**",
+          "terms_and_conditions": null,
+          "instructions": null,
+          "quantity": 1,
+          "min_people": 0,
+          "max_people": 38,
+          "hide_externally": false,
+          "staff_only": false,
+          "campsite_instructor_type_id": 0,
+          "number_instructors": 0,
+          "number_participants": 0,
+          "minimum_instructors": 0
+        },
+        "booking_questions": [
+          {
+            "id": 234758,
+            "campsite_item_booking_id": 411467,
+            "campsite_booking_question_group_id": 546,
+            "campsite_booking_question_id": 989,
+            "question": "Please confirm the following booking terms:",
+            "answer": "-",
+            "created_at": "2026-06-29 10:42:39",
+            "updated_at": "2026-06-29 10:42:42"
+          },
+          {
+            "id": 234759,
+            "campsite_item_booking_id": 411467,
+            "campsite_booking_question_group_id": 546,
+            "campsite_booking_question_id": 990,
+            "question": "I will not arrive before 7pm on Fridays",
+            "answer": "-",
+            "created_at": "2026-06-29 10:42:39",
+            "updated_at": "2026-06-29 10:42:42"
+          },
+          {
+            "id": 234760,
+            "campsite_item_booking_id": 411467,
+            "campsite_booking_question_group_id": 546,
+            "campsite_booking_question_id": 991,
+            "question": "Wardens stay no later than 4pm on Sundays",
+            "answer": "-",
+            "created_at": "2026-06-29 10:42:39",
+            "updated_at": "2026-06-29 10:42:42"
+          }
+        ]
+      },
+      {
+        "id": 411468,
+        "campsite_item_id": 4961,
+        "campsite_booking_id": 179743,
+        "start_timestamp": "2027-12-05 09:00:00",
+        "end_timestamp": "2027-12-05 10:00:00",
+        "number_sessions": 1,
+        "price_per_person": "0.00",
+        "price_per_session": "50.00",
+        "free_people_per_session": 0,
+        "minimum_price": "0.00",
+        "deposit_amount": 0,
+        "deposit_percent": 0,
+        "flexible_times": true,
+        "flexible_price_mode": "hourly",
+        "min_people": 0,
+        "number_people": 10,
+        "calculated_deposit": "0.00",
+        "calculated_price": "50.00",
+        "number_instructors_required": 1,
+        "number_instructors_required_override": null,
+        "number_instructors": 0,
+        "campsite_instructor_type_id": 422,
+        "item": {
+          "id": 4961,
+          "parent_id": 10290,
+          "campsite_session_id": 2103,
+          "campsite_price_type_id": 5315,
+          "availability_rules": null,
+          "also_check": [
+            1546
+          ],
+          "name": "ACTIVITY - Air Rifle Shooting",
+          "description": null,
+          "terms_and_conditions": "When booking rifle shooting, it is a legal requirement to complete a Section 21 form before undertaking the activity, this can be found on our website. If you do not have a completed form, you will not be able to participate in the activity. Please note this is legislation and, therefore, must be adhered to by all parties.",
+          "instructions": "Please ensure Section 21 form is completed prior to activities. If no form is present the individual is legally not allowed to participate.",
+          "quantity": 1,
+          "min_people": 0,
+          "max_people": 12,
+          "hide_externally": false,
+          "staff_only": true,
+          "campsite_instructor_type_id": 422,
+          "number_instructors": 1,
+          "number_participants": 5000,
+          "minimum_instructors": 1
+        },
+        "booking_questions": [
+          {
+            "id": 234761,
+            "campsite_item_booking_id": 411468,
+            "campsite_booking_question_group_id": 304,
+            "campsite_booking_question_id": 530,
+            "question": "I will complete the section 21 form.",
+            "answer": "",
+            "created_at": "2026-06-29 10:43:03",
+            "updated_at": "2026-06-29 10:43:03"
+          }
+        ]
+      }
+    ],
+    "campsite": {
+      "id": 219,
+      "name": "Thorrington Scout Camp",
+      "slug": "thorringtonscoutcamp",
+      "public": 1,
+      "currency": "GBP",
+      "latitude": 51.842701,
+      "longitude": 1.02162,
+      "externally_visible_until": "2026-11-07",
+      "billing_start_date": "2020-02-20",
+      "billing_total_topup": "5096.00",
+      "organisations": [
+        {
+          "id": 609,
+          "campsite_site_id": 219,
+          "name": "Colchester Scouts & Guides",
+          "description": "You must be a part of Colchester North or Estuary Districts Scouting or Colchester Guiding for this organisation type to apply.\n\nYour booking may be refused if you are not part of these.",
+          "created_at": "2020-02-18 02:20:07",
+          "updated_at": "2020-02-26 11:31:23",
+          "deleted_at": null
+        },
+        {
+          "id": 613,
+          "campsite_site_id": 219,
+          "name": "District & County Training",
+          "description": "You must be a part of Colchester North or Estuary Districts Scouting, Essex County Scouting or Colchester Guiding for this organisation type to apply.\n\nYour booking may be refused if you are not part of these.",
+          "created_at": "2020-02-18 02:20:58",
+          "updated_at": "2021-11-07 09:20:40",
+          "deleted_at": null
+        },
+        {
+          "id": 611,
+          "campsite_site_id": 219,
+          "name": "External Organisations",
+          "description": "This is for all youth groups not associated with Scouting or Guiding.",
+          "created_at": "2020-02-18 02:20:21",
+          "updated_at": "2021-11-17 08:00:57",
+          "deleted_at": null
+        },
+        {
+          "id": 1502,
+          "campsite_site_id": 219,
+          "name": "INTERNAL BOOKING",
+          "description": "**THIS IS FOR INTERNAL BOOKINGS** \n\nAny bookings made using this price type will be cancelled.",
+          "created_at": "2021-11-23 12:23:28",
+          "updated_at": "2021-11-23 12:23:28",
+          "deleted_at": null
+        },
+        {
+          "id": 610,
+          "campsite_site_id": 219,
+          "name": "Other Scouting & Guiding",
+          "description": "This is for all groups that are not part of Colchester North & Estuary Districts.",
+          "created_at": "2020-02-18 02:20:14",
+          "updated_at": "2020-02-26 11:29:31",
+          "deleted_at": null
+        }
+      ]
+    },
+    "payments": [],
+    "adjustments": []
+  },
+  "meta": {
+    "editable": true,
+    "campsite_edit_access": true,
+    "cards": [],
+    "has_stripe": false,
+    "has_contact_details": true,
+    "has_instructor_types": true
+  }
+}

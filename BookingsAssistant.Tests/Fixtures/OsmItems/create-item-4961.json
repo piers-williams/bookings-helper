@@ -1,0 +1,19 @@
+{
+  "request": {
+    "method": "POST",
+    "url_template": "/v3/campsites/bookings/{bookingId}/addItem/{campsiteItemId}",
+    "actual_url": "https://www.onlinescoutmanager.co.uk/v3/campsites/bookings/179743/addItem/4961",
+    "content_type": "application/x-www-form-urlencoded",
+    "body": "slot_id=9235&start=2027-12-05&end=2027-12-05&number_people=10&start_time=09%3A00&end_time=10%3A00"
+  },
+  "response": {
+    "status": true,
+    "error": null,
+    "data": {
+      "id": 411468,
+      "item_name": "ACTIVITY - Air Rifle Shooting",
+      "questions": 1
+    },
+    "meta": []
+  }
+}

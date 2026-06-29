@@ -353,7 +353,10 @@ internal class OsmService : IOsmService
 
     public async Task<List<BookingItemDto>> GetBookingItemsAsync(string osmBookingId)
     {
-        var url = $"/v3/campsites/{_campsiteId}/items?booking_id={osmBookingId}&mode=booking&audience=venue";
+        // Booked items live on the booking-detail resource, NOT the /items catalogue
+        // endpoint (which lists bookable item-types). Confirmed from captured OSM data
+        // (see BookingsAssistant.Tests/Fixtures/OsmItems/README.md).
+        var url = $"/v3/campsites/bookings/{osmBookingId}";
 
         _logger.LogInformation("Fetching OSM items for booking {BookingId}", osmBookingId);
 
@@ -377,12 +380,100 @@ internal class OsmService : IOsmService
         }
 
         var content = await response.Content.ReadAsStringAsync();
-
-        // DEFERRED SEAM: parsing the real OSM items response into BookingItemDto is
-        // pending example data from a live response. Do not implement until the
-        // shape is confirmed. The controller maps this to HTTP 501.
-        throw new NotImplementedException("OSM item parsing not yet wired — pending example data");
+        return ParseBookingItems(content);
     }
+
+    /// <summary>
+    /// Parses an OSM booking-detail response (<c>GET /v3/campsites/bookings/{id}</c>)
+    /// into our booked-item DTOs. Pure/static so it can be unit-tested against captured
+    /// fixtures (see OsmServiceItemParsingTests). Returns an empty list for blank input,
+    /// a non-success status, or a missing/empty items array.
+    /// </summary>
+    internal static List<BookingItemDto> ParseBookingItems(string? json)
+    {
+        var items = new List<BookingItemDto>();
+        if (string.IsNullOrWhiteSpace(json))
+            return items;
+
+        using var doc = JsonDocument.Parse(json);
+        var root = doc.RootElement;
+
+        if (root.TryGetProperty("status", out var status) &&
+            status.ValueKind == JsonValueKind.False)
+            return items;
+
+        if (!root.TryGetProperty("data", out var data) ||
+            data.ValueKind != JsonValueKind.Object ||
+            !data.TryGetProperty("items", out var itemsEl) ||
+            itemsEl.ValueKind != JsonValueKind.Array)
+            return items;
+
+        foreach (var item in itemsEl.EnumerateArray())
+            items.Add(MapBookingItem(item));
+
+        return items;
+    }
+
+    private static BookingItemDto MapBookingItem(JsonElement item)
+    {
+        var (startDate, startTime) = SplitTimestamp(GetString(item, "start_timestamp"));
+        var (endDate, endTime) = SplitTimestamp(GetString(item, "end_timestamp"));
+
+        // Site vs activity: activities carry an instructor type / required instructors;
+        // sites/pitches have neither. (The "ACTIVITY - " name prefix is cosmetic only.)
+        var isActivity = GetInt(item, "campsite_instructor_type_id") > 0 ||
+                         GetInt(item, "number_instructors_required") > 0;
+
+        // campsite_item_id is the item-TYPE id (e.g. 1387 Hayvern, 4961 Air Rifle) —
+        // the id used in the addItem URL when cloning.
+        var typeId = GetString(item, "campsite_item_id");
+
+        var label = item.TryGetProperty("item", out var nested) &&
+                    nested.ValueKind == JsonValueKind.Object
+            ? GetString(nested, "name") ?? string.Empty
+            : string.Empty;
+
+        return new BookingItemDto
+        {
+            ItemId = GetString(item, "id") ?? string.Empty,   // booked-item id (for delete)
+            Type = isActivity ? "activity" : "site",
+            SiteId = isActivity ? null : typeId,
+            ActivityId = isActivity ? typeId : null,
+            StartDate = startDate,
+            EndDate = endDate,
+            StartTime = startTime,
+            EndTime = endTime,
+            NumberPeople = item.TryGetProperty("number_people", out var np) &&
+                           np.TryGetInt32(out var npVal) ? npVal : null,
+            Label = label
+        };
+    }
+
+    /// <summary>Splits an OSM "yyyy-MM-dd HH:mm:ss" timestamp into a date and an "HH:mm" time.</summary>
+    private static (DateTime? Date, string? Time) SplitTimestamp(string? timestamp)
+    {
+        if (string.IsNullOrWhiteSpace(timestamp))
+            return (null, null);
+
+        var parts = timestamp.Split(' ', 2);
+        DateTime? date = DateTime.TryParse(parts[0], out var d) ? d.Date : null;
+        string? time = parts.Length > 1 && parts[1].Length >= 5 ? parts[1][..5] : null;
+        return (date, time);
+    }
+
+    private static string? GetString(JsonElement el, string name)
+    {
+        if (!el.TryGetProperty(name, out var prop)) return null;
+        return prop.ValueKind switch
+        {
+            JsonValueKind.String => prop.GetString(),
+            JsonValueKind.Number => prop.ToString(),
+            _ => null
+        };
+    }
+
+    private static int GetInt(JsonElement el, string name)
+        => el.TryGetProperty(name, out var prop) && prop.TryGetInt32(out var v) ? v : 0;
 
     private async Task<string?> GetBookingMemberIdAsync(string osmBookingId)
     {

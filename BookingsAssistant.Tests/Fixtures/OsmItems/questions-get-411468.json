@@ -1,0 +1,20 @@
+{
+  "status": true,
+  "error": null,
+  "data": {
+    "item": "ACTIVITY - Air Rifle Shooting",
+    "questions": [
+      {
+        "id": 234761,
+        "campsite_item_booking_id": 411468,
+        "campsite_booking_question_group_id": 304,
+        "campsite_booking_question_id": 530,
+        "question": "I will complete the section 21 form.",
+        "answer": "",
+        "created_at": "2026-06-29 10:43:03",
+        "updated_at": "2026-06-29 10:43:03"
+      }
+    ]
+  },
+  "meta": []
+}

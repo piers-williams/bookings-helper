@@ -15,5 +15,12 @@ public class BookingItemDto
     public DateTime? EndDate { get; set; }
     public string? StartTime { get; set; }
     public string? EndTime { get; set; }
+
+    /// <summary>
+    /// Number of people on the booked item. Needed to rebuild the create payload
+    /// when cloning (OSM's addItem requires number_people).
+    /// </summary>
+    public int? NumberPeople { get; set; }
+
     public string Label { get; set; } = string.Empty;
 }

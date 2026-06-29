@@ -1,0 +1,19 @@
+{
+  "request": {
+    "method": "POST",
+    "url_template": "/v3/campsites/bookings/{bookingId}/addItem/{campsiteItemId}",
+    "actual_url": "https://www.onlinescoutmanager.co.uk/v3/campsites/bookings/179743/addItem/1387",
+    "content_type": "application/x-www-form-urlencoded",
+    "body": "slot_id=8279&start=2027-12-04&end=2027-12-05&number_people=20&start_time=00%3A01&end_time=23%3A59"
+  },
+  "response": {
+    "status": true,
+    "error": null,
+    "data": {
+      "id": 411467,
+      "item_name": "Hayvern",
+      "questions": 3
+    },
+    "meta": []
+  }
+}
