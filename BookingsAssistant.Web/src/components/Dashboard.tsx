@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { Link } from 'react-router-dom';
 import { bookingsApi, emailsApi, syncApi } from '../services/apiClient';
 import apiClient from '../services/apiClient';
 import type { Booking, BookingStats, Email, GateCodeStatus } from '../types';
@@ -177,6 +178,15 @@ export default function Dashboard() {
           colorClass="text-amber-600"
         />
       </div>
+
+      {/* Browse link — always visible once loading is done */}
+      {!loading && (
+        <div className="mt-6 text-right">
+          <Link to="/bookings" className="text-sm text-blue-600 hover:underline">
+            Browse all bookings →
+          </Link>
+        </div>
+      )}
 
       {/* Upcoming arrivals */}
       {!loading && upcomingBookings.length > 0 && (
