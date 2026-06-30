@@ -16,6 +16,8 @@ export default function BookingList() {
   const [includePastCancelled, setIncludePastCancelled] = useState(false);
 
   useEffect(() => {
+    // Loads all bookings (all statuses) into the browser; filtering is done client-side.
+    // Revisit with a server-side status filter / pagination if the dataset grows large.
     bookingsApi
       .getAll()
       .then(setAllBookings)

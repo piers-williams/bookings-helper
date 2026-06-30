@@ -15,6 +15,7 @@ function makeBooking(overrides: Partial<Booking> & { id: number }): Booking {
   };
 }
 
+// includePastCancelled: true so status filtering doesn't interfere with the other test groups
 const noFilter = {
   search: '',
   dateFrom: '',
@@ -30,11 +31,13 @@ describe('filterBookings — free-text search', () => {
     makeBooking({ id: 2, osmBookingId: '67890', customerName: 'Bob Jones' }),
   ];
 
-  it('matches a booking whose customerName contains the query (case-insensitive)', () => {
+  it('matches customerName case-insensitively with a lowercase query', () => {
     const lower = filterBookings(bookings, { ...noFilter, search: 'alice' });
     expect(lower).toHaveLength(1);
     expect(lower[0].customerName).toBe('Alice Smith');
+  });
 
+  it('matches customerName case-insensitively with an uppercase query', () => {
     const upper = filterBookings(bookings, { ...noFilter, search: 'ALICE' });
     expect(upper).toHaveLength(1);
     expect(upper[0].customerName).toBe('Alice Smith');

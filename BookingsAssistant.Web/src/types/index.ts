@@ -30,6 +30,7 @@ export interface Booking {
   id: number;
   osmBookingId: string;
   customerName: string;
+  // Reserved for the BookingDetail view only. The GET /api/bookings list endpoint must NOT project customer email — raw emails are never loaded into the list.
   customerEmail?: string;
   startDate: string;
   endDate: string;
