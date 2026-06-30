@@ -459,9 +459,17 @@ internal class OsmService : IOsmService
     }
 
     /// <summary>
-    /// Finds the availability slot id whose date window matches the requested start/end
-    /// dates (times within the slot are flexible and supplied separately). Returns null
-    /// when no available slot covers the window.
+    /// Finds the availability slot id for the requested start/end dates (times within the
+    /// slot are flexible and supplied separately). Returns null when no available slot
+    /// covers the window.
+    ///
+    /// OSM returns availability as per-session slots, not one slot per arbitrary stay
+    /// length. A multi-night stay therefore rarely has a slot whose <c>end</c> falls on the
+    /// departure date: instead there is a <c>multi_day</c> slot starting on the arrival date
+    /// whose <c>end</c> is only the first night but whose <c>available_until</c> marks how
+    /// far the stay can run. We take an exact single-slot span match if one exists
+    /// (same-day bookings, and slots already covering the window), otherwise fall back to a
+    /// slot on the arrival date whose <c>available_until</c> reaches the departure date.
     /// </summary>
     internal static string? ResolveSlotId(string? availabilityJson, DateTime startDate, DateTime endDate)
     {
@@ -471,6 +479,8 @@ internal class OsmService : IOsmService
         if (!doc.RootElement.TryGetProperty("data", out var data) || data.ValueKind != JsonValueKind.Array)
             return null;
 
+        string? multiNightMatch = null;
+
         foreach (var slot in data.EnumerateArray())
         {
             // OSM marks booked-out slots with available:false; an absent flag counts as
@@ -478,15 +488,30 @@ internal class OsmService : IOsmService
             if (slot.TryGetProperty("available", out var avail) && avail.ValueKind == JsonValueKind.False)
                 continue;
 
-            // Slots are matched on date span only; the exact times within the window are
+            // Every candidate must begin on the arrival date; times within the slot are
             // flexible and supplied separately in the create form.
             var (slotStart, _) = SplitTimestamp(GetString(slot, "start"));
+            if (slotStart != startDate.Date)
+                continue;
+
+            // Exact single-slot span match — first one wins (same-day stays, or a slot that
+            // already spans the whole window).
             var (slotEnd, _) = SplitTimestamp(GetString(slot, "end"));
-            if (slotStart == startDate.Date && slotEnd == endDate.Date)
-                return GetString(slot, "id");   // first slot matching the date span
+            if (slotEnd == endDate.Date)
+                return GetString(slot, "id");
+
+            // Multi-night fallback: a slot on the arrival date whose availability extends
+            // (via available_until) to at least the departure date. First such slot wins,
+            // but only if no exact match is found, so it never overrides a same-day slot.
+            if (multiNightMatch is null && endDate.Date > startDate.Date)
+            {
+                var (availableUntil, _) = SplitTimestamp(GetString(slot, "available_until"));
+                if (availableUntil is not null && availableUntil >= endDate.Date)
+                    multiNightMatch = GetString(slot, "id");
+            }
         }
 
-        return null;
+        return multiNightMatch;
     }
 
     /// <summary>Builds the OSM addItem form fields from a create spec and resolved slot id.</summary>
