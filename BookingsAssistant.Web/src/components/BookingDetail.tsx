@@ -523,7 +523,7 @@ export default function BookingDetail() {
                             </div>
                           ) : (
                             <div className="text-sm text-gray-700">
-                              Recreate this booking on the new site, then delete the original?
+                              Move this booking to the new site? The booking keeps its ID and payments — only the pitch changes.
                               <button onClick={() => handleChangeSite(item.itemId)} disabled={actionInProgress}
                                 className="ml-2 px-3 py-1 bg-red-600 text-white rounded hover:bg-red-700 disabled:opacity-50">
                                 {actionInProgress ? 'Working…' : 'Confirm'}</button>
