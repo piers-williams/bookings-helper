@@ -34,6 +34,31 @@ public class OsmServiceItemMutationTests
             new DateTime(2030, 1, 1), new DateTime(2030, 1, 2)));
 
     [Fact]
+    public void ResolveSlotId_MatchesMultiNightStay_ViaAvailableUntil()
+        // A 3-night stay (17→20 Jul) has no single slot ending on the 20th. OSM returns a
+        // multi_day slot starting on the arrival date (id 8273) whose `end` is the first
+        // night (18 Jul) but whose `available_until` (20 Jul) covers the departure date.
+        => Assert.Equal("8273", OsmService.ResolveSlotId(
+            Fixture("availability-overnight-multiday.json"),
+            new DateTime(2026, 7, 17), new DateTime(2026, 7, 20)));
+
+    [Fact]
+    public void ResolveSlotId_MatchesSameDay_WhenStayIsOneDay()
+        // A single-day booking on the arrival date must still pick a same-day slot, not the
+        // overnight multi_day one — exact-span matching takes precedence over the fallback.
+        => Assert.Equal("8272", OsmService.ResolveSlotId(
+            Fixture("availability-overnight-multiday.json"),
+            new DateTime(2026, 7, 17), new DateTime(2026, 7, 17)));
+
+    [Fact]
+    public void ResolveSlotId_ReturnsNull_WhenAvailableUntilDoesNotReachDeparture()
+        // No exact-span slot and the arrival-date slot's availability stops short of the
+        // requested departure → no usable slot.
+        => Assert.Null(OsmService.ResolveSlotId(
+            Fixture("availability-overnight-multiday.json"),
+            new DateTime(2026, 7, 17), new DateTime(2026, 7, 25)));
+
+    [Fact]
     public void ResolveSlotId_SkipsUnavailableSlot_AndPicksAvailableMatch()
     {
         // Two slots share the same date span; the first is unavailable and must be skipped.
