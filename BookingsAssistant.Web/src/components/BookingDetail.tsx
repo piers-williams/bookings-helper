@@ -8,6 +8,7 @@ import type {
   BookingItem,
   ChangeSiteRequest,
   MoveActivityRequest,
+  MoveDatesRequest,
 } from '../types';
 
 type ItemActionKind = 'move-activity' | 'change-site';
@@ -51,6 +52,7 @@ export default function BookingDetail() {
   const [newStartTime, setNewStartTime] = useState('');
   const [newEndTime, setNewEndTime] = useState('');
   const [newSiteId, setNewSiteId] = useState('');
+  const [note, setNote] = useState('');
 
   useEffect(() => {
     const fetchBooking = async () => {
@@ -136,13 +138,16 @@ export default function BookingDetail() {
       setConfirmingMoveDates(false);
       setActiveItemAction(null);
       setConfirmingItemAction(false);
+      setNote('');
     }
   };
 
   const handleMoveDates = () => {
     const shift = parseInt(dayShift, 10);
     if (!id || Number.isNaN(shift) || shift === 0) return;
-    runAction(() => bookingsApi.moveDates(parseInt(id), { dayShift: shift }));
+    const req: MoveDatesRequest = { dayShift: shift };
+    if (note.trim()) req.note = note.trim();
+    runAction(() => bookingsApi.moveDates(parseInt(id), req));
   };
 
   // Opens a per-item form. Always resets the (component-level, shared) form fields so
@@ -154,6 +159,7 @@ export default function BookingDetail() {
     setNewStartTime('');
     setNewEndTime('');
     setNewSiteId('');
+    setNote('');
   };
 
   const handleMoveActivity = (itemId: string) => {
@@ -162,12 +168,16 @@ export default function BookingDetail() {
     if (newStartDate) req.newStartDate = newStartDate;
     if (newStartTime) req.newStartTime = newStartTime;
     if (newEndTime) req.newEndTime = newEndTime;
+    if (note.trim()) req.note = note.trim();
     runAction(() => bookingsApi.moveActivity(parseInt(id), req));
   };
 
   const handleChangeSite = (itemId: string) => {
     if (!id || !newSiteId) return;
     const req: ChangeSiteRequest = { itemId, newSiteId };
+    const selectedSite = availableSites.find((s) => s.id === newSiteId);
+    if (selectedSite) req.newSiteName = selectedSite.name;
+    if (note.trim()) req.note = note.trim();
     runAction(() => bookingsApi.changeSite(parseInt(id), req));
   };
 
@@ -372,23 +382,31 @@ export default function BookingDetail() {
                 Move dates
               </button>
             ) : (
-              <span className="text-sm text-gray-700">
-                Recreate every item shifted by {dayShift} day(s), then delete the originals?
-                <button
-                  onClick={handleMoveDates}
-                  disabled={actionInProgress}
-                  className="ml-2 px-3 py-1 bg-red-600 text-white rounded hover:bg-red-700 disabled:opacity-50"
-                >
-                  {actionInProgress ? 'Working…' : 'Confirm'}
-                </button>
-                <button
-                  onClick={() => setConfirmingMoveDates(false)}
-                  disabled={actionInProgress}
-                  className="ml-2 px-3 py-1 bg-gray-300 text-gray-800 rounded hover:bg-gray-400 disabled:opacity-50"
-                >
-                  Cancel
-                </button>
-              </span>
+              <div className="text-sm text-gray-700 space-y-2">
+                <p>Recreate every item shifted by {dayShift} day(s), then delete the originals?</p>
+                <div>
+                  <label htmlFor="move-dates-note" className="block text-sm font-medium text-gray-700">Add a note (optional)</label>
+                  <textarea id="move-dates-note" value={note}
+                    onChange={(e) => setNote(e.target.value)} disabled={actionInProgress}
+                    className="w-full p-2 border border-gray-300 rounded resize-none" rows={2} />
+                </div>
+                <div>
+                  <button
+                    onClick={handleMoveDates}
+                    disabled={actionInProgress}
+                    className="px-3 py-1 bg-red-600 text-white rounded hover:bg-red-700 disabled:opacity-50"
+                  >
+                    {actionInProgress ? 'Working…' : 'Confirm'}
+                  </button>
+                  <button
+                    onClick={() => setConfirmingMoveDates(false)}
+                    disabled={actionInProgress}
+                    className="ml-2 px-3 py-1 bg-gray-300 text-gray-800 rounded hover:bg-gray-400 disabled:opacity-50"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
             )}
           </div>
         </div>
@@ -485,13 +503,21 @@ export default function BookingDetail() {
                           className="ml-2 px-3 py-1 bg-gray-300 text-gray-800 rounded hover:bg-gray-400">Cancel</button>
                       </div>
                     ) : (
-                      <div className="text-sm text-gray-700">
-                        Recreate this activity at the new time, then delete the original?
-                        <button onClick={() => handleMoveActivity(item.itemId)} disabled={actionInProgress}
-                          className="ml-2 px-3 py-1 bg-red-600 text-white rounded hover:bg-red-700 disabled:opacity-50">
-                          {actionInProgress ? 'Working…' : 'Confirm'}</button>
-                        <button onClick={() => setConfirmingItemAction(false)} disabled={actionInProgress}
-                          className="ml-2 px-3 py-1 bg-gray-300 text-gray-800 rounded hover:bg-gray-400">Cancel</button>
+                      <div className="text-sm text-gray-700 space-y-2">
+                        <p>Recreate this activity at the new time, then delete the original?</p>
+                        <div>
+                          <label htmlFor={`note-${item.itemId}`} className="block text-sm font-medium text-gray-700">Add a note (optional)</label>
+                          <textarea id={`note-${item.itemId}`} value={note}
+                            onChange={(e) => setNote(e.target.value)} disabled={actionInProgress}
+                            className="w-full p-2 border border-gray-300 rounded resize-none" rows={2} />
+                        </div>
+                        <div>
+                          <button onClick={() => handleMoveActivity(item.itemId)} disabled={actionInProgress}
+                            className="px-3 py-1 bg-red-600 text-white rounded hover:bg-red-700 disabled:opacity-50">
+                            {actionInProgress ? 'Working…' : 'Confirm'}</button>
+                          <button onClick={() => setConfirmingItemAction(false)} disabled={actionInProgress}
+                            className="ml-2 px-3 py-1 bg-gray-300 text-gray-800 rounded hover:bg-gray-400">Cancel</button>
+                        </div>
                       </div>
                     )}
                   </div>
@@ -522,13 +548,21 @@ export default function BookingDetail() {
                                 className="ml-2 px-3 py-1 bg-gray-300 text-gray-800 rounded hover:bg-gray-400">Cancel</button>
                             </div>
                           ) : (
-                            <div className="text-sm text-gray-700">
-                              Move this booking to the new site? The booking keeps its ID and payments — only the pitch changes.
-                              <button onClick={() => handleChangeSite(item.itemId)} disabled={actionInProgress}
-                                className="ml-2 px-3 py-1 bg-red-600 text-white rounded hover:bg-red-700 disabled:opacity-50">
-                                {actionInProgress ? 'Working…' : 'Confirm'}</button>
-                              <button onClick={() => setConfirmingItemAction(false)} disabled={actionInProgress}
-                                className="ml-2 px-3 py-1 bg-gray-300 text-gray-800 rounded hover:bg-gray-400">Cancel</button>
+                            <div className="text-sm text-gray-700 space-y-2">
+                              <p>Move this booking to the new site? The booking keeps its ID and payments — only the pitch changes.</p>
+                              <div>
+                                <label htmlFor={`note-${item.itemId}`} className="block text-sm font-medium text-gray-700">Add a note (optional)</label>
+                                <textarea id={`note-${item.itemId}`} value={note}
+                                  onChange={(e) => setNote(e.target.value)} disabled={actionInProgress}
+                                  className="w-full p-2 border border-gray-300 rounded resize-none" rows={2} />
+                              </div>
+                              <div>
+                                <button onClick={() => handleChangeSite(item.itemId)} disabled={actionInProgress}
+                                  className="px-3 py-1 bg-red-600 text-white rounded hover:bg-red-700 disabled:opacity-50">
+                                  {actionInProgress ? 'Working…' : 'Confirm'}</button>
+                                <button onClick={() => setConfirmingItemAction(false)} disabled={actionInProgress}
+                                  className="ml-2 px-3 py-1 bg-gray-300 text-gray-800 rounded hover:bg-gray-400">Cancel</button>
+                              </div>
                             </div>
                           )}
                         </>
