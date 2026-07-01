@@ -399,7 +399,7 @@ export default function BookingDetail() {
                     {actionInProgress ? 'Working…' : 'Confirm'}
                   </button>
                   <button
-                    onClick={() => setConfirmingMoveDates(false)}
+                    onClick={() => { setConfirmingMoveDates(false); setNote(''); }}
                     disabled={actionInProgress}
                     className="ml-2 px-3 py-1 bg-gray-300 text-gray-800 rounded hover:bg-gray-400 disabled:opacity-50"
                   >
