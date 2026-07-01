@@ -93,6 +93,14 @@ public class BookingActionsTests : IClassFixture<WebApplicationFactory<Program>>
         var bookingId = await SeedBookingAsync("99010");
         _fakeOsm.ItemsToReturn = new List<BookingItemDto> { MakeActivityItem("act-item-1") };
         _fakeOsm.CreatedItemIds = new List<string> { "act-item-new" };
+        _fakeOsm.CommentToReturn = new CommentDto
+        {
+            OsmBookingId = "99010",
+            OsmCommentId = "cmt-happy-1",
+            AuthorName = "Site Manager",
+            TextPreview = "audit comment",
+            CreatedDate = new DateTime(2026, 8, 1, 9, 0, 0, DateTimeKind.Utc)
+        };
 
         var client = _factory.CreateClient();
         var response = await client.PostAsJsonAsync(
@@ -183,6 +191,14 @@ public class BookingActionsTests : IClassFixture<WebApplicationFactory<Program>>
         var bookingId = await SeedBookingAsync("99020");
         _fakeOsm.ItemsToReturn = new List<BookingItemDto> { MakeSiteItem("site-item-1") };
         _fakeOsm.CreatedItemIds = new List<string> { "site-item-new" };
+        _fakeOsm.CommentToReturn = new CommentDto
+        {
+            OsmBookingId = "99020",
+            OsmCommentId = "cmt-happy-2",
+            AuthorName = "Site Manager",
+            TextPreview = "audit comment",
+            CreatedDate = new DateTime(2026, 8, 1, 9, 0, 0, DateTimeKind.Utc)
+        };
 
         var client = _factory.CreateClient();
         var response = await client.PostAsJsonAsync(
@@ -295,6 +311,14 @@ public class BookingActionsTests : IClassFixture<WebApplicationFactory<Program>>
             MakeSiteItem("site-item-2")
         };
         _fakeOsm.CreatedItemIds = new List<string> { "new-1", "new-2", "new-3" };
+        _fakeOsm.CommentToReturn = new CommentDto
+        {
+            OsmBookingId = "99031",
+            OsmCommentId = "cmt-happy-3",
+            AuthorName = "Site Manager",
+            TextPreview = "audit comment",
+            CreatedDate = new DateTime(2026, 8, 1, 9, 0, 0, DateTimeKind.Utc)
+        };
 
         var client = _factory.CreateClient();
         var response = await client.PostAsJsonAsync(
@@ -457,5 +481,132 @@ public class BookingActionsTests : IClassFixture<WebApplicationFactory<Program>>
             new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
         Assert.NotNull(result);
         Assert.Equal(BookingActionStatus.RolledBack, result.Status);
+    }
+
+    // ── Audit-trail comments ─────────────────────────────────────────────────
+
+    [Fact]
+    public async Task MoveActivity_PostsAuditComment_WithComposedSummaryAndNote()
+    {
+        var bookingId = await SeedBookingAsync("99050");
+        _fakeOsm.ItemsToReturn = new List<BookingItemDto> { MakeActivityItem("act-item-1") };
+        _fakeOsm.CreatedItemIds = new List<string> { "act-item-new" };
+        _fakeOsm.CommentToReturn = new CommentDto
+        {
+            OsmBookingId = "99050",
+            OsmCommentId = "cmt-1",
+            AuthorName = "Site Manager",
+            TextPreview = "Moved 'Archery Session': start time 10:00 → 14:00, end time 12:00 → 16:00. Note: customer requested a later slot",
+            CreatedDate = new DateTime(2026, 8, 1, 9, 0, 0, DateTimeKind.Utc)
+        };
+
+        var client = _factory.CreateClient();
+        var response = await client.PostAsJsonAsync(
+            $"/api/bookings/{bookingId}/actions/move-activity",
+            new MoveActivityRequest
+            {
+                ItemId = "act-item-1",
+                NewStartTime = "14:00",
+                NewEndTime = "16:00",
+                Note = "customer requested a later slot"
+            });
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+        var (osmBookingId, comment) = Assert.Single(_fakeOsm.CommentsPosted);
+        Assert.Equal("99050", osmBookingId);
+        Assert.Equal(
+            "Moved 'Archery Session': start time 10:00 → 14:00, end time 12:00 → 16:00. Note: customer requested a later slot",
+            comment);
+
+        using var scope = _factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        var persisted = await db.OsmComments.FirstOrDefaultAsync(c => c.OsmCommentId == "cmt-1");
+        Assert.NotNull(persisted);
+    }
+
+    [Fact]
+    public async Task MoveActivity_DowngradesToCompletedWithWarnings_WhenAuditCommentFailsToPost()
+    {
+        var bookingId = await SeedBookingAsync("99051");
+        _fakeOsm.ItemsToReturn = new List<BookingItemDto> { MakeActivityItem("act-item-1") };
+        _fakeOsm.CreatedItemIds = new List<string> { "act-item-new" };
+        _fakeOsm.CommentToReturn = null; // OSM comment post fails
+
+        var client = _factory.CreateClient();
+        var response = await client.PostAsJsonAsync(
+            $"/api/bookings/{bookingId}/actions/move-activity",
+            new MoveActivityRequest { ItemId = "act-item-1", NewStartTime = "14:00" });
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+        var result = await response.Content.ReadFromJsonAsync<BookingActionResult>(
+            new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+        Assert.NotNull(result);
+        Assert.Equal(BookingActionStatus.CompletedWithWarnings, result.Status);
+        Assert.Contains("audit comment failed to post", result.Message);
+    }
+
+    [Fact]
+    public async Task ChangeSite_PostsAuditComment_UsingNewSiteName()
+    {
+        var bookingId = await SeedBookingAsync("99052");
+        _fakeOsm.ItemsToReturn = new List<BookingItemDto> { MakeSiteItem("site-item-1") };
+        _fakeOsm.CreatedItemIds = new List<string> { "site-item-new" };
+        _fakeOsm.CommentToReturn = new CommentDto
+        {
+            OsmBookingId = "99052",
+            OsmCommentId = "cmt-2",
+            AuthorName = "Site Manager",
+            TextPreview = "Site changed: Pitch A → Pitch 7.",
+            CreatedDate = new DateTime(2026, 8, 1, 9, 0, 0, DateTimeKind.Utc)
+        };
+
+        var client = _factory.CreateClient();
+        await client.PostAsJsonAsync(
+            $"/api/bookings/{bookingId}/actions/change-site",
+            new ChangeSiteRequest { ItemId = "site-item-1", NewSiteId = "site-99", NewSiteName = "Pitch 7" });
+
+        var (_, comment) = Assert.Single(_fakeOsm.CommentsPosted);
+        Assert.Equal("Site changed: Pitch A → Pitch 7.", comment);
+    }
+
+    [Fact]
+    public async Task MoveDates_PostsAuditComment_WithDayShiftSummary()
+    {
+        var bookingId = await SeedBookingAsync("99053");
+        _fakeOsm.ItemsToReturn = new List<BookingItemDto> { MakeSiteItem("site-item-1") };
+        _fakeOsm.CreatedItemIds = new List<string> { "new-1" };
+        _fakeOsm.CommentToReturn = new CommentDto
+        {
+            OsmBookingId = "99053",
+            OsmCommentId = "cmt-3",
+            AuthorName = "Site Manager",
+            TextPreview = "Dates shifted by 7 day(s).",
+            CreatedDate = new DateTime(2026, 8, 1, 9, 0, 0, DateTimeKind.Utc)
+        };
+
+        var client = _factory.CreateClient();
+        await client.PostAsJsonAsync(
+            $"/api/bookings/{bookingId}/actions/move-dates",
+            new MoveDatesRequest { DayShift = 7 });
+
+        var (_, comment) = Assert.Single(_fakeOsm.CommentsPosted);
+        Assert.Equal("Dates shifted by 7 day(s).", comment);
+    }
+
+    [Fact]
+    public async Task MoveActivity_RolledBack_DoesNotPostAuditComment()
+    {
+        var bookingId = await SeedBookingAsync("99054");
+        _fakeOsm.ItemsToReturn = new List<BookingItemDto> { MakeActivityItem("act-item-1") };
+        _fakeOsm.FailCreateOnCall = (1, new InvalidOperationException("OSM create failed"));
+
+        var client = _factory.CreateClient();
+        await client.PostAsJsonAsync(
+            $"/api/bookings/{bookingId}/actions/move-activity",
+            new MoveActivityRequest { ItemId = "act-item-1", NewStartTime = "14:00" });
+
+        Assert.Empty(_fakeOsm.CommentsPosted);
     }
 }
