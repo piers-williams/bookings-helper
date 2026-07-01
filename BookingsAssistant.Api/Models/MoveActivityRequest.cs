@@ -6,4 +6,7 @@ public class MoveActivityRequest
     public DateTime? NewStartDate { get; set; }
     public string? NewStartTime { get; set; }
     public string? NewEndTime { get; set; }
+
+    /// <summary>Optional free-text note appended to the auto-generated audit comment.</summary>
+    public string? Note { get; set; }
 }

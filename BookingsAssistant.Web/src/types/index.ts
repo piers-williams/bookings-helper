@@ -128,17 +128,25 @@ export interface MoveActivityRequest {
   newStartDate?: string;
   newStartTime?: string;
   newEndTime?: string;
+  /** Optional free-text note appended to the auto-generated audit comment. */
+  note?: string;
 }
 
 /** Request to move a site item to a different site. */
 export interface ChangeSiteRequest {
   itemId: string;
   newSiteId: string;
+  /** Display name of the target site, shown in the available-sites dropdown. */
+  newSiteName?: string;
+  /** Optional free-text note appended to the auto-generated audit comment. */
+  note?: string;
 }
 
 /** Request to shift all items in a booking by the given number of days. */
 export interface MoveDatesRequest {
   dayShift: number;
+  /** Optional free-text note appended to the auto-generated audit comment. */
+  note?: string;
 }
 
 /** A bookable site/pitch a booked item can be moved to (for change-site). */

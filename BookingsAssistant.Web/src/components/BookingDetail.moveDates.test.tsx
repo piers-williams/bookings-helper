@@ -112,4 +112,20 @@ describe('move-dates action', () => {
 
     expect(api.moveDates).not.toHaveBeenCalled();
   });
+
+  it('clears the note when the form is closed and reopened', async () => {
+    const user = userEvent.setup();
+    renderDetail();
+    await screen.findByText(/Booking #179743/);
+
+    await user.type(screen.getByLabelText(/shift all booking dates/i), '7');
+    await user.click(screen.getByRole('button', { name: /^move dates$/i }));
+    await user.type(screen.getByLabelText(/add a note/i), 'draft note');
+    await user.click(screen.getByRole('button', { name: /cancel/i }));
+
+    await user.type(screen.getByLabelText(/shift all booking dates/i), '3');
+    await user.click(screen.getByRole('button', { name: /^move dates$/i }));
+
+    expect(screen.getByLabelText(/add a note/i)).toHaveValue('');
+  });
 });
