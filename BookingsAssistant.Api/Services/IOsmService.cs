@@ -6,9 +6,14 @@ public interface IOsmService
 {
     // Bookings
     Task<List<BookingDto>> GetBookingsAsync(string status);
-    Task<(string FullDetails, List<CommentDto> Comments)> GetBookingDetailsAsync(string osmBookingId);
 
     // Comments
+    /// <summary>
+    /// Fetches the current comments for a booking directly from OSM.
+    /// Returns an empty list if the fetch fails (no way to distinguish
+    /// "no comments" from "fetch failed" from the return value alone).
+    /// </summary>
+    Task<List<CommentDto>> GetBookingCommentsAsync(string osmBookingId);
     Task<CommentDto?> PostCommentAsync(string osmBookingId, string comment);
 
     // Email

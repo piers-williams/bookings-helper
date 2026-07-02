@@ -131,21 +131,6 @@ public class BookingsController : ControllerBase
 
             var result = await UpsertBookingsAsync(allBookings);
 
-            // Fetch and persist comments for active bookings only (Provisional + Confirmed)
-            // to avoid hammering the OSM API for 1000+ past/cancelled bookings
-            var activeOsmIds = allBookings
-                .Where(b => b.Status == "Provisional" || b.Status == "Confirmed")
-                .Select(b => b.OsmBookingId)
-                .ToList();
-
-            var (commentsAdded, commentsUpdated) = await UpsertCommentsAsync(activeOsmIds);
-            result.CommentsAdded = commentsAdded;
-            result.CommentsUpdated = commentsUpdated;
-
-            _logger.LogInformation(
-                "Comment sync: {Added} added, {Updated} updated across {Count} active bookings",
-                commentsAdded, commentsUpdated, activeOsmIds.Count);
-
             return Ok(result);
         }
         catch (InvalidOperationException ex) when (ex.Message.Contains("OSM"))
@@ -164,6 +149,40 @@ public class BookingsController : ControllerBase
         var booking = await _context.OsmBookings.FindAsync(id);
         if (booking == null)
             return NotFound();
+
+        // Refresh from OSM; on failure/empty response, existing DB rows below are left untouched.
+        var freshComments = await _osmService.GetBookingCommentsAsync(booking.OsmBookingId);
+        if (freshComments.Count > 0)
+        {
+            var existingComments = await _context.OsmComments
+                .Where(c => c.OsmBookingId == booking.OsmBookingId)
+                .ToDictionaryAsync(c => c.OsmCommentId);
+
+            foreach (var comment in freshComments)
+            {
+                if (existingComments.TryGetValue(comment.OsmCommentId, out var entity))
+                {
+                    entity.AuthorName = comment.AuthorName;
+                    entity.TextPreview = comment.TextPreview;
+                    entity.LastFetched = DateTime.UtcNow;
+                }
+                else
+                {
+                    _context.OsmComments.Add(new Data.Entities.OsmComment
+                    {
+                        OsmBookingId = booking.OsmBookingId,
+                        OsmCommentId = comment.OsmCommentId,
+                        AuthorName = comment.AuthorName,
+                        TextPreview = comment.TextPreview,
+                        CreatedDate = comment.CreatedDate,
+                        IsNew = true,
+                        LastFetched = DateTime.UtcNow
+                    });
+                }
+            }
+
+            await _context.SaveChangesAsync();
+        }
 
         // Get linked emails via ApplicationLinks join
         var linkedEmails = await _context.ApplicationLinks
@@ -305,47 +324,5 @@ public class BookingsController : ControllerBase
         await _context.SaveChangesAsync();
         _logger.LogInformation("OSM sync: {Added} added, {Updated} updated", added, updated);
         return new SyncResult { Added = added, Updated = updated };
-    }
-
-    private async Task<(int added, int updated)> UpsertCommentsAsync(List<string> osmBookingIds)
-    {
-        int added = 0, updated = 0;
-
-        foreach (var osmBookingId in osmBookingIds)
-        {
-            var (_, comments) = await _osmService.GetBookingDetailsAsync(osmBookingId);
-
-            foreach (var comment in comments)
-            {
-                var existing = await _context.OsmComments
-                    .FirstOrDefaultAsync(c => c.OsmCommentId == comment.OsmCommentId);
-
-                if (existing != null)
-                {
-                    existing.AuthorName = comment.AuthorName;
-                    existing.TextPreview = comment.TextPreview;
-                    existing.LastFetched = DateTime.UtcNow;
-                    updated++;
-                }
-                else
-                {
-                    _context.OsmComments.Add(new Data.Entities.OsmComment
-                    {
-                        OsmBookingId = osmBookingId,
-                        OsmCommentId = comment.OsmCommentId,
-                        AuthorName = comment.AuthorName,
-                        TextPreview = comment.TextPreview,
-                        CreatedDate = comment.CreatedDate,
-                        IsNew = true,
-                        LastFetched = DateTime.UtcNow
-                    });
-                    added++;
-                }
-            }
-
-            await _context.SaveChangesAsync();
-        }
-
-        return (added, updated);
     }
 }
