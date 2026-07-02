@@ -8,7 +8,7 @@ public class BookingDetailDto
 public DateTime StartDate { get; set; }
     public DateTime EndDate { get; set; }
     public string Status { get; set; } = string.Empty;
-    public string FullDetails { get; set; } = string.Empty; // JSON from OSM
+    public string FullDetails { get; set; } = string.Empty; // Always "{}" — booking item/detail JSON is no longer fetched here; see GetBookingItemsAsync for ad-hoc item detail.
     public List<CommentDto> Comments { get; set; } = new();
     public List<EmailDto> LinkedEmails { get; set; } = new();
 }

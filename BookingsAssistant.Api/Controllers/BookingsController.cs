@@ -150,6 +150,7 @@ public class BookingsController : ControllerBase
         if (booking == null)
             return NotFound();
 
+        // Refresh from OSM; on failure/empty response, existing DB rows below are left untouched.
         var freshComments = await _osmService.GetBookingCommentsAsync(booking.OsmBookingId);
         if (freshComments.Count > 0)
         {

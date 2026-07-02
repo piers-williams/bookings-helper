@@ -22,6 +22,10 @@ builder.Services.AddDataProtection()
 // Add OSM OAuth service with HttpClient
 builder.Services.AddHttpClient<IOsmAuthService, OsmAuthService>();
 
+// Add OSM rate-limit cooldown (singleton — shared across every OsmService instance,
+// since AddHttpClient below creates a new OsmService per resolution/request)
+builder.Services.AddSingleton<OsmRateLimitCooldown>();
+
 // Add OSM service with HttpClient
 builder.Services.AddHttpClient<IOsmService, OsmService>();
 

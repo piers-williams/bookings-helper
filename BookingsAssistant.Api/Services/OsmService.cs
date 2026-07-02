@@ -11,21 +11,19 @@ internal class OsmService : IOsmService
     private readonly IConfiguration _configuration;
     private readonly ILogger<OsmService> _logger;
     private readonly IOsmAuthService _osmAuthService;
+    private readonly OsmRateLimitCooldown _rateLimitCooldown;
     private readonly string _baseUrl;
     private readonly string _campsiteId;
     private readonly string _sectionId;
 
-    // When OSM signals we're nearly out of quota we pause new requests until
-    // this time. Shared across the request loop within a single OsmService
-    // instance (e.g. one sync's comment loop or one backfill batch).
-    private DateTimeOffset _cooldownUntil = DateTimeOffset.MinValue;
-
-    public OsmService(HttpClient httpClient, IConfiguration configuration, ILogger<OsmService> logger, IOsmAuthService osmAuthService)
+    public OsmService(HttpClient httpClient, IConfiguration configuration, ILogger<OsmService> logger,
+        IOsmAuthService osmAuthService, OsmRateLimitCooldown rateLimitCooldown)
     {
         _httpClient = httpClient;
         _configuration = configuration;
         _logger = logger;
         _osmAuthService = osmAuthService;
+        _rateLimitCooldown = rateLimitCooldown;
 
         _baseUrl = _configuration["Osm:BaseUrl"] ?? "https://www.onlinescoutmanager.co.uk";
         _campsiteId = _configuration["Osm:CampsiteId"] ?? throw new InvalidOperationException("OSM CampsiteId not configured");
@@ -974,11 +972,11 @@ internal class OsmService : IOsmService
         const int maxAttempts = 4;
         for (var attempt = 1; ; attempt++)
         {
-            var wait = _cooldownUntil - DateTimeOffset.UtcNow;
-            if (wait > TimeSpan.Zero)
+            var wait = _rateLimitCooldown.TimeUntilReady();
+            if (wait is not null)
             {
-                _logger.LogWarning("OSM rate limit: pausing {Seconds:F0}s before next request", wait.TotalSeconds);
-                await Task.Delay(wait, ct);
+                _logger.LogWarning("OSM rate limit: pausing {Seconds:F0}s before next request", wait.Value.TotalSeconds);
+                await Task.Delay(wait.Value, ct);
             }
 
             var request = await requestFactory();
@@ -1012,7 +1010,7 @@ internal class OsmService : IOsmService
         var pause = OsmRateLimit.GetProactiveDelay(remaining, reset, DateTimeOffset.UtcNow);
         if (pause is not null)
         {
-            _cooldownUntil = DateTimeOffset.UtcNow + pause.Value;
+            _rateLimitCooldown.PauseUntil(DateTimeOffset.UtcNow + pause.Value);
             _logger.LogWarning("OSM API rate limit low ({Remaining} left); pausing {Seconds:F0}s until reset",
                 remaining, pause.Value.TotalSeconds);
         }
