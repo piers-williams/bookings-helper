@@ -43,11 +43,6 @@ public class FakeOsmService : IOsmService
         return Task.FromResult(true);
     }
 
-    public Dictionary<string, string?> ContactEmailByBookingId { get; } = new();
-
-    public Task<string?> GetBookingContactEmailAsync(string osmBookingId)
-        => Task.FromResult(ContactEmailByBookingId.TryGetValue(osmBookingId, out var email) ? email : null);
-
     // Items
     public List<BookingItemDto> ItemsToReturn { get; set; } = new();
 
