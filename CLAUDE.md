@@ -43,7 +43,7 @@ Three deployable components sharing one repo:
 
 1. **BookingsAssistant.Api** — ASP.NET Core Web API with SQLite (EF Core). Serves the React frontend in production.
 2. **BookingsAssistant.Web** — React SPA. In dev, Vite proxies API calls to :5000.
-3. **bookings-extension/** — Chrome Manifest V3 extension (vanilla JS, no bundler). Content scripts for OWA and OSM, native side panel, background service worker.
+3. **bookings-extension/** — Chrome Manifest V3 extension (vanilla JS, no bundler). A single content script (`content-osm.js`) runs on OSM booking pages and annotates dates in the page with weekday/school-holiday badges — purely client-side, no background worker, no messaging, no backend calls.
 
 Deployed as a **Home Assistant addon** via Docker (`bookings-assistant/config.yaml`).
 
@@ -54,16 +54,14 @@ Deployed as a **Home Assistant addon** via Docker (`bookings-assistant/config.ya
 - `Models/` — DTOs for API request/response
 - `Program.cs` — DI registration, CORS policies, startup sync
 
-### Extension message flow
-OWA content script extracts email → `CAPTURE_EMAIL` → background.js → `POST /api/emails/capture` → response relayed to side panel. OSM content script extracts booking ID → `GET_BOOKING_LINKS` → background.js → `GET /api/bookings/{id}/links` → sidebar rendered.
+### Extension behavior
+`content-osm.js` runs standalone on `onlinescoutmanager.co.uk` pages: it scans the DOM for dates, annotates each with a weekday/school-holiday badge, and re-scans on DOM mutations (for OSM's SPA navigation). No messaging, no background worker, no network calls.
 
 ## Key Patterns
 
 **Testing:** Integration tests use `WebApplicationFactory<Program>` with in-memory EF Core. Each test gets a unique DB via `Guid.NewGuid()` passed to `UseInMemoryDatabase`. Replace `IOsmService` with fakes using `services.RemoveAll<IOsmService>()` (required because it's registered via `AddHttpClient`).
 
 **OSM sync:** `POST /api/bookings/sync` fetches all 5 booking statuses (provisional, current, future, past, cancelled) in parallel and upserts by `OsmBookingId`.
-
-**OWA DOM selectors:** Subject: `[id$="_SUBJECT"] span`, Sender: `[id$="_FROM"] > span > div > span` (format: "Name<email>"), Body: `#focused > div:nth-child(3)`. These target `outlook.cloud.microsoft`.
 
 **CORS:** One policy — `Development` (localhost:3000 for React dev server).
 
