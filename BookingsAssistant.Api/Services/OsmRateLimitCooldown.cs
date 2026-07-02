@@ -8,9 +8,8 @@ namespace BookingsAssistant.Api.Services;
 /// request. Without this shared singleton, a proactive pause learned from one
 /// request (e.g. a low X-RateLimit-Remaining on one call) would be forgotten as
 /// soon as that request finished, leaving no cross-request throttling between
-/// the two current callers of rate-limited OSM calls:
-/// <see cref="BookingsController"/>'s per-booking-open live comment fetch and
-/// <see cref="BookingDetailBackfillService"/>'s periodic batches.
+/// rate-limited OSM calls such as <see cref="BookingsController"/>'s
+/// per-booking-open live comment fetch.
 /// Thread-safe via a simple lock; this is a low-frequency check, not a hot path.
 /// </summary>
 public class OsmRateLimitCooldown

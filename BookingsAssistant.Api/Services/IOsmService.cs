@@ -19,14 +19,6 @@ public interface IOsmService
     // Email
     Task<bool> SendBookingTemplateEmailAsync(string osmBookingId);
 
-    /// <summary>
-    /// Resolves the booking's primary contact email (member_id → contacts),
-    /// the same path used to send. Returns null when the booking has no
-    /// resolvable email. The caller is responsible for not persisting the raw
-    /// address (only its hash is stored).
-    /// </summary>
-    Task<string?> GetBookingContactEmailAsync(string osmBookingId);
-
     // Items
     /// <summary>
     /// Fetches the line-items (sites and activities) for a booking from the OSM
