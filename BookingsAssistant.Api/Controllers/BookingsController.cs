@@ -150,6 +150,39 @@ public class BookingsController : ControllerBase
         if (booking == null)
             return NotFound();
 
+        var freshComments = await _osmService.GetBookingCommentsAsync(booking.OsmBookingId);
+        if (freshComments.Count > 0)
+        {
+            var existingComments = await _context.OsmComments
+                .Where(c => c.OsmBookingId == booking.OsmBookingId)
+                .ToDictionaryAsync(c => c.OsmCommentId);
+
+            foreach (var comment in freshComments)
+            {
+                if (existingComments.TryGetValue(comment.OsmCommentId, out var entity))
+                {
+                    entity.AuthorName = comment.AuthorName;
+                    entity.TextPreview = comment.TextPreview;
+                    entity.LastFetched = DateTime.UtcNow;
+                }
+                else
+                {
+                    _context.OsmComments.Add(new Data.Entities.OsmComment
+                    {
+                        OsmBookingId = booking.OsmBookingId,
+                        OsmCommentId = comment.OsmCommentId,
+                        AuthorName = comment.AuthorName,
+                        TextPreview = comment.TextPreview,
+                        CreatedDate = comment.CreatedDate,
+                        IsNew = true,
+                        LastFetched = DateTime.UtcNow
+                    });
+                }
+            }
+
+            await _context.SaveChangesAsync();
+        }
+
         // Get linked emails via ApplicationLinks join
         var linkedEmails = await _context.ApplicationLinks
             .Where(l => l.OsmBookingId == id)

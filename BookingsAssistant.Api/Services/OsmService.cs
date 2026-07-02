@@ -100,51 +100,22 @@ internal class OsmService : IOsmService
         }
     }
 
-    public async Task<(string FullDetails, List<CommentDto> Comments)> GetBookingDetailsAsync(string osmBookingId)
+    public async Task<List<CommentDto>> GetBookingCommentsAsync(string osmBookingId)
     {
         try
         {
-            _logger.LogInformation("Fetching OSM booking details for booking: {BookingId}", osmBookingId);
+            _logger.LogInformation("Fetching OSM comments for booking: {BookingId}", osmBookingId);
 
-            // Fetch booking details and comments in parallel
-            var detailsUrl = $"/v3/campsites/{_campsiteId}/items?booking_id={osmBookingId}&mode=booking&audience=venue";
             var commentsUrl = $"/v3/comments/campsite_booking/{osmBookingId}/list?section_id={_sectionId}";
 
-            // Get access token and make authenticated requests (rate-limit aware)
-            var token = await GetAccessTokenAsync();
-
-            HttpRequestMessage BuildGet(string url)
+            var commentsResponse = await SendWithRateLimitAsync(async () =>
             {
-                var req = new HttpRequestMessage(HttpMethod.Get, url);
+                var token = await GetAccessTokenAsync();
+                var req = new HttpRequestMessage(HttpMethod.Get, commentsUrl);
                 req.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
                 return req;
-            }
+            });
 
-            var detailsTask = SendWithRateLimitAsync(() => Task.FromResult(BuildGet(detailsUrl)));
-            var commentsTask = SendWithRateLimitAsync(() => Task.FromResult(BuildGet(commentsUrl)));
-
-            await Task.WhenAll(detailsTask, commentsTask);
-
-            var detailsResponse = await detailsTask;
-            var commentsResponse = await commentsTask;
-
-            // Process details
-            string fullDetails = string.Empty;
-            if (detailsResponse.IsSuccessStatusCode)
-            {
-                fullDetails = await detailsResponse.Content.ReadAsStringAsync();
-            }
-            else
-            {
-                _logger.LogError("OSM API returned error status for details: {StatusCode}", detailsResponse.StatusCode);
-
-                if (detailsResponse.StatusCode == System.Net.HttpStatusCode.Unauthorized)
-                {
-                    _logger.LogError("OSM API authentication failed for details. Token may be invalid or expired.");
-                }
-            }
-
-            // Process comments
             var comments = new List<CommentDto>();
             if (commentsResponse.IsSuccessStatusCode)
             {
@@ -166,15 +137,20 @@ internal class OsmService : IOsmService
             else
             {
                 _logger.LogError("OSM API returned error status for comments: {StatusCode}", commentsResponse.StatusCode);
+
+                if (commentsResponse.StatusCode == System.Net.HttpStatusCode.Unauthorized)
+                {
+                    _logger.LogError("OSM API authentication failed for comments. Token may be invalid or expired.");
+                }
             }
 
-            _logger.LogInformation("Successfully fetched booking details and {Count} comments from OSM", comments.Count);
-            return (fullDetails, comments);
+            _logger.LogInformation("Successfully fetched {Count} comments from OSM", comments.Count);
+            return comments;
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error fetching booking details from OSM API");
-            return (string.Empty, new List<CommentDto>());
+            _logger.LogError(ex, "Error fetching comments from OSM API");
+            return new List<CommentDto>();
         }
     }
 
