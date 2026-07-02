@@ -17,7 +17,7 @@ const api = bookingsApi as any;
 
 const booking = {
   id: 1, osmBookingId: '179743', customerName: 'Test', startDate: '2027-12-04',
-  endDate: '2027-12-05', status: 'Provisional', fullDetails: '', comments: [], linkedEmails: [],
+  endDate: '2027-12-05', status: 'Provisional', fullDetails: '', comments: [],
 };
 const activity: BookingItem = { itemId: '411468', type: 'activity', activityId: '4961', label: 'Air Rifle', startDate: '2027-12-05', startTime: '09:00', endTime: '10:00' };
 const site: BookingItem = { itemId: '411467', type: 'site', siteId: '1387', label: 'Hayvern', startDate: '2027-12-04', endDate: '2027-12-05' };

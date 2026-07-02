@@ -17,12 +17,6 @@ public class OsmBooking
     [MaxLength(255)]
     public string CustomerName { get; set; } = string.Empty;
 
-    [MaxLength(64)]
-    public string? CustomerEmailHash { get; set; }
-
-    [MaxLength(64)]
-    public string? CustomerNameHash { get; set; }
-
     [Required]
     public DateTime StartDate { get; set; }
 
@@ -39,5 +33,4 @@ public class OsmBooking
 
     // Navigation properties
     public ICollection<OsmComment> Comments { get; set; } = new List<OsmComment>();
-    public ICollection<ApplicationLink> Links { get; set; } = new List<ApplicationLink>();
 }

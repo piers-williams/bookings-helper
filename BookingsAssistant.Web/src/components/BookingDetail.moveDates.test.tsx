@@ -22,7 +22,7 @@ const api = bookingsApi as any;
 
 const booking = {
   id: 1, osmBookingId: '179743', customerName: 'Test', startDate: '2027-12-04',
-  endDate: '2027-12-05', status: 'Provisional', fullDetails: '', comments: [], linkedEmails: [],
+  endDate: '2027-12-05', status: 'Provisional', fullDetails: '', comments: [],
 };
 const initialItems: BookingItem[] = [
   { itemId: '411467', type: 'site', siteId: '1387', label: 'Hayvern', startDate: '2027-12-04', endDate: '2027-12-05' },

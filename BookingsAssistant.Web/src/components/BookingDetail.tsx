@@ -238,9 +238,6 @@ export default function BookingDetail() {
             <h2 className="text-lg font-semibold text-gray-700 mb-2">Customer Information</h2>
             <div className="text-gray-600">
               <div><span className="font-semibold">Name:</span> {booking.customerName}</div>
-              {booking.customerEmail && (
-                <div><span className="font-semibold">Email:</span> {booking.customerEmail}</div>
-              )}
             </div>
           </div>
 
@@ -312,34 +309,6 @@ export default function BookingDetail() {
             {posting ? 'Posting...' : 'Post Comment'}
           </button>
         </div>
-      </div>
-
-      {/* Linked Emails */}
-      <div className="bg-white rounded-lg shadow p-6 mb-6">
-        <h2 className="text-xl font-semibold text-gray-800 mb-4">
-          Linked Emails ({booking.linkedEmails.length})
-        </h2>
-
-        {booking.linkedEmails.length > 0 ? (
-          <div className="space-y-3">
-            {booking.linkedEmails.map((email) => (
-              <div
-                key={email.id}
-                className="p-4 border border-gray-200 rounded bg-gray-50"
-              >
-                <div className="font-semibold text-gray-800">{email.subject}</div>
-                {email.senderName && (
-                  <div className="text-sm text-gray-600">From: {email.senderName}</div>
-                )}
-                <div className="text-sm text-gray-500">
-                  {new Date(email.receivedDate).toLocaleString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
-                </div>
-              </div>
-            ))}
-          </div>
-        ) : (
-          <p className="text-gray-500">No emails linked to this booking.</p>
-        )}
       </div>
 
       {/* Booking Actions */}

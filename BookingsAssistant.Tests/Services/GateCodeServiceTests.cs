@@ -56,7 +56,6 @@ public class GateCodeServiceTests
                 OsmBookingId = "100", CustomerName = "Test Group",
                 Status = "Confirmed",
                 StartDate = today.AddDays(1), EndDate = today.AddDays(3),
-                CustomerEmailHash = "abc123",
                 GateCodeSentAt = null
             });
             await db.SaveChangesAsync();
@@ -92,7 +91,6 @@ public class GateCodeServiceTests
                 OsmBookingId = "200", CustomerName = "Far Away Group",
                 Status = "Confirmed",
                 StartDate = today.AddDays(5), EndDate = today.AddDays(7),
-                CustomerEmailHash = "abc123",
                 GateCodeSentAt = null
             });
             await db.SaveChangesAsync();
@@ -119,7 +117,6 @@ public class GateCodeServiceTests
                 OsmBookingId = "300", CustomerName = "Already Sent Group",
                 Status = "Confirmed",
                 StartDate = today.AddDays(1), EndDate = today.AddDays(3),
-                CustomerEmailHash = "abc123",
                 GateCodeSentAt = DateTime.UtcNow.AddDays(-1)
             });
             await db.SaveChangesAsync();
@@ -146,7 +143,6 @@ public class GateCodeServiceTests
                 OsmBookingId = "400", CustomerName = "Cancelled Group",
                 Status = "Cancelled",
                 StartDate = today.AddDays(1), EndDate = today.AddDays(3),
-                CustomerEmailHash = "abc123",
                 GateCodeSentAt = null
             });
             await db.SaveChangesAsync();
@@ -156,48 +152,6 @@ public class GateCodeServiceTests
         await service.ProcessPendingBookingsAsync(CancellationToken.None);
 
         Assert.Empty(fakeOsm.EmailsSent);
-    }
-
-    [Fact]
-    public async Task AttemptsSend_RegardlessOfPreResolvedEmailHash()
-    {
-        // The send is a self-contained OSM workflow that resolves the recipient
-        // itself, so a missing/"no-email" pre-resolved hash must NOT exclude an
-        // otherwise-eligible booking — it gets a real attempt (and would fail
-        // loudly + retry if OSM truly has no address).
-        var fakeOsm = new FakeOsmService();
-        var (provider, _) = CreateServices(fakeOsm);
-        var today = DateTime.UtcNow.Date;
-
-        using (var scope = provider.CreateScope())
-        {
-            var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-            db.OsmBookings.AddRange(
-                new OsmBooking
-                {
-                    OsmBookingId = "500", CustomerName = "No Email Sentinel Group",
-                    Status = "Confirmed",
-                    StartDate = today.AddDays(1), EndDate = today.AddDays(3),
-                    CustomerEmailHash = "no-email",
-                    GateCodeSentAt = null
-                },
-                new OsmBooking
-                {
-                    OsmBookingId = "501", CustomerName = "Null Email Group",
-                    Status = "Confirmed",
-                    StartDate = today.AddDays(1), EndDate = today.AddDays(3),
-                    CustomerEmailHash = null,
-                    GateCodeSentAt = null
-                });
-            await db.SaveChangesAsync();
-        }
-
-        var service = CreateService(provider);
-        await service.ProcessPendingBookingsAsync(CancellationToken.None);
-
-        Assert.Equal(2, fakeOsm.EmailsSent.Count);
-        Assert.Contains("500", fakeOsm.EmailsSent);
-        Assert.Contains("501", fakeOsm.EmailsSent);
     }
 
     [Fact]
@@ -215,7 +169,6 @@ public class GateCodeServiceTests
                 OsmBookingId = "600", CustomerName = "Past Start Group",
                 Status = "Confirmed",
                 StartDate = today.AddDays(-1), EndDate = today.AddDays(1),
-                CustomerEmailHash = "abc123",
                 GateCodeSentAt = null
             });
             await db.SaveChangesAsync();
@@ -242,7 +195,6 @@ public class GateCodeServiceTests
                 OsmBookingId = "700", CustomerName = "Fail Group",
                 Status = "Confirmed",
                 StartDate = today.AddDays(1), EndDate = today.AddDays(3),
-                CustomerEmailHash = "abc123",
                 GateCodeSentAt = null
             });
             await db.SaveChangesAsync();
@@ -274,7 +226,6 @@ public class GateCodeServiceTests
                 OsmBookingId = "800", CustomerName = "Five Day Group",
                 Status = "Confirmed",
                 StartDate = today.AddDays(4), EndDate = today.AddDays(6),
-                CustomerEmailHash = "abc123",
                 GateCodeSentAt = null
             });
             await db.SaveChangesAsync();
@@ -302,7 +253,6 @@ public class GateCodeServiceTests
                 OsmBookingId = "900", CustomerName = "Today Group",
                 Status = "Confirmed",
                 StartDate = today, EndDate = today.AddDays(2),
-                CustomerEmailHash = "abc123",
                 GateCodeSentAt = null
             });
             await db.SaveChangesAsync();
@@ -330,7 +280,6 @@ public class GateCodeServiceTests
                 OsmBookingId = "1000", CustomerName = "Covered Group",
                 Status = "Confirmed",
                 StartDate = today.AddDays(1), EndDate = today.AddDays(3),
-                CustomerEmailHash = "abc123",
                 GateCodeSentAt = null
             });
             db.SiteDuties.Add(new SiteDuty
@@ -363,7 +312,6 @@ public class GateCodeServiceTests
                 OsmBookingId = "1100", CustomerName = "Uncovered Group",
                 Status = "Confirmed",
                 StartDate = today.AddDays(1), EndDate = today.AddDays(3),
-                CustomerEmailHash = "abc123",
                 GateCodeSentAt = null
             });
             // Duty is on a different day — doesn't cover this booking
@@ -399,14 +347,14 @@ public class GateCodeServiceTests
                     OsmBookingId = "1200", CustomerName = "Covered Group",
                     Status = "Confirmed",
                     StartDate = today.AddDays(1), EndDate = today.AddDays(3),
-                    CustomerEmailHash = "abc123", GateCodeSentAt = null
+                    GateCodeSentAt = null
                 },
                 new OsmBooking
                 {
                     OsmBookingId = "1201", CustomerName = "Uncovered Group",
                     Status = "Confirmed",
                     StartDate = today.AddDays(2), EndDate = today.AddDays(4),
-                    CustomerEmailHash = "def456", GateCodeSentAt = null
+                    GateCodeSentAt = null
                 });
             // Duty covers day+1 but not day+2
             db.SiteDuties.Add(new SiteDuty
