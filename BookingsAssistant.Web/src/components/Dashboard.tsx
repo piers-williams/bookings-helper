@@ -1,8 +1,8 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Link } from 'react-router-dom';
-import { bookingsApi, emailsApi, syncApi } from '../services/apiClient';
+import { bookingsApi, syncApi } from '../services/apiClient';
 import apiClient from '../services/apiClient';
-import type { Booking, BookingStats, Email, GateCodeStatus } from '../types';
+import type { Booking, BookingStats, GateCodeStatus } from '../types';
 
 interface StatCardProps {
   label: string;
@@ -56,8 +56,6 @@ function formatLastSynced(iso: string | null): string {
 export default function Dashboard() {
   const [stats, setStats] = useState<BookingStats | null>(null);
   const [authenticated, setAuthenticated] = useState<boolean | null>(null);
-  const [emails, setEmails] = useState<Email[]>([]);
-  const [emailTotal, setEmailTotal] = useState<number | null>(null);
   const [upcomingBookings, setUpcomingBookings] = useState<Booking[]>([]);
   const [loading, setLoading] = useState(false);
   const [syncing, setSyncing] = useState(false);
@@ -67,17 +65,14 @@ export default function Dashboard() {
     setLoading(true);
     setError(null);
     try {
-      const [statsRes, authRes, emailsRes, confirmedRes, futureRes] = await Promise.all([
+      const [statsRes, authRes, confirmedRes, futureRes] = await Promise.all([
         bookingsApi.getStats(),
         apiClient.get<{ authenticated: boolean }>('/auth/osm/status'),
-        emailsApi.getAll(1, 10),
         bookingsApi.getAll('confirmed'),
         bookingsApi.getAll('future'),
       ]);
       setStats(statsRes);
       setAuthenticated(authRes.data.authenticated);
-      setEmails(emailsRes.items);
-      setEmailTotal(emailsRes.total);
 
       const now = new Date();
       const sevenDays = new Date(now);
@@ -242,49 +237,6 @@ export default function Dashboard() {
           </div>
         </div>
       )}
-
-      {/* Recent emails */}
-      <div className="mt-8">
-        <div className="flex justify-between items-center mb-3">
-          <h2 className="text-lg font-semibold text-gray-700">
-            Recent Emails
-            {emailTotal !== null && (
-              <span className="ml-2 text-sm font-normal text-gray-400">
-                ({emailTotal} total)
-              </span>
-            )}
-          </h2>
-        </div>
-        {loading ? (
-          <p className="text-sm text-gray-400">Loading…</p>
-        ) : emails.length === 0 ? (
-          <p className="text-sm text-gray-400">No emails captured yet.</p>
-        ) : (
-          <div className="bg-white rounded-lg shadow divide-y divide-gray-100">
-            {emails.map((email) => (
-              <div key={email.id} className="flex items-start gap-3 px-4 py-3">
-                <div className={`mt-1 w-2 h-2 rounded-full flex-shrink-0 ${email.isRead ? 'bg-gray-300' : 'bg-blue-500'}`} />
-                <div className="min-w-0 flex-1">
-                  <div className="flex justify-between items-baseline gap-2">
-                    <p className="text-sm font-medium text-gray-800 truncate">
-                      {email.senderName ?? 'Unknown sender'}
-                    </p>
-                    <p className="text-xs text-gray-400 flex-shrink-0">
-                      {new Date(email.receivedDate).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' })}
-                    </p>
-                  </div>
-                  <p className="text-sm text-gray-600 truncate">{email.subject}</p>
-                  {email.extractedBookingRef && (
-                    <p className="text-xs text-indigo-600 mt-0.5">
-                      Ref: #{email.extractedBookingRef}
-                    </p>
-                  )}
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
     </div>
   );
 }

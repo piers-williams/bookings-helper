@@ -29,17 +29,10 @@ builder.Services.AddSingleton<OsmRateLimitCooldown>();
 // Add OSM service with HttpClient
 builder.Services.AddHttpClient<IOsmService, OsmService>();
 
-// Add linking service
-builder.Services.AddScoped<ILinkingService, LinkingService>();
-
 // Add booking mutation service (scoped — depends on IOsmService which is per-request via HttpClient)
 builder.Services.AddScoped<IBookingMutationService, BookingMutationService>();
 
-// Add hashing service (singleton — loaded once at startup with the secret)
-builder.Services.AddSingleton<IHashingService, HashingService>();
-
 // Add hosted services
-builder.Services.AddHostedService<BookingDetailBackfillService>();
 builder.Services.AddHostedService<GateCodeService>();
 
 // Add services
@@ -57,16 +50,6 @@ builder.Services.AddCors(options =>
               .AllowAnyHeader()
               .AllowCredentials();
     });
-
-    // Allow Chrome extension to call capture and booking-links endpoints.
-    // AllowAnyOrigin is acceptable: the backend runs on a private network
-    // and these endpoints only store/read local data.
-    options.AddPolicy("ExtensionCapture", policy =>
-    {
-        policy.AllowAnyOrigin()
-              .WithMethods("POST", "GET", "OPTIONS")
-              .AllowAnyHeader();
-    });
 });
 
 var app = builder.Build();
@@ -78,52 +61,6 @@ using (var scope = app.Services.CreateScope())
     if (context.Database.ProviderName != "Microsoft.EntityFrameworkCore.InMemory")
         await context.Database.MigrateAsync();
     await DbSeeder.SeedAsync(context);
-
-    // Backfill hash columns for any existing rows
-    var hashingService = scope.ServiceProvider.GetRequiredService<IHashingService>();
-
-    var bookingsToHash = await context.OsmBookings
-        .Where(b => b.CustomerNameHash == null)
-        .ToListAsync();
-    foreach (var b in bookingsToHash)
-        b.CustomerNameHash = hashingService.HashValue(b.CustomerName);
-    if (bookingsToHash.Count > 0)
-        await context.SaveChangesAsync();
-
-    // One-time fix: earlier versions stamped bookings with the "no-email"
-    // sentinel (first from the wrong OSM endpoint, then from genuine resolver
-    // failures), which the backfill never retries. Clear it once for active
-    // bookings so the now-retryable backfill (0.9.19+) keeps re-resolving them.
-    // Bumped to v2 because v1 ran before the backfill stopped re-stamping
-    // "no-email"; guarded by a marker in the persistent keys dir so it runs once.
-    try
-    {
-        var resetMarker = Path.Combine(keysDir, "email-hash-reset-v2.done");
-        if (!File.Exists(resetMarker))
-        {
-            var stuck = await context.OsmBookings
-                .Where(b => b.CustomerEmailHash == "no-email"
-                         && b.Status != "Past"
-                         && b.Status != "Cancelled")
-                .ToListAsync();
-            foreach (var b in stuck)
-                b.CustomerEmailHash = null;
-            if (stuck.Count > 0)
-                await context.SaveChangesAsync();
-
-            Directory.CreateDirectory(keysDir);
-            await File.WriteAllTextAsync(resetMarker, DateTime.UtcNow.ToString("o"));
-
-            var resetLogger = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
-            resetLogger.LogInformation(
-                "Email-hash reset: cleared 'no-email' on {Count} active bookings for re-resolution", stuck.Count);
-        }
-    }
-    catch (Exception ex)
-    {
-        var resetLogger = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
-        resetLogger.LogWarning(ex, "Email-hash reset step failed (non-fatal)");
-    }
 
     // If OSM tokens are already stored (e.g. after addon update), sync on startup
     try

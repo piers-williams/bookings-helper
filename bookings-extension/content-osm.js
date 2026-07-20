@@ -1,42 +1,6 @@
 (function () {
   'use strict';
 
-  let lastBookingId = null;
-  let debounceTimer = null;
-
-  // --- Booking ID extraction from OSM URL/DOM ---
-
-  function extractBookingId() {
-    const urlMatch = window.location.href.match(/bookingid[=\/](\d+)/i);
-    if (urlMatch) return urlMatch[1];
-
-    // Fallback: look for it in the DOM
-    const domMatch = document.body.innerHTML.match(/bookingid[="\s]+(\d+)/i);
-    if (domMatch) return domMatch[1];
-
-    return null;
-  }
-
-  // --- Change detection ---
-
-  function checkForBookingChange() {
-    const bookingId = extractBookingId();
-    if (!bookingId || bookingId === lastBookingId) return;
-
-    lastBookingId = bookingId;
-    chrome.runtime.sendMessage({ type: 'BOOKING_CHANGED', bookingId }).catch(() => {});
-  }
-
-  // --- Message listener (refresh triggered from panel) ---
-
-  chrome.runtime.onMessage.addListener((message) => {
-    if (message.type === 'REFRESH_BOOKING') {
-      lastBookingId = null;
-      checkForBookingChange();
-    }
-    return false;
-  });
-
   // --- Date annotation ---
 
   const MONTHS = {
@@ -48,7 +12,7 @@
 
   const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
-  // Essex school holidays 2025-2026 (same as panel.js)
+  // Essex school holidays 2025-2026
   const ESSEX_HOLIDAYS = [
     { name: 'Autumn half term',       start: new Date(2025,  9, 27), end: new Date(2025,  9, 31) },
     { name: 'Christmas holiday',      start: new Date(2025, 11, 22), end: new Date(2026,  0,  2) },
@@ -90,7 +54,7 @@
         line-height: inherit;
       }
       .ba-weekday[data-holiday]::after {
-        content: ' \u00b7 ' attr(data-holiday);
+        content: ' · ' attr(data-holiday);
         font-weight: 400;
       }
       .ba-weekday.ba-friday {
@@ -232,14 +196,7 @@
   // --- MutationObserver for SPA navigation ---
 
   function startObserver() {
-    let lastUrl = window.location.href;
-
     const observer = new MutationObserver(() => {
-      if (window.location.href !== lastUrl) {
-        lastUrl = window.location.href;
-        clearTimeout(debounceTimer);
-        debounceTimer = setTimeout(checkForBookingChange, 400);
-      }
       // Annotate any new dates that appeared in the DOM
       scheduleAnnotation();
     });
@@ -251,7 +208,6 @@
 
   function init() {
     startObserver();
-    setTimeout(checkForBookingChange, 1000);
     // Initial annotation pass
     annotateDates(document.body);
   }

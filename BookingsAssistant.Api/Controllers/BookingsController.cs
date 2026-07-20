@@ -10,16 +10,14 @@ namespace BookingsAssistant.Api.Controllers;
 [Route("api/[controller]")]
 public class BookingsController : ControllerBase
 {
-    private readonly ILinkingService _linkingService;
     private readonly ApplicationDbContext _context;
     private readonly IOsmService _osmService;
     private readonly IConfiguration _configuration;
     private readonly ILogger<BookingsController> _logger;
 
-    public BookingsController(ILinkingService linkingService, ApplicationDbContext context,
+    public BookingsController(ApplicationDbContext context,
         IOsmService osmService, IConfiguration configuration, ILogger<BookingsController> logger)
     {
-        _linkingService = linkingService;
         _context = context;
         _osmService = osmService;
         _configuration = configuration;
@@ -106,7 +104,6 @@ public class BookingsController : ControllerBase
     }
 
     [HttpPost("sync")]
-    [Microsoft.AspNetCore.Cors.EnableCors("ExtensionCapture")]
     public async Task<ActionResult<SyncResult>> Sync()
     {
         try
@@ -184,21 +181,6 @@ public class BookingsController : ControllerBase
             await _context.SaveChangesAsync();
         }
 
-        // Get linked emails via ApplicationLinks join
-        var linkedEmails = await _context.ApplicationLinks
-            .Where(l => l.OsmBookingId == id)
-            .Join(_context.EmailMessages, l => l.EmailMessageId, e => e.Id, (l, e) => new EmailDto
-            {
-                Id = e.Id,
-                SenderName = e.SenderName,
-                Subject = e.Subject,
-                ReceivedDate = e.ReceivedDate,
-                IsRead = e.IsRead,
-                ExtractedBookingRef = e.ExtractedBookingRef
-            })
-            .OrderByDescending(e => e.ReceivedDate)
-            .ToListAsync();
-
         // Get comments by OSM booking ID (string)
         var comments = await _context.OsmComments
             .Where(c => c.OsmBookingId == booking.OsmBookingId)
@@ -224,8 +206,7 @@ public class BookingsController : ControllerBase
             EndDate = booking.EndDate,
             Status = booking.Status,
             FullDetails = "{}",
-            Comments = comments,
-            LinkedEmails = linkedEmails
+            Comments = comments
         };
 
         return Ok(detail);
@@ -259,31 +240,6 @@ public class BookingsController : ControllerBase
         return Ok(result);
     }
 
-    [HttpGet("{id}/links")]
-    [Microsoft.AspNetCore.Cors.EnableCors("ExtensionCapture")]
-    public async Task<ActionResult<List<EmailDto>>> GetLinks(int id)
-    {
-        var linkedEmailIds = await _linkingService.GetLinkedEmailIdsAsync(id);
-        if (!linkedEmailIds.Any())
-            return Ok(new List<EmailDto>());
-
-        var emails = await _context.EmailMessages
-            .Where(e => linkedEmailIds.Contains(e.Id))
-            .OrderByDescending(e => e.ReceivedDate)
-            .Select(e => new EmailDto
-            {
-                Id = e.Id,
-                SenderName = e.SenderName,
-                Subject = e.Subject,
-                ReceivedDate = e.ReceivedDate,
-                IsRead = e.IsRead,
-                ExtractedBookingRef = e.ExtractedBookingRef
-            })
-            .ToListAsync();
-
-        return Ok(emails);
-    }
-
     private async Task<SyncResult> UpsertBookingsAsync(List<BookingDto> bookings)
     {
         var osmIds = bookings.Select(b => b.OsmBookingId).ToList();
@@ -301,13 +257,11 @@ public class BookingsController : ControllerBase
                 entity.StartDate = booking.StartDate;
                 entity.EndDate = booking.EndDate;
                 entity.Status = booking.Status;
-                // CustomerEmailHash will be populated by BookingDetailBackfillService (Task 6)
                 entity.LastFetched = DateTime.UtcNow;
                 updated++;
             }
             else
             {
-                // CustomerEmailHash will be populated by BookingDetailBackfillService (Task 6)
                 _context.OsmBookings.Add(new Data.Entities.OsmBooking
                 {
                     OsmBookingId = booking.OsmBookingId,

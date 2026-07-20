@@ -1,21 +1,5 @@
 // TypeScript types matching the backend DTOs
 
-export interface PagedResult<T> {
-  items: T[];
-  total: number;
-  page: number;
-  pageSize: number;
-}
-
-export interface Email {
-  id: number;
-  senderName?: string;
-  subject: string;
-  receivedDate: string;
-  isRead: boolean;
-  extractedBookingRef?: string;
-}
-
 // Mirrors GateCodeStatusEvaluator on the backend. Each value is the precise
 // reason a gate code has — or hasn't — been sent.
 export type GateCodeStatus =
@@ -30,8 +14,6 @@ export interface Booking {
   id: number;
   osmBookingId: string;
   customerName: string;
-  // Reserved for the BookingDetail view only. The GET /api/bookings list endpoint must NOT project customer email — raw emails are never loaded into the list.
-  customerEmail?: string;
   startDate: string;
   endDate: string;
   status: string;
@@ -39,27 +21,15 @@ export interface Booking {
   gateCodeStatus?: GateCodeStatus;
 }
 
-// Summary of a linked email as returned by GET /api/bookings/{id}/links
-export interface LinkedEmail {
-  id: number;
-  senderName?: string;
-  subject: string;
-  receivedDate: string;
-  isRead: boolean;
-  extractedBookingRef?: string;
-}
-
 export interface BookingDetail {
   id: number;
   osmBookingId: string;
   customerName: string;
-  customerEmail?: string;
   startDate: string;
   endDate: string;
   status: string;
   fullDetails: string;
   comments: Comment[];
-  linkedEmails: LinkedEmail[];
 }
 
 export interface Comment {
@@ -71,20 +41,6 @@ export interface Comment {
   createdDate: string;
   isNew: boolean;
   booking?: Booking;
-}
-
-export interface Link {
-  id: number;
-  emailMessageId: number;
-  osmBookingId: number;
-  createdByUserId?: number;
-  createdDate: string;
-  isAutoLinked: boolean;
-}
-
-export interface CreateLinkRequest {
-  emailMessageId: number;
-  osmBookingId: number;
 }
 
 export interface BookingStats {

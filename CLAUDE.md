@@ -25,8 +25,8 @@ npm run lint    # ESLint
 ### Tests
 ```bash
 dotnet test                                        # all tests
-dotnet test --filter "FullyQualifiedName~EmailCaptureTests"  # single test class
-dotnet test --filter "FullyQualifiedName~CaptureEmail_WithBookingRef"  # single test
+dotnet test --filter "FullyQualifiedName~BookingDetailTests"  # single test class
+dotnet test --filter "FullyQualifiedName~GetById_ReturnsBooking"       # single test
 ```
 
 ### Chrome Extension
@@ -43,33 +43,27 @@ Three deployable components sharing one repo:
 
 1. **BookingsAssistant.Api** — ASP.NET Core Web API with SQLite (EF Core). Serves the React frontend in production.
 2. **BookingsAssistant.Web** — React SPA. In dev, Vite proxies API calls to :5000.
-3. **bookings-extension/** — Chrome Manifest V3 extension (vanilla JS, no bundler). Content scripts for OWA and OSM, native side panel, background service worker.
+3. **bookings-extension/** — Chrome Manifest V3 extension (vanilla JS, no bundler). A single content script (`content-osm.js`) runs on OSM booking pages and annotates dates in the page with weekday/school-holiday badges — purely client-side, no background worker, no messaging, no backend calls.
 
 Deployed as a **Home Assistant addon** via Docker (`bookings-assistant/config.yaml`).
 
 ### Backend structure
-- `Controllers/` — Thin REST controllers: Auth, Bookings, Emails, Comments, Links
-- `Services/` — Business logic: `OsmService` (OSM API client), `OsmAuthService` (OAuth token management), `LinkingService` (email↔booking matching), `HashingService` (PBKDF2 for PII)
-- `Data/ApplicationDbContext.cs` — EF Core context. Entities: `OsmBooking`, `EmailMessage`, `ApplicationLink`, `OsmComment`, `ApplicationUser`
+- `Controllers/` — Thin REST controllers: Auth, Bookings, Comments
+- `Services/` — Business logic: `OsmService` (OSM API client), `OsmAuthService` (OAuth token management)
+- `Data/ApplicationDbContext.cs` — EF Core context. Entities: `OsmBooking`, `OsmComment`, `ApplicationUser`
 - `Models/` — DTOs for API request/response
 - `Program.cs` — DI registration, CORS policies, startup sync
 
-### Extension message flow
-OWA content script extracts email → `CAPTURE_EMAIL` → background.js → `POST /api/emails/capture` → response relayed to side panel. OSM content script extracts booking ID → `GET_BOOKING_LINKS` → background.js → `GET /api/bookings/{id}/links` → sidebar rendered.
+### Extension behavior
+`content-osm.js` runs standalone on `onlinescoutmanager.co.uk` pages: it scans the DOM for dates, annotates each with a weekday/school-holiday badge, and re-scans on DOM mutations (for OSM's SPA navigation). No messaging, no background worker, no network calls.
 
 ## Key Patterns
 
 **Testing:** Integration tests use `WebApplicationFactory<Program>` with in-memory EF Core. Each test gets a unique DB via `Guid.NewGuid()` passed to `UseInMemoryDatabase`. Replace `IOsmService` with fakes using `services.RemoveAll<IOsmService>()` (required because it's registered via `AddHttpClient`).
 
-**Email→booking linking:** `LinkingService` extracts booking refs from email text via regex (`(?:#|Ref:|REF:|Reference|Booking\s*#|OSM\s*#)\s*(\d{4,6})`). Falls back to hash-based matching (sender email hash or candidate name hash against customer records).
-
-**Privacy:** Raw emails and customer names are never stored. `HashingService` produces PBKDF2-SHA256 hashes with a secret from `/data/hash-secret.txt`. Only hashes are persisted for matching.
-
 **OSM sync:** `POST /api/bookings/sync` fetches all 5 booking statuses (provisional, current, future, past, cancelled) in parallel and upserts by `OsmBookingId`.
 
-**OWA DOM selectors:** Subject: `[id$="_SUBJECT"] span`, Sender: `[id$="_FROM"] > span > div > span` (format: "Name<email>"), Body: `#focused > div:nth-child(3)`. These target `outlook.cloud.microsoft`.
-
-**CORS:** Two policies — `Development` (localhost:3000 for React dev server) and `ExtensionCapture` (AllowAnyOrigin, used on `/capture` and `/links` endpoints for the Chrome extension).
+**CORS:** One policy — `Development` (localhost:3000 for React dev server).
 
 ## Custom Commands
 
@@ -85,11 +79,6 @@ OWA content script extracts email → `CAPTURE_EMAIL` → background.js → `POS
 | Entity | Field | Storage | Purpose |
 |--------|-------|---------|---------|
 | `OsmBooking` | `CustomerName` | plaintext | Display |
-| `OsmBooking` | `CustomerNameHash` | PBKDF2 hash | Matching |
-| `OsmBooking` | `CustomerEmailHash` | PBKDF2 hash | Matching |
-| `EmailMessage` | `SenderEmailHash` | PBKDF2 hash | Matching + dedup |
-| `EmailMessage` | `SenderName` | plaintext | Display |
-| `EmailMessage` | `Subject` | plaintext | Display |
 | `OsmComment` | `AuthorName` | plaintext | Display |
 | `OsmComment` | `TextPreview` | plaintext (truncated) | Display |
 | `ApplicationUser` | `Name` | plaintext | Display |
@@ -97,18 +86,16 @@ OWA content script extracts email → `CAPTURE_EMAIL` → background.js → `POS
 | `ApplicationUser` | `OsmAccessToken` | encrypted (DataProtection) | OAuth |
 | `ApplicationUser` | `OsmRefreshToken` | encrypted (DataProtection) | OAuth |
 
-Raw email addresses are NEVER stored. `SenderEmail` column was intentionally removed (migration `20260223085029`). The `"no-email"` sentinel is used when OSM bookings lack a customer email.
+Raw email addresses are NEVER stored. `SenderEmail` column was intentionally removed (migration `20260223085029`). Email capture/linking features (and the hash columns/tables they used) were removed entirely (migration `RemoveEmailFeatures`).
 
 ## Service Lifetimes
 
 | Service | Registration | Reason |
 |---------|-------------|--------|
 | `ApplicationDbContext` | `AddDbContext` (Scoped) | EF Core default, one context per request |
-| `IHashingService` / `HashingService` | `AddSingleton` | Stateless after startup, holds secret key |
-| `ILinkingService` / `LinkingService` | `AddScoped` | Depends on DbContext (scoped) |
 | `IOsmService` / `OsmService` | `AddHttpClient` | Needs HttpClientFactory |
 | `IOsmAuthService` / `OsmAuthService` | `AddHttpClient` | Needs HttpClientFactory |
-| `BookingDetailBackfillService` | `AddHostedService` | Background worker |
+| `GateCodeService` | `AddHostedService` | Background worker |
 
 ## Configuration
 

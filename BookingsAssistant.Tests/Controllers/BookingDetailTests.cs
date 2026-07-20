@@ -7,7 +7,6 @@ using BookingsAssistant.Api.Services;
 using BookingsAssistant.Tests.Fakes;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 
@@ -24,12 +23,6 @@ public class BookingDetailTests : IClassFixture<WebApplicationFactory<Program>>
         _fakeOsm = new FakeOsmService();
         _factory = factory.WithWebHostBuilder(builder =>
         {
-            builder.ConfigureAppConfiguration((_, cfg) =>
-                cfg.AddInMemoryCollection(new Dictionary<string, string?>
-                {
-                    ["Hashing:Iterations"] = "1"
-                }));
-
             builder.ConfigureServices(services =>
             {
                 var descriptor = services.SingleOrDefault(
@@ -45,7 +38,7 @@ public class BookingDetailTests : IClassFixture<WebApplicationFactory<Program>>
     }
 
     [Fact]
-    public async Task GetById_ReturnsBooking_WithLinkedEmailsAndComments()
+    public async Task GetById_ReturnsBooking_WithComments()
     {
         int bookingId;
 
@@ -64,18 +57,6 @@ public class BookingDetailTests : IClassFixture<WebApplicationFactory<Program>>
             };
             db.OsmBookings.Add(booking);
 
-            var email = new EmailMessage
-            {
-                MessageId = Guid.NewGuid().ToString(),
-                SenderName = "Scout Leader",
-                SenderEmailHash = "hash-scout",
-                Subject = "Booking #55001 enquiry",
-                ReceivedDate = new DateTime(2026, 5, 15, 10, 0, 0, DateTimeKind.Utc),
-                IsRead = false,
-                ExtractedBookingRef = "55001"
-            };
-            db.EmailMessages.Add(email);
-
             var comment = new OsmComment
             {
                 OsmBookingId = "55001",
@@ -87,15 +68,6 @@ public class BookingDetailTests : IClassFixture<WebApplicationFactory<Program>>
             };
             db.OsmComments.Add(comment);
 
-            await db.SaveChangesAsync();
-
-            // Link the email to the booking
-            db.ApplicationLinks.Add(new ApplicationLink
-            {
-                EmailMessageId = email.Id,
-                OsmBookingId = booking.Id,
-                CreatedDate = DateTime.UtcNow
-            });
             await db.SaveChangesAsync();
 
             bookingId = booking.Id;
@@ -113,11 +85,6 @@ public class BookingDetailTests : IClassFixture<WebApplicationFactory<Program>>
         Assert.Equal("Test Scout Group", detail.CustomerName);
         Assert.Equal("Provisional", detail.Status);
 
-        Assert.Single(detail.LinkedEmails);
-        Assert.Equal("Scout Leader", detail.LinkedEmails[0].SenderName);
-        Assert.Equal("Booking #55001 enquiry", detail.LinkedEmails[0].Subject);
-        Assert.Equal("55001", detail.LinkedEmails[0].ExtractedBookingRef);
-
         Assert.Single(detail.Comments);
         Assert.Equal("Site Manager", detail.Comments[0].AuthorName);
         Assert.Equal("Confirmed pitch allocation", detail.Comments[0].TextPreview);
@@ -134,7 +101,7 @@ public class BookingDetailTests : IClassFixture<WebApplicationFactory<Program>>
     }
 
     [Fact]
-    public async Task GetById_ReturnsEmptyCollections_WhenNoLinksOrComments()
+    public async Task GetById_ReturnsEmptyComments_WhenNoneExist()
     {
         int bookingId;
 
@@ -167,7 +134,6 @@ public class BookingDetailTests : IClassFixture<WebApplicationFactory<Program>>
         Assert.Equal(bookingId, detail.Id);
         Assert.Equal("55002", detail.OsmBookingId);
         Assert.Equal("Lonely Scout Group", detail.CustomerName);
-        Assert.Empty(detail.LinkedEmails);
         Assert.Empty(detail.Comments);
     }
 

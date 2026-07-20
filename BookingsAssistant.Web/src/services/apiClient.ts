@@ -6,13 +6,9 @@ import type {
   BookingDetail,
   BookingItem,
   ChangeSiteRequest,
-  Email,
-  Link,
-  CreateLinkRequest,
   BookingStats,
   MoveActivityRequest,
   MoveDatesRequest,
-  PagedResult
 } from '../types';
 
 const apiClient = axios.create({
@@ -97,34 +93,6 @@ export const bookingsApi = {
 
   moveDates: async (id: number, req: MoveDatesRequest): Promise<BookingActionResult> => {
     const response = await apiClient.post<BookingActionResult>(`/bookings/${id}/actions/move-dates`, req);
-    return response.data;
-  },
-};
-
-// Links API
-export const linksApi = {
-  create: async (request: CreateLinkRequest): Promise<Link> => {
-    const response = await apiClient.post<Link>('/links', request);
-    return response.data;
-  },
-
-  getByEmail: async (emailId: number): Promise<Link[]> => {
-    const response = await apiClient.get<Link[]>(`/links/email/${emailId}`);
-    return response.data;
-  },
-
-  getByBooking: async (bookingId: number): Promise<Link[]> => {
-    const response = await apiClient.get<Link[]>(`/links/booking/${bookingId}`);
-    return response.data;
-  },
-};
-
-// Emails API
-export const emailsApi = {
-  getAll: async (page = 1, pageSize = 20): Promise<PagedResult<Email>> => {
-    const response = await apiClient.get<PagedResult<Email>>('/emails', {
-      params: { page, pageSize },
-    });
     return response.data;
   },
 };

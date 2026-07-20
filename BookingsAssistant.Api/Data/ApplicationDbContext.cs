@@ -11,10 +11,8 @@ public class ApplicationDbContext : DbContext
     }
 
     public DbSet<ApplicationUser> ApplicationUsers { get; set; }
-    public DbSet<EmailMessage> EmailMessages { get; set; }
     public DbSet<OsmBooking> OsmBookings { get; set; }
     public DbSet<OsmComment> OsmComments { get; set; }
-    public DbSet<ApplicationLink> ApplicationLinks { get; set; }
     public DbSet<SiteDuty> SiteDuties { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
@@ -22,10 +20,6 @@ public class ApplicationDbContext : DbContext
         base.OnModelCreating(modelBuilder);
 
         // Indexes for performance
-        modelBuilder.Entity<EmailMessage>()
-            .HasIndex(e => e.MessageId)
-            .IsUnique();
-
         modelBuilder.Entity<OsmBooking>()
             .HasIndex(b => b.OsmBookingId)
             .IsUnique();
@@ -34,25 +28,7 @@ public class ApplicationDbContext : DbContext
             .HasIndex(c => c.OsmCommentId)
             .IsUnique();
 
-        modelBuilder.Entity<EmailMessage>()
-            .HasIndex(e => e.ExtractedBookingRef);
-
-        modelBuilder.Entity<OsmBooking>()
-            .HasIndex(b => b.CustomerEmailHash);
-
         // Configure relationships
-        modelBuilder.Entity<ApplicationLink>()
-            .HasOne(l => l.EmailMessage)
-            .WithMany(e => e.Links)
-            .HasForeignKey(l => l.EmailMessageId)
-            .OnDelete(DeleteBehavior.Cascade);
-
-        modelBuilder.Entity<ApplicationLink>()
-            .HasOne(l => l.OsmBooking)
-            .WithMany(b => b.Links)
-            .HasForeignKey(l => l.OsmBookingId)
-            .OnDelete(DeleteBehavior.Cascade);
-
         modelBuilder.Entity<OsmComment>()
             .HasOne(c => c.Booking)
             .WithMany(b => b.Comments)

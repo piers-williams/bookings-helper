@@ -8,8 +8,8 @@ public class ApiTokenPolicyTests
 
     [Theory]
     [InlineData("/api/bookings")]
-    [InlineData("/api/emails/capture")]
     [InlineData("/api/bookings/sync")]
+    // No token configured (addon option unset) => the guard is a no-op, even with no provided token.
     public void NoConfiguredToken_AllowsEverything(string path)
         => Assert.True(ApiTokenPolicy.IsAllowed(path, configuredToken: "", providedToken: null));
 
@@ -30,8 +30,9 @@ public class ApiTokenPolicyTests
 
     [Theory]
     [InlineData("/api/bookings")]
-    [InlineData("/api/emails/capture")]
-    [InlineData("/api/links")]
+    [InlineData("/api/bookings/sync")]
+    [InlineData("/api/bookings/1/comments")]
+    // A token IS configured, but the caller didn't send one => guard blocks these API paths.
     public void ApiPaths_AreBlocked_WithoutToken(string path)
         => Assert.False(ApiTokenPolicy.IsAllowed(path, Token, providedToken: null));
 
