@@ -53,4 +53,42 @@ public class PlanListTests : IClassFixture<WebApplicationFactory<Program>>
         Assert.NotNull(result);
         Assert.Empty(result);
     }
+
+    [Fact]
+    public async Task GetAll_ReturnsAllPlans_WhenNoStatusFilter()
+    {
+        using (var scope = _factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+            db.ProposedPlans.AddRange(
+                new ProposedPlan
+                {
+                    Status = PlanStatus.AwaitingApproval,
+                    SourceEmailText = "Please move our booking a day later",
+                    OsmBookingId = null,
+                    ActionsJson = "[{\"type\":\"MoveDates\"}]",
+                    CreatedAt = new DateTime(2026, 7, 1, 9, 0, 0, DateTimeKind.Utc)
+                },
+                new ProposedPlan
+                {
+                    Status = PlanStatus.Executed,
+                    SourceEmailText = "Cancel our pitch please",
+                    OsmBookingId = null,
+                    ActionsJson = "[{\"type\":\"Cancel\"}]",
+                    CreatedAt = new DateTime(2026, 7, 2, 9, 0, 0, DateTimeKind.Utc)
+                }
+            );
+            await db.SaveChangesAsync();
+        }
+
+        var client = _factory.CreateClient();
+        var response = await client.GetAsync("/api/plans");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var result = await response.Content.ReadFromJsonAsync<List<ProposedPlanDto>>();
+        Assert.NotNull(result);
+        Assert.Equal(2, result.Count);
+        Assert.Contains(result, p => p.Status == "AwaitingApproval" && p.SourceEmailText == "Please move our booking a day later");
+        Assert.Contains(result, p => p.Status == "Executed" && p.SourceEmailText == "Cancel our pitch please");
+    }
 }
