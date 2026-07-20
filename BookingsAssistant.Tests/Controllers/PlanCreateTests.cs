@@ -118,6 +118,34 @@ public class PlanCreateTests : IClassFixture<WebApplicationFactory<Program>>
     }
 
     [Fact]
+    public async Task Create_PurgesSourceEmailText_WhenLlmReturnsMalformedJsonOnBothAttempts()
+    {
+        // A Failed plan has no Approve/Reject path (both require AwaitingApproval), so the
+        // raw customer email must be purged right here or it would never be purged at all.
+        _fakeLlm.ResponsesToReturn.Enqueue("this is not json at all");
+        _fakeLlm.ResponsesToReturn.Enqueue("{ also not json");
+
+        var client = _factory.CreateClient();
+        var response = await client.PostAsJsonAsync("/api/plans", new CreatePlanRequest
+        {
+            SourceEmailText = "Can you cancel our pitch? My email is jane@example.com"
+        });
+
+        Assert.Equal(HttpStatusCode.Created, response.StatusCode);
+        var result = await response.Content.ReadFromJsonAsync<ProposedPlanDto>();
+        Assert.NotNull(result);
+        Assert.Equal("Failed", result.Status);
+        Assert.Null(result.SourceEmailText);
+
+        using var scope = _factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        var stored = await db.ProposedPlans.FindAsync(result.Id);
+        Assert.NotNull(stored);
+        Assert.Equal(PlanStatus.Failed, stored.Status);
+        Assert.Null(stored.SourceEmailText);
+    }
+
+    [Fact]
     public async Task Create_ReturnsFailedStatus_WhenLlmReturnsUnknownActionType()
     {
         // Both attempts return an unknown action type — invalid on the first try, and the

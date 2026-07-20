@@ -95,6 +95,10 @@ public class PlansController : ControllerBase
         else
         {
             plan.Status = PlanStatus.Failed;
+            // Drafting failed permanently (both LLM attempts invalid), and Failed plans have
+            // no Approve/Reject path to purge this later — purge now so raw customer email
+            // text never lingers past a failed drafting attempt (see PII inventory in CLAUDE.md).
+            plan.SourceEmailText = null;
         }
         await _context.SaveChangesAsync();
 
