@@ -91,4 +91,47 @@ public class PlanListTests : IClassFixture<WebApplicationFactory<Program>>
         Assert.Contains(result, p => p.Status == "AwaitingApproval" && p.SourceEmailText == "Please move our booking a day later");
         Assert.Contains(result, p => p.Status == "Executed" && p.SourceEmailText == "Cancel our pitch please");
     }
+
+    [Fact]
+    public async Task GetAll_FiltersByStatus()
+    {
+        using (var scope = _factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+            db.ProposedPlans.AddRange(
+                new ProposedPlan
+                {
+                    Status = PlanStatus.AwaitingApproval,
+                    SourceEmailText = "Awaiting one",
+                    CreatedAt = new DateTime(2026, 7, 1, 9, 0, 0, DateTimeKind.Utc)
+                },
+                new ProposedPlan
+                {
+                    Status = PlanStatus.Rejected,
+                    SourceEmailText = "Rejected one",
+                    CreatedAt = new DateTime(2026, 7, 2, 9, 0, 0, DateTimeKind.Utc)
+                }
+            );
+            await db.SaveChangesAsync();
+        }
+
+        var client = _factory.CreateClient();
+        var response = await client.GetAsync("/api/plans?status=Rejected");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var result = await response.Content.ReadFromJsonAsync<List<ProposedPlanDto>>();
+        Assert.NotNull(result);
+        Assert.Single(result);
+        Assert.Equal("Rejected", result[0].Status);
+        Assert.Equal("Rejected one", result[0].SourceEmailText);
+    }
+
+    [Fact]
+    public async Task GetAll_ReturnsBadRequest_ForInvalidStatus()
+    {
+        var client = _factory.CreateClient();
+        var response = await client.GetAsync("/api/plans?status=NotARealStatus");
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+    }
 }
