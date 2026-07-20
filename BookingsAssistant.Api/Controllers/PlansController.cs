@@ -1,4 +1,5 @@
 using BookingsAssistant.Api.Data;
+using BookingsAssistant.Api.Data.Entities;
 using BookingsAssistant.Api.Models;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -17,9 +18,19 @@ public class PlansController : ControllerBase
     }
 
     [HttpGet]
-    public async Task<ActionResult<List<ProposedPlanDto>>> GetAll()
+    public async Task<ActionResult<List<ProposedPlanDto>>> GetAll([FromQuery] string? status = null)
     {
-        var plans = await _context.ProposedPlans
+        var query = _context.ProposedPlans.AsQueryable();
+
+        if (!string.IsNullOrEmpty(status))
+        {
+            if (!Enum.TryParse<PlanStatus>(status, ignoreCase: true, out var parsedStatus))
+                return BadRequest(new { message = $"Invalid status '{status}'. Valid values: {string.Join(", ", Enum.GetNames<PlanStatus>())}" });
+
+            query = query.Where(p => p.Status == parsedStatus);
+        }
+
+        var plans = await query
             .Select(p => new ProposedPlanDto
             {
                 Id = p.Id,
