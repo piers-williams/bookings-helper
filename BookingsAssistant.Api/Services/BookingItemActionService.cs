@@ -94,7 +94,7 @@ public class BookingItemActionService : IBookingItemActionService
         if (result.Status != BookingActionStatus.Completed && result.Status != BookingActionStatus.CompletedWithWarnings)
             return;
 
-        Models.CommentDto? posted;
+        CommentDto? posted;
         try
         {
             posted = await _osmService.PostCommentAsync(osmBookingId, summary);

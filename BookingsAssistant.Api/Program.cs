@@ -43,6 +43,11 @@ builder.Services.AddHttpClient<IOpenWebUiClient, OpenWebUiClient>();
 // Add plan drafting service (scoped — depends on ApplicationDbContext and IOsmService)
 builder.Services.AddScoped<IPlanDraftingService, PlanDraftingService>();
 
+// Add plan execution service (scoped — depends on IOsmService and IBookingItemActionService).
+// Only invoked after a human approves a plan (PlansController.Approve) — the sole place
+// allowed to mutate OSM state on the LLM's behalf.
+builder.Services.AddScoped<IPlanExecutionService, PlanExecutionService>();
+
 // Add hosted services
 builder.Services.AddHostedService<GateCodeService>();
 

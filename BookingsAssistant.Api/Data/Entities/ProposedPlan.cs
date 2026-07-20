@@ -27,6 +27,14 @@ public class ProposedPlan
 
     public string? ActionsJson { get; set; }
 
+    /// <summary>
+    /// Per-action execution outcomes, set once the plan has been approved and executed
+    /// (or the attempt failed partway through). JSON array of objects shaped like
+    /// { type, status, reason? } — one entry per action in ActionsJson, in the same order.
+    /// Null until the plan has been approved.
+    /// </summary>
+    public string? ExecutionResultJson { get; set; }
+
     [Required]
     public DateTime CreatedAt { get; set; }
 
