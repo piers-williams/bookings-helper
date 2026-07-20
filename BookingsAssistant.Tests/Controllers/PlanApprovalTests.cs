@@ -215,6 +215,43 @@ public class PlanApprovalTests : IClassFixture<WebApplicationFactory<Program>>
     }
 
     [Fact]
+    public async Task Approve_BookingRequiredAction_FailsCleanly_WhenOsmBookingIdIsNull()
+    {
+        // Plan created without a linked booking (e.g. a general enquiry), but the LLM drafted
+        // a booking-required action anyway. This must produce a clean Failed action result
+        // with a clear reason -- not an unhandled exception -- and stop before any later
+        // actions run.
+        var planId = await SeedPlanAsync(
+            "[{\"type\":\"postComment\",\"text\":\"noted\"},{\"type\":\"sendTemplateEmail\"}]",
+            osmBookingId: null);
+
+        var client = _factory.CreateClient();
+        var response = await client.PostAsync($"/api/plans/{planId}/approve", content: null);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var result = await response.Content.ReadFromJsonAsync<ProposedPlanDto>();
+        Assert.NotNull(result);
+        Assert.Equal("Failed", result.Status);
+
+        var results = System.Text.Json.JsonSerializer.Deserialize<List<PlanActionExecutionResult>>(result.ExecutionResultJson!)!;
+        Assert.Equal(2, results.Count);
+        Assert.Equal("postComment", results[0].Type);
+        Assert.Equal(PlanActionExecutionStatus.Failed, results[0].Status);
+        Assert.NotNull(results[0].Reason);
+        Assert.Contains("requires a booking", results[0].Reason, StringComparison.OrdinalIgnoreCase);
+        Assert.Equal("sendTemplateEmail", results[1].Type);
+        Assert.Equal(PlanActionExecutionStatus.NotAttempted, results[1].Status);
+
+        // No OSM calls of any kind were made.
+        Assert.Empty(_fakeOsm.CommentsPosted);
+        Assert.Empty(_fakeOsm.EmailsSent);
+
+        var stored = await GetPlanFromDbAsync(planId);
+        Assert.NotNull(stored);
+        Assert.Equal(PlanStatus.Failed, stored.Status);
+    }
+
+    [Fact]
     public async Task Approve_OnlyDraftEmailReply_MarksExecuted_MakesNoOsmCalls()
     {
         var planId = await SeedPlanAsync(
