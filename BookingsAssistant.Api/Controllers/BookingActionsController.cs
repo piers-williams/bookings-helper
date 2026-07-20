@@ -10,20 +10,19 @@ namespace BookingsAssistant.Api.Controllers;
 public class BookingActionsController : ControllerBase
 {
     private readonly ApplicationDbContext _context;
-    // Used to resolve booking items by id before delegating the mutation to the engine.
     private readonly IOsmService _osmService;
-    private readonly IBookingMutationService _mutationService;
+    private readonly IBookingItemActionService _itemActionService;
     private readonly ILogger<BookingActionsController> _logger;
 
     public BookingActionsController(
         ApplicationDbContext context,
         IOsmService osmService,
-        IBookingMutationService mutationService,
+        IBookingItemActionService itemActionService,
         ILogger<BookingActionsController> logger)
     {
         _context = context;
         _osmService = osmService;
-        _mutationService = mutationService;
+        _itemActionService = itemActionService;
         _logger = logger;
     }
 
@@ -103,23 +102,12 @@ public class BookingActionsController : ControllerBase
 
         try
         {
-            var items = await _osmService.GetBookingItemsAsync(booking.OsmBookingId);
-            var item = items.FirstOrDefault(i => i.ItemId == request.ItemId);
-            if (item == null)
-                return NotFound(new { message = $"Item '{request.ItemId}' not found in booking {id}" });
-
-            var replacement = new ItemReplacement
-            {
-                Original = item,
-                NewStartDate = request.NewStartDate,
-                NewStartTime = request.NewStartTime,
-                NewEndTime = request.NewEndTime
-            };
-
-            var result = await _mutationService.ReplaceItemsAsync(booking.OsmBookingId, new[] { replacement });
-            var summary = BookingActionCommentComposer.ComposeMoveActivitySummary(item, request);
-            await PostAuditCommentAsync(booking, result, summary);
+            var result = await _itemActionService.MoveActivityAsync(booking.OsmBookingId, request);
             return Ok(result);
+        }
+        catch (BookingItemNotFoundException ex)
+        {
+            return NotFound(new { message = ex.Message });
         }
         catch (InvalidOperationException ex) when (ex.Message.Contains("OSM"))
         {
@@ -150,21 +138,12 @@ public class BookingActionsController : ControllerBase
 
         try
         {
-            var items = await _osmService.GetBookingItemsAsync(booking.OsmBookingId);
-            var item = items.FirstOrDefault(i => i.ItemId == request.ItemId);
-            if (item == null)
-                return NotFound(new { message = $"Item '{request.ItemId}' not found in booking {id}" });
-
-            var replacement = new ItemReplacement
-            {
-                Original = item,
-                NewSiteId = request.NewSiteId
-            };
-
-            var result = await _mutationService.ReplaceItemsAsync(booking.OsmBookingId, new[] { replacement });
-            var summary = BookingActionCommentComposer.ComposeChangeSiteSummary(item, request);
-            await PostAuditCommentAsync(booking, result, summary);
+            var result = await _itemActionService.ChangeSiteAsync(booking.OsmBookingId, request);
             return Ok(result);
+        }
+        catch (BookingItemNotFoundException ex)
+        {
+            return NotFound(new { message = ex.Message });
         }
         catch (InvalidOperationException ex) when (ex.Message.Contains("OSM"))
         {
@@ -194,23 +173,7 @@ public class BookingActionsController : ControllerBase
 
         try
         {
-            var items = await _osmService.GetBookingItemsAsync(booking.OsmBookingId);
-
-            var replacements = items.Select(item => new ItemReplacement
-            {
-                Original = item,
-                NewStartDate = item.StartDate.HasValue
-                    ? item.StartDate.Value.AddDays(request.DayShift)
-                    : null,
-                NewEndDate = item.EndDate.HasValue
-                    ? item.EndDate.Value.AddDays(request.DayShift)
-                    : null
-                // StartTime and EndTime are preserved (not overridden)
-            }).ToList();
-
-            var result = await _mutationService.ReplaceItemsAsync(booking.OsmBookingId, replacements);
-            var summary = BookingActionCommentComposer.ComposeMoveDatesSummary(request);
-            await PostAuditCommentAsync(booking, result, summary);
+            var result = await _itemActionService.MoveDatesAsync(booking.OsmBookingId, request);
             return Ok(result);
         }
         catch (InvalidOperationException ex) when (ex.Message.Contains("OSM"))
@@ -222,49 +185,5 @@ public class BookingActionsController : ControllerBase
             _logger.LogError(ex, "Error during move-dates for booking {Id}", id);
             return StatusCode(502, new { message = "Error executing move-dates", detail = ex.Message });
         }
-    }
-
-    // ── Audit-trail comment posting ───────────────────────────────────────────
-    // Runs after a mutation completes. Posts the given summary as an OSM comment and
-    // persists it locally (same shape as BookingsController.PostComment) so it shows up
-    // immediately. Only Completed/CompletedWithWarnings results get a comment — a rolled
-    // back or failed move has nothing to summarize. A failed comment post never fails the
-    // request; it downgrades the result to CompletedWithWarnings instead.
-    private async Task PostAuditCommentAsync(Data.Entities.OsmBooking booking, BookingActionResult result, string summary)
-    {
-        if (result.Status != BookingActionStatus.Completed && result.Status != BookingActionStatus.CompletedWithWarnings)
-            return;
-
-        CommentDto? posted;
-        try
-        {
-            posted = await _osmService.PostCommentAsync(booking.OsmBookingId, summary);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogWarning(ex,
-                "PostAuditCommentAsync: failed to post audit comment for booking {BookingId}",
-                booking.OsmBookingId);
-            posted = null;
-        }
-
-        if (posted == null)
-        {
-            result.Status = BookingActionStatus.CompletedWithWarnings;
-            result.Message += "; audit comment failed to post";
-            return;
-        }
-
-        _context.OsmComments.Add(new Data.Entities.OsmComment
-        {
-            OsmBookingId = booking.OsmBookingId,
-            OsmCommentId = posted.OsmCommentId,
-            AuthorName = posted.AuthorName,
-            TextPreview = posted.TextPreview,
-            CreatedDate = posted.CreatedDate,
-            IsNew = false,
-            LastFetched = DateTime.UtcNow
-        });
-        await _context.SaveChangesAsync();
     }
 }

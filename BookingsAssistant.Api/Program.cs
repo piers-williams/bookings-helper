@@ -32,6 +32,11 @@ builder.Services.AddHttpClient<IOsmService, OsmService>();
 // Add booking mutation service (scoped — depends on IOsmService which is per-request via HttpClient)
 builder.Services.AddScoped<IBookingMutationService, BookingMutationService>();
 
+// Add booking item action service (scoped — depends on ApplicationDbContext and IOsmService).
+// Shared dispatch for move-activity/change-site/move-dates, used by both BookingActionsController
+// and the plan-execution path.
+builder.Services.AddScoped<IBookingItemActionService, BookingItemActionService>();
+
 // Add Open WebUI client (LLM plan drafting) with HttpClient
 builder.Services.AddHttpClient<IOpenWebUiClient, OpenWebUiClient>();
 
