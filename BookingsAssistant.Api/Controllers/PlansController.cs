@@ -44,4 +44,22 @@ public class PlansController : ControllerBase
 
         return Ok(plans);
     }
+
+    [HttpGet("{id}")]
+    public async Task<ActionResult<ProposedPlanDto>> GetById(int id)
+    {
+        var plan = await _context.ProposedPlans.FindAsync(id);
+        if (plan == null)
+            return NotFound();
+
+        return Ok(new ProposedPlanDto
+        {
+            Id = plan.Id,
+            Status = plan.Status.ToString(),
+            SourceEmailText = plan.SourceEmailText,
+            OsmBookingId = plan.OsmBookingId,
+            ActionsJson = plan.ActionsJson,
+            CreatedAt = plan.CreatedAt
+        });
+    }
 }
