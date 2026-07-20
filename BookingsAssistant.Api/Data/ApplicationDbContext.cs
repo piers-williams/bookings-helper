@@ -14,6 +14,7 @@ public class ApplicationDbContext : DbContext
     public DbSet<OsmBooking> OsmBookings { get; set; }
     public DbSet<OsmComment> OsmComments { get; set; }
     public DbSet<SiteDuty> SiteDuties { get; set; }
+    public DbSet<ProposedPlan> ProposedPlans { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -35,5 +36,18 @@ public class ApplicationDbContext : DbContext
             .HasForeignKey(c => c.OsmBookingId)
             .HasPrincipalKey(b => b.OsmBookingId)
             .OnDelete(DeleteBehavior.Cascade);
+
+        // Store PlanStatus enum as its string name for readability in the DB
+        modelBuilder.Entity<ProposedPlan>()
+            .Property(p => p.Status)
+            .HasConversion<string>()
+            .HasMaxLength(50);
+
+        modelBuilder.Entity<ProposedPlan>()
+            .HasOne(p => p.Booking)
+            .WithMany()
+            .HasForeignKey(p => p.OsmBookingId)
+            .HasPrincipalKey(b => b.OsmBookingId)
+            .OnDelete(DeleteBehavior.SetNull);
     }
 }
