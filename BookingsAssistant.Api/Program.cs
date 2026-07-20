@@ -32,6 +32,12 @@ builder.Services.AddHttpClient<IOsmService, OsmService>();
 // Add booking mutation service (scoped — depends on IOsmService which is per-request via HttpClient)
 builder.Services.AddScoped<IBookingMutationService, BookingMutationService>();
 
+// Add Open WebUI client (LLM plan drafting) with HttpClient
+builder.Services.AddHttpClient<IOpenWebUiClient, OpenWebUiClient>();
+
+// Add plan drafting service (scoped — depends on ApplicationDbContext and IOsmService)
+builder.Services.AddScoped<IPlanDraftingService, PlanDraftingService>();
+
 // Add hosted services
 builder.Services.AddHostedService<GateCodeService>();
 

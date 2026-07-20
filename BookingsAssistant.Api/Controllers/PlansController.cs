@@ -1,6 +1,7 @@
 using BookingsAssistant.Api.Data;
 using BookingsAssistant.Api.Data.Entities;
 using BookingsAssistant.Api.Models;
+using BookingsAssistant.Api.Services;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
@@ -11,10 +12,12 @@ namespace BookingsAssistant.Api.Controllers;
 public class PlansController : ControllerBase
 {
     private readonly ApplicationDbContext _context;
+    private readonly IPlanDraftingService _planDraftingService;
 
-    public PlansController(ApplicationDbContext context)
+    public PlansController(ApplicationDbContext context, IPlanDraftingService planDraftingService)
     {
         _context = context;
+        _planDraftingService = planDraftingService;
     }
 
     [HttpGet]
@@ -52,14 +55,52 @@ public class PlansController : ControllerBase
         if (plan == null)
             return NotFound();
 
-        return Ok(new ProposedPlanDto
-        {
-            Id = plan.Id,
-            Status = plan.Status.ToString(),
-            SourceEmailText = plan.SourceEmailText,
-            OsmBookingId = plan.OsmBookingId,
-            ActionsJson = plan.ActionsJson,
-            CreatedAt = plan.CreatedAt
-        });
+        return Ok(ToDto(plan));
     }
+
+    /// <summary>
+    /// Drafts a new action plan from a customer email via the LLM. A ProposedPlan row is
+    /// persisted immediately (before drafting runs) so there's always a record, even if
+    /// drafting fails. On success the row is updated with the validated actions JSON,
+    /// staying AwaitingApproval; on failure (both LLM attempts invalid) it becomes Failed.
+    /// </summary>
+    [HttpPost]
+    public async Task<ActionResult<ProposedPlanDto>> Create([FromBody] CreatePlanRequest request)
+    {
+        if (string.IsNullOrWhiteSpace(request.SourceEmailText))
+            return BadRequest(new { message = "sourceEmailText is required" });
+
+        var plan = new ProposedPlan
+        {
+            Status = PlanStatus.AwaitingApproval,
+            SourceEmailText = request.SourceEmailText,
+            OsmBookingId = request.OsmBookingId,
+            CreatedAt = DateTime.UtcNow
+        };
+        _context.ProposedPlans.Add(plan);
+        await _context.SaveChangesAsync();
+
+        var draftResult = await _planDraftingService.DraftPlanAsync(request.SourceEmailText, request.OsmBookingId);
+        if (draftResult.Success)
+        {
+            plan.ActionsJson = draftResult.ActionsJson;
+        }
+        else
+        {
+            plan.Status = PlanStatus.Failed;
+        }
+        await _context.SaveChangesAsync();
+
+        return CreatedAtAction(nameof(GetById), new { id = plan.Id }, ToDto(plan));
+    }
+
+    private static ProposedPlanDto ToDto(ProposedPlan plan) => new()
+    {
+        Id = plan.Id,
+        Status = plan.Status.ToString(),
+        SourceEmailText = plan.SourceEmailText,
+        OsmBookingId = plan.OsmBookingId,
+        ActionsJson = plan.ActionsJson,
+        CreatedAt = plan.CreatedAt
+    };
 }
