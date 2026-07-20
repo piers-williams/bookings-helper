@@ -83,6 +83,14 @@ using (var scope = app.Services.CreateScope())
         await context.Database.MigrateAsync();
     await DbSeeder.SeedAsync(context);
 
+    // Recover any ProposedPlan rows left stuck in Processing by a crash or unhandled error
+    // between the atomic claim step and the terminal status write that normally follows it
+    // immediately (see PlansController.TryClaimAwaitingApprovalAsync and PlanStatus.Processing's
+    // doc comment). No request can still legitimately be "in progress" across a process
+    // restart, so any such row is stale by definition.
+    var startupLogger = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
+    await StalePlanRecovery.RecoverStaleProcessingPlansAsync(context, startupLogger);
+
     // If OSM tokens are already stored (e.g. after addon update), sync on startup
     try
     {
@@ -91,8 +99,7 @@ using (var scope = app.Services.CreateScope())
         if (!isAuthenticated)
             throw new InvalidOperationException("Not authenticated");
 
-        var logger = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
-        logger.LogInformation("OSM tokens found — running startup sync...");
+        startupLogger.LogInformation("OSM tokens found — running startup sync...");
         var tasks = await Task.WhenAll(
             osmService.GetBookingsAsync("provisional"),
             osmService.GetBookingsAsync("confirmed"),
@@ -133,7 +140,7 @@ using (var scope = app.Services.CreateScope())
         }
 
         await context.SaveChangesAsync();
-        logger.LogInformation("Startup OSM sync complete: {Count} bookings", allBookings.Count);
+        startupLogger.LogInformation("Startup OSM sync complete: {Count} bookings", allBookings.Count);
     }
     catch (Exception)
     {
