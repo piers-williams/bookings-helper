@@ -2,6 +2,7 @@ import { Routes, Route } from 'react-router-dom';
 import Dashboard from './components/Dashboard';
 import BookingDetail from './components/BookingDetail';
 import BookingList from './components/BookingList';
+import Triage from './components/Triage';
 
 function App() {
   return (
@@ -10,6 +11,7 @@ function App() {
         <Route path="/" element={<Dashboard />} />
         <Route path="/bookings" element={<BookingList />} />
         <Route path="/bookings/:id" element={<BookingDetail />} />
+        <Route path="/triage" element={<Triage />} />
       </Routes>
     </div>
   );
