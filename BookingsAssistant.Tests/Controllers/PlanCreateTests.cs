@@ -49,7 +49,10 @@ public class PlanCreateTests : IClassFixture<WebApplicationFactory<Program>>
         });
     }
 
-    private async Task<string> SeedBookingAsync(string osmBookingId = "88001")
+    private async Task<string> SeedBookingAsync(
+        string osmBookingId = "88001",
+        DateTime? startDate = null,
+        DateTime? endDate = null)
     {
         using var scope = _factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
@@ -57,8 +60,8 @@ public class PlanCreateTests : IClassFixture<WebApplicationFactory<Program>>
         {
             OsmBookingId = osmBookingId,
             CustomerName = "1st Anytown Scouts",
-            StartDate = new DateTime(2026, 8, 1, 0, 0, 0, DateTimeKind.Utc),
-            EndDate = new DateTime(2026, 8, 3, 0, 0, 0, DateTimeKind.Utc),
+            StartDate = startDate ?? new DateTime(2026, 8, 1, 0, 0, 0, DateTimeKind.Utc),
+            EndDate = endDate ?? new DateTime(2026, 8, 3, 0, 0, 0, DateTimeKind.Utc),
             Status = "Confirmed"
         });
         await db.SaveChangesAsync();
@@ -272,5 +275,46 @@ public class PlanCreateTests : IClassFixture<WebApplicationFactory<Program>>
         });
 
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task Create_ReturnsNotFound_WhenOsmBookingIdDoesNotExist()
+    {
+        var client = _factory.CreateClient();
+        var response = await client.PostAsJsonAsync("/api/plans", new CreatePlanRequest
+        {
+            SourceEmailText = "Can you move our booking?",
+            OsmBookingId = "no-such-booking"
+        });
+
+        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+
+        // No plan row, no LLM call — rejected before either happens.
+        Assert.Empty(_fakeLlm.Calls);
+        using var scope = _factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        Assert.Empty(db.ProposedPlans);
+    }
+
+    [Fact]
+    public async Task Create_ReturnsBadRequest_WhenBookingHasAlreadyEnded()
+    {
+        var bookingId = await SeedBookingAsync(
+            startDate: DateTime.UtcNow.Date.AddDays(-10),
+            endDate: DateTime.UtcNow.Date.AddDays(-8));
+
+        var client = _factory.CreateClient();
+        var response = await client.PostAsJsonAsync("/api/plans", new CreatePlanRequest
+        {
+            SourceEmailText = "Can you move our booking?",
+            OsmBookingId = bookingId
+        });
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+
+        Assert.Empty(_fakeLlm.Calls);
+        using var scope = _factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        Assert.Empty(db.ProposedPlans);
     }
 }

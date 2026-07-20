@@ -72,19 +72,33 @@ public class PlansController : ControllerBase
     }
 
     /// <summary>
-    /// Drafts a new action plan from a customer email via the LLM. A ProposedPlan row is
-    /// persisted immediately (before drafting runs) so there's always a record, even if
-    /// drafting fails. On success the row is updated with the validated actions JSON,
-    /// staying AwaitingApproval; on failure — both LLM attempts invalid, or DraftPlanAsync
-    /// itself throwing (e.g. a network failure or non-2xx from Open WebUI) — it becomes
-    /// Failed and SourceEmailText is purged, since Failed plans have no Approve/Reject path
-    /// to purge it later (see PII inventory in CLAUDE.md).
+    /// Drafts a new action plan from a customer email via the LLM. If an OsmBookingId is
+    /// given, it must resolve to a known, non-past booking (404/400 otherwise) — the LLM has
+    /// no way to know a booking has already ended, so this is checked up front rather than
+    /// left for a human to catch during approval. A ProposedPlan row is persisted immediately
+    /// (before drafting runs) so there's always a record, even if drafting fails. On success
+    /// the row is updated with the validated actions JSON, staying AwaitingApproval; on
+    /// failure — both LLM attempts invalid, or DraftPlanAsync itself throwing (e.g. a network
+    /// failure or non-2xx from Open WebUI) — it becomes Failed and SourceEmailText is purged,
+    /// since Failed plans have no Approve/Reject path to purge it later (see PII inventory in
+    /// CLAUDE.md).
     /// </summary>
     [HttpPost]
     public async Task<ActionResult<ProposedPlanDto>> Create([FromBody] CreatePlanRequest request)
     {
         if (string.IsNullOrWhiteSpace(request.SourceEmailText))
             return BadRequest(new { message = "sourceEmailText is required" });
+
+        if (!string.IsNullOrWhiteSpace(request.OsmBookingId))
+        {
+            var booking = await _context.OsmBookings
+                .FirstOrDefaultAsync(b => b.OsmBookingId == request.OsmBookingId);
+            if (booking == null)
+                return NotFound(new { message = $"Booking '{request.OsmBookingId}' not found" });
+
+            if (booking.EndDate.Date < DateTime.UtcNow.Date)
+                return BadRequest(new { message = $"Booking '{request.OsmBookingId}' has already ended ({booking.EndDate:yyyy-MM-dd}); cannot draft a plan against a past booking" });
+        }
 
         var plan = new ProposedPlan
         {
