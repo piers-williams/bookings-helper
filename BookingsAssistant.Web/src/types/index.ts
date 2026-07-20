@@ -110,3 +110,50 @@ export interface AvailableSite {
   id: string;
   name: string;
 }
+
+/** Mirrors ProposedPlanDto on the backend. */
+export type PlanStatusValue = 'AwaitingApproval' | 'Executed' | 'Rejected' | 'Failed';
+
+export interface ProposedPlan {
+  id: number;
+  status: PlanStatusValue;
+  sourceEmailText?: string | null;
+  osmBookingId?: string | null;
+  /** JSON-encoded array of PlanAction, in execution order. */
+  actionsJson?: string | null;
+  /** JSON-encoded array of PlanActionExecutionResult, parallel to the actions array. */
+  executionResultJson?: string | null;
+  createdAt: string;
+}
+
+/**
+ * One entry from a ProposedPlan's ActionsJson. Fields are flat alongside "type" (mirrors the
+ * shape the LLM is prompted to produce — see PlanDraftingService on the backend). Only the
+ * fields relevant to `type` are populated; the rest are undefined.
+ */
+export interface PlanAction {
+  type: string;
+  /** draftEmailReply / postComment */
+  text?: string;
+  /** moveDates */
+  dayShift?: number;
+  /** changeSite / moveActivity */
+  itemId?: string;
+  /** changeSite */
+  newSiteId?: string;
+  newSiteName?: string;
+  /** moveActivity */
+  newStartDate?: string;
+  newStartTime?: string;
+  newEndTime?: string;
+  /** moveDates / changeSite / moveActivity */
+  note?: string;
+}
+
+/** Mirrors PlanActionExecutionResult on the backend. One per action, in order. */
+export interface PlanActionExecutionResult {
+  type: string;
+  /** One of: "succeeded", "failed", "not_attempted". */
+  status: 'succeeded' | 'failed' | 'not_attempted';
+  reason?: string | null;
+}
