@@ -48,6 +48,11 @@ builder.Services.AddScoped<IPlanDraftingService, PlanDraftingService>();
 // allowed to mutate OSM state on the LLM's behalf.
 builder.Services.AddScoped<IPlanExecutionService, PlanExecutionService>();
 
+// Add plan transition lock (singleton — shared across every PlansController instance, same
+// reasoning as OsmRateLimitCooldown above). Serializes Approve/Reject's claim step so two
+// concurrent requests for the same plan can't both execute/reject it.
+builder.Services.AddSingleton<PlanTransitionLock>();
+
 // Add hosted services
 builder.Services.AddHostedService<GateCodeService>();
 

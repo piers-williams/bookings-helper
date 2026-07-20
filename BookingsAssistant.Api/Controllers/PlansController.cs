@@ -15,15 +15,18 @@ public class PlansController : ControllerBase
     private readonly ApplicationDbContext _context;
     private readonly IPlanDraftingService _planDraftingService;
     private readonly IPlanExecutionService _planExecutionService;
+    private readonly PlanTransitionLock _transitionLock;
 
     public PlansController(
         ApplicationDbContext context,
         IPlanDraftingService planDraftingService,
-        IPlanExecutionService planExecutionService)
+        IPlanExecutionService planExecutionService,
+        PlanTransitionLock transitionLock)
     {
         _context = context;
         _planDraftingService = planDraftingService;
         _planExecutionService = planExecutionService;
+        _transitionLock = transitionLock;
     }
 
     [HttpGet]
@@ -114,16 +117,13 @@ public class PlansController : ControllerBase
     [HttpPost("{id}/approve")]
     public async Task<ActionResult<ProposedPlanDto>> Approve(int id)
     {
-        var plan = await _context.ProposedPlans.FindAsync(id);
-        if (plan == null)
-            return NotFound();
+        var (plan, error) = await TryClaimAwaitingApprovalAsync(id, "approved");
+        if (error != null)
+            return error;
 
-        if (plan.Status != PlanStatus.AwaitingApproval)
-            return Conflict(new { message = $"Plan {id} cannot be approved (status: {plan.Status})" });
+        var outcome = await _planExecutionService.ExecuteAsync(plan!);
 
-        var outcome = await _planExecutionService.ExecuteAsync(plan);
-
-        plan.Status = outcome.Success ? PlanStatus.Executed : PlanStatus.Failed;
+        plan!.Status = outcome.Success ? PlanStatus.Executed : PlanStatus.Failed;
         plan.ExecutionResultJson = JsonSerializer.Serialize(outcome.Results);
         plan.SourceEmailText = null;
         await _context.SaveChangesAsync();
@@ -138,18 +138,47 @@ public class PlansController : ControllerBase
     [HttpPost("{id}/reject")]
     public async Task<ActionResult<ProposedPlanDto>> Reject(int id)
     {
-        var plan = await _context.ProposedPlans.FindAsync(id);
-        if (plan == null)
-            return NotFound();
+        var (plan, error) = await TryClaimAwaitingApprovalAsync(id, "rejected");
+        if (error != null)
+            return error;
 
-        if (plan.Status != PlanStatus.AwaitingApproval)
-            return Conflict(new { message = $"Plan {id} cannot be rejected (status: {plan.Status})" });
-
-        plan.Status = PlanStatus.Rejected;
+        plan!.Status = PlanStatus.Rejected;
         plan.SourceEmailText = null;
         await _context.SaveChangesAsync();
 
         return Ok(ToDto(plan));
+    }
+
+    /// <summary>
+    /// Atomically claims a plan for a status transition (Approve/Reject), preventing the
+    /// TOCTOU race where two near-simultaneous requests both read Status == AwaitingApproval,
+    /// both pass the check, and both proceed to execute/reject the same plan.
+    ///
+    /// Under <see cref="PlanTransitionLock"/>, reads the plan, checks it's still
+    /// AwaitingApproval, and — if so — flips it to Processing (a transient "claimed" marker,
+    /// see <see cref="PlanStatus"/>) and saves, all before releasing the lock. A concurrent
+    /// caller blocked on the lock will, once it acquires it, see Status == Processing (or
+    /// whatever terminal status the winner already reached) and is turned away with 409,
+    /// never proceeding to execute/reject. The lock is released before the caller goes on to
+    /// do the (potentially slow) OSM execution, so unrelated plans' claim steps aren't blocked.
+    /// See <see cref="PlanTransitionLock"/> for why a lock rather than a DB-level atomic
+    /// conditional update (e.g. ExecuteUpdateAsync) is used here.
+    /// </summary>
+    private async Task<(ProposedPlan? Plan, ActionResult? Error)> TryClaimAwaitingApprovalAsync(int id, string actionDescription)
+    {
+        using var _ = await _transitionLock.AcquireAsync();
+
+        var plan = await _context.ProposedPlans.FindAsync(id);
+        if (plan == null)
+            return (null, NotFound());
+
+        if (plan.Status != PlanStatus.AwaitingApproval)
+            return (null, Conflict(new { message = $"Plan {id} cannot be {actionDescription} (status: {plan.Status})" }));
+
+        plan.Status = PlanStatus.Processing;
+        await _context.SaveChangesAsync();
+
+        return (plan, null);
     }
 
     private static ProposedPlanDto ToDto(ProposedPlan plan) => new()

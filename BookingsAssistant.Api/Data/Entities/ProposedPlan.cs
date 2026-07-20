@@ -6,6 +6,17 @@ namespace BookingsAssistant.Api.Data.Entities;
 public enum PlanStatus
 {
     AwaitingApproval,
+
+    /// <summary>
+    /// Transient state used only as an atomic "claim" marker: Approve/Reject conditionally
+    /// transition AwaitingApproval → Processing in a single ExecuteUpdateAsync round-trip
+    /// before doing any work, so two concurrent requests for the same plan can't both pass
+    /// the status check and double-execute. Always immediately followed by a terminal status
+    /// (Executed/Failed/Rejected) within the same request. Stored as a string column
+    /// (see ApplicationDbContext), so adding this value needs no schema migration.
+    /// </summary>
+    Processing,
+
     Executed,
     Rejected,
     Failed

@@ -269,6 +269,45 @@ public class PlanApprovalTests : IClassFixture<WebApplicationFactory<Program>>
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
     }
 
+    [Fact]
+    public async Task Approve_ConcurrentRequestsForSamePlan_OnlyOneSucceeds_OsmActionRunsOnce()
+    {
+        // Regression test for a TOCTOU race: without an atomic claim step, two
+        // near-simultaneous /approve calls for the same plan could both read
+        // Status == AwaitingApproval before either wrote back, and both would go on to post
+        // the OSM comment — a double-execution bug. PlanTransitionLock (a process-wide async
+        // lock, shared across requests via DI singleton — see its doc comment) serializes the
+        // claim step so only one request ever wins.
+        var bookingId = await SeedBookingAsync("77510");
+        _fakeOsm.CommentToReturn = new CommentDto
+        {
+            OsmBookingId = bookingId,
+            OsmCommentId = "cmt-race-1",
+            AuthorName = "Site Manager",
+            TextPreview = "noted",
+            CreatedDate = new DateTime(2026, 8, 1, 9, 0, 0, DateTimeKind.Utc)
+        };
+        var planId = await SeedPlanAsync(
+            "[{\"type\":\"postComment\",\"text\":\"noted\"}]",
+            bookingId);
+
+        var client = _factory.CreateClient();
+
+        var task1 = client.PostAsync($"/api/plans/{planId}/approve", content: null);
+        var task2 = client.PostAsync($"/api/plans/{planId}/approve", content: null);
+        var responses = await Task.WhenAll(task1, task2);
+
+        var statusCodes = responses.Select(r => r.StatusCode).OrderBy(s => s).ToList();
+        Assert.Equal(new[] { HttpStatusCode.OK, HttpStatusCode.Conflict }, statusCodes);
+
+        // The OSM side effect happened exactly once — not twice.
+        Assert.Single(_fakeOsm.CommentsPosted);
+
+        var stored = await GetPlanFromDbAsync(planId);
+        Assert.NotNull(stored);
+        Assert.Equal(PlanStatus.Executed, stored.Status);
+    }
+
     // ── Reject ──────────────────────────────────────────────────────────────
 
     [Fact]
@@ -318,5 +357,27 @@ public class PlanApprovalTests : IClassFixture<WebApplicationFactory<Program>>
         var response = await client.PostAsync("/api/plans/999999/reject", content: null);
 
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task Reject_ConcurrentRequestsForSamePlan_OnlyOneSucceeds()
+    {
+        // Same TOCTOU concern as the Approve race test above, applied to Reject.
+        var planId = await SeedPlanAsync(
+            "[{\"type\":\"postComment\",\"text\":\"noted\"}]",
+            osmBookingId: "77505");
+
+        var client = _factory.CreateClient();
+
+        var task1 = client.PostAsync($"/api/plans/{planId}/reject", content: null);
+        var task2 = client.PostAsync($"/api/plans/{planId}/reject", content: null);
+        var responses = await Task.WhenAll(task1, task2);
+
+        var statusCodes = responses.Select(r => r.StatusCode).OrderBy(s => s).ToList();
+        Assert.Equal(new[] { HttpStatusCode.OK, HttpStatusCode.Conflict }, statusCodes);
+
+        var stored = await GetPlanFromDbAsync(planId);
+        Assert.NotNull(stored);
+        Assert.Equal(PlanStatus.Rejected, stored.Status);
     }
 }
