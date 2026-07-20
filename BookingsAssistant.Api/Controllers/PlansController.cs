@@ -16,17 +16,20 @@ public class PlansController : ControllerBase
     private readonly IPlanDraftingService _planDraftingService;
     private readonly IPlanExecutionService _planExecutionService;
     private readonly PlanTransitionLock _transitionLock;
+    private readonly ILogger<PlansController> _logger;
 
     public PlansController(
         ApplicationDbContext context,
         IPlanDraftingService planDraftingService,
         IPlanExecutionService planExecutionService,
-        PlanTransitionLock transitionLock)
+        PlanTransitionLock transitionLock,
+        ILogger<PlansController> logger)
     {
         _context = context;
         _planDraftingService = planDraftingService;
         _planExecutionService = planExecutionService;
         _transitionLock = transitionLock;
+        _logger = logger;
     }
 
     [HttpGet]
@@ -72,7 +75,10 @@ public class PlansController : ControllerBase
     /// Drafts a new action plan from a customer email via the LLM. A ProposedPlan row is
     /// persisted immediately (before drafting runs) so there's always a record, even if
     /// drafting fails. On success the row is updated with the validated actions JSON,
-    /// staying AwaitingApproval; on failure (both LLM attempts invalid) it becomes Failed.
+    /// staying AwaitingApproval; on failure — both LLM attempts invalid, or DraftPlanAsync
+    /// itself throwing (e.g. a network failure or non-2xx from Open WebUI) — it becomes
+    /// Failed and SourceEmailText is purged, since Failed plans have no Approve/Reject path
+    /// to purge it later (see PII inventory in CLAUDE.md).
     /// </summary>
     [HttpPost]
     public async Task<ActionResult<ProposedPlanDto>> Create([FromBody] CreatePlanRequest request)
@@ -90,17 +96,28 @@ public class PlansController : ControllerBase
         _context.ProposedPlans.Add(plan);
         await _context.SaveChangesAsync();
 
-        var draftResult = await _planDraftingService.DraftPlanAsync(request.SourceEmailText, request.OsmBookingId);
-        if (draftResult.Success)
+        PlanDraftResult? draftResult = null;
+        try
+        {
+            draftResult = await _planDraftingService.DraftPlanAsync(request.SourceEmailText, request.OsmBookingId);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex,
+                "Plan drafting: DraftPlanAsync threw for plan {PlanId}; marking Failed", plan.Id);
+        }
+
+        if (draftResult is { Success: true })
         {
             plan.ActionsJson = draftResult.ActionsJson;
         }
         else
         {
             plan.Status = PlanStatus.Failed;
-            // Drafting failed permanently (both LLM attempts invalid), and Failed plans have
-            // no Approve/Reject path to purge this later — purge now so raw customer email
-            // text never lingers past a failed drafting attempt (see PII inventory in CLAUDE.md).
+            // Drafting failed permanently (both LLM attempts invalid, or DraftPlanAsync
+            // threw), and Failed plans have no Approve/Reject path to purge this later —
+            // purge now so raw customer email text never lingers past a failed drafting
+            // attempt (see PII inventory in CLAUDE.md).
             plan.SourceEmailText = null;
         }
         await _context.SaveChangesAsync();

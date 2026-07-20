@@ -14,9 +14,18 @@ public class FakeOpenWebUiClient : IOpenWebUiClient
     public Queue<string> ResponsesToReturn { get; } = new();
     public string DefaultResponse { get; set; } = "{\"actions\":[]}";
 
+    /// <summary>
+    /// If set, GetCompletionAsync throws this instead of returning a response — simulates
+    /// DraftPlanAsync's underlying HTTP call failing (network error, non-2xx, etc.).
+    /// </summary>
+    public Exception? ExceptionToThrow { get; set; }
+
     public Task<string> GetCompletionAsync(string systemPrompt, string userPrompt)
     {
         Calls.Add((systemPrompt, userPrompt));
+        if (ExceptionToThrow != null)
+            throw ExceptionToThrow;
+
         var response = ResponsesToReturn.Count > 0 ? ResponsesToReturn.Dequeue() : DefaultResponse;
         return Task.FromResult(response);
     }

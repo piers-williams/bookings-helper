@@ -146,6 +146,37 @@ public class PlanCreateTests : IClassFixture<WebApplicationFactory<Program>>
     }
 
     [Fact]
+    public async Task Create_ReturnsFailedStatus_AndPurgesSourceEmailText_WhenDraftingServiceThrows()
+    {
+        // Simulates a network failure / non-2xx from Open WebUI propagating as an exception
+        // out of DraftPlanAsync. Create must not let this become an unhandled 500 leaving the
+        // plan stuck at AwaitingApproval with no ActionsJson forever -- it should deterministically
+        // reach a terminal, PII-free Failed state, same as a validation failure.
+        _fakeLlm.ExceptionToThrow = new HttpRequestException("Open WebUI unreachable");
+
+        var client = _factory.CreateClient();
+        var response = await client.PostAsJsonAsync("/api/plans", new CreatePlanRequest
+        {
+            SourceEmailText = "Can you cancel our pitch?"
+        });
+
+        Assert.Equal(HttpStatusCode.Created, response.StatusCode);
+        var result = await response.Content.ReadFromJsonAsync<ProposedPlanDto>();
+        Assert.NotNull(result);
+        Assert.Equal("Failed", result.Status);
+        Assert.Null(result.ActionsJson);
+        Assert.Null(result.SourceEmailText);
+
+        using var scope = _factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        var stored = await db.ProposedPlans.FindAsync(result.Id);
+        Assert.NotNull(stored);
+        Assert.Equal(PlanStatus.Failed, stored.Status);
+        Assert.Null(stored.SourceEmailText);
+        Assert.Null(stored.ActionsJson);
+    }
+
+    [Fact]
     public async Task Create_ReturnsFailedStatus_WhenLlmReturnsUnknownActionType()
     {
         // Both attempts return an unknown action type — invalid on the first try, and the
