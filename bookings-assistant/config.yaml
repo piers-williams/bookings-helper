@@ -1,5 +1,5 @@
 name: Bookings Assistant
-version: 0.10.0
+version: 0.11.0
 slug: bookings-assistant
 description: Manage scout campsite bookings from OSM
 url: https://github.com/piers-williams/bookings-helper
@@ -25,6 +25,9 @@ options:
   gate_code_from_email: ""
   gate_code_subject: "Gate code"
   api_token: ""
+  open_webui_base_url: ""
+  open_webui_api_key: ""
+  open_webui_model: ""
 schema:
   osm_base_url: url
   osm_campsite_id: str
@@ -37,4 +40,7 @@ schema:
   gate_code_from_email: email
   gate_code_subject: str
   api_token: password
+  open_webui_base_url: url
+  open_webui_api_key: password
+  open_webui_model: str
 image: ghcr.io/piers-williams/bookings-assistant-{arch}

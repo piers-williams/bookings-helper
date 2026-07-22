@@ -174,9 +174,12 @@ export default function Dashboard() {
         />
       </div>
 
-      {/* Browse link — always visible once loading is done */}
+      {/* Browse / triage links — always visible once loading is done */}
       {!loading && (
-        <div className="mt-6 text-right">
+        <div className="mt-6 flex justify-end gap-4">
+          <Link to="/triage" className="text-sm text-blue-600 hover:underline">
+            Triage customer emails →
+          </Link>
           <Link to="/bookings" className="text-sm text-blue-600 hover:underline">
             Browse all bookings →
           </Link>

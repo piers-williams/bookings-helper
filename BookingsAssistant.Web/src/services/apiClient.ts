@@ -9,6 +9,7 @@ import type {
   BookingStats,
   MoveActivityRequest,
   MoveDatesRequest,
+  ProposedPlan,
 } from '../types';
 
 const apiClient = axios.create({
@@ -93,6 +94,35 @@ export const bookingsApi = {
 
   moveDates: async (id: number, req: MoveDatesRequest): Promise<BookingActionResult> => {
     const response = await apiClient.post<BookingActionResult>(`/bookings/${id}/actions/move-dates`, req);
+    return response.data;
+  },
+};
+
+// Plans API — LLM-drafted action plans awaiting human approval
+export const plansApi = {
+  create: async (sourceEmailText: string, osmBookingId?: string): Promise<ProposedPlan> => {
+    const response = await apiClient.post<ProposedPlan>('/plans', { sourceEmailText, osmBookingId });
+    return response.data;
+  },
+
+  list: async (status?: string): Promise<ProposedPlan[]> => {
+    const params = status ? { status } : {};
+    const response = await apiClient.get<ProposedPlan[]>('/plans', { params });
+    return response.data;
+  },
+
+  getById: async (id: number): Promise<ProposedPlan> => {
+    const response = await apiClient.get<ProposedPlan>(`/plans/${id}`);
+    return response.data;
+  },
+
+  approve: async (id: number): Promise<ProposedPlan> => {
+    const response = await apiClient.post<ProposedPlan>(`/plans/${id}/approve`);
+    return response.data;
+  },
+
+  reject: async (id: number): Promise<ProposedPlan> => {
+    const response = await apiClient.post<ProposedPlan>(`/plans/${id}/reject`);
     return response.data;
   },
 };

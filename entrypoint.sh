@@ -14,6 +14,9 @@ if [ -f /data/options.json ]; then
     export GateCode__FromEmail=$(jq -r '.gate_code_from_email // ""' /data/options.json)
     export GateCode__Subject=$(jq -r '.gate_code_subject // "Gate code"' /data/options.json)
     export Auth__ApiToken=$(jq -r '.api_token // ""' /data/options.json)
+    export OpenWebUi__BaseUrl=$(jq -r '.open_webui_base_url // ""' /data/options.json)
+    export OpenWebUi__ApiKey=$(jq -r '.open_webui_api_key // ""' /data/options.json)
+    export OpenWebUi__Model=$(jq -r '.open_webui_model // ""' /data/options.json)
     echo "Options loaded from /data/options.json"
 else
     echo "No /data/options.json found, using defaults"

@@ -32,6 +32,27 @@ builder.Services.AddHttpClient<IOsmService, OsmService>();
 // Add booking mutation service (scoped — depends on IOsmService which is per-request via HttpClient)
 builder.Services.AddScoped<IBookingMutationService, BookingMutationService>();
 
+// Add booking item action service (scoped — depends on ApplicationDbContext and IOsmService).
+// Shared dispatch for move-activity/change-site/move-dates, used by both BookingActionsController
+// and the plan-execution path.
+builder.Services.AddScoped<IBookingItemActionService, BookingItemActionService>();
+
+// Add Open WebUI client (LLM plan drafting) with HttpClient
+builder.Services.AddHttpClient<IOpenWebUiClient, OpenWebUiClient>();
+
+// Add plan drafting service (scoped — depends on ApplicationDbContext and IOsmService)
+builder.Services.AddScoped<IPlanDraftingService, PlanDraftingService>();
+
+// Add plan execution service (scoped — depends on IOsmService and IBookingItemActionService).
+// Only invoked after a human approves a plan (PlansController.Approve) — the sole place
+// allowed to mutate OSM state on the LLM's behalf.
+builder.Services.AddScoped<IPlanExecutionService, PlanExecutionService>();
+
+// Add plan transition lock (singleton — shared across every PlansController instance, same
+// reasoning as OsmRateLimitCooldown above). Serializes Approve/Reject's claim step so two
+// concurrent requests for the same plan can't both execute/reject it.
+builder.Services.AddSingleton<PlanTransitionLock>();
+
 // Add hosted services
 builder.Services.AddHostedService<GateCodeService>();
 
@@ -62,6 +83,14 @@ using (var scope = app.Services.CreateScope())
         await context.Database.MigrateAsync();
     await DbSeeder.SeedAsync(context);
 
+    // Recover any ProposedPlan rows left stuck in Processing by a crash or unhandled error
+    // between the atomic claim step and the terminal status write that normally follows it
+    // immediately (see PlansController.TryClaimAwaitingApprovalAsync and PlanStatus.Processing's
+    // doc comment). No request can still legitimately be "in progress" across a process
+    // restart, so any such row is stale by definition.
+    var startupLogger = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
+    await StalePlanRecovery.RecoverStaleProcessingPlansAsync(context, startupLogger);
+
     // If OSM tokens are already stored (e.g. after addon update), sync on startup
     try
     {
@@ -70,8 +99,7 @@ using (var scope = app.Services.CreateScope())
         if (!isAuthenticated)
             throw new InvalidOperationException("Not authenticated");
 
-        var logger = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
-        logger.LogInformation("OSM tokens found — running startup sync...");
+        startupLogger.LogInformation("OSM tokens found — running startup sync...");
         var tasks = await Task.WhenAll(
             osmService.GetBookingsAsync("provisional"),
             osmService.GetBookingsAsync("confirmed"),
@@ -112,7 +140,7 @@ using (var scope = app.Services.CreateScope())
         }
 
         await context.SaveChangesAsync();
-        logger.LogInformation("Startup OSM sync complete: {Count} bookings", allBookings.Count);
+        startupLogger.LogInformation("Startup OSM sync complete: {Count} bookings", allBookings.Count);
     }
     catch (Exception)
     {
