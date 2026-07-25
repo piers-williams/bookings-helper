@@ -162,8 +162,17 @@ internal class PlanDraftingService : IPlanDraftingService
             }
 
             var activityId = action.GetProperty("activityId").GetString()!;
-            var startDate = DateTime.Parse(action.GetProperty("newStartDate").GetString()!);
-            var endDate = DateTime.Parse(action.GetProperty("newEndDate").GetString()!);
+
+            // HasRequiredParams only checked these are non-empty strings, not that they parse
+            // as dates -- an LLM could still return a malformed-but-non-empty date. Skip the
+            // check for this action rather than throw; a bad date here shouldn't crash the
+            // whole drafting attempt (schema validation, not this pre-check, is responsible for
+            // catching malformed responses, and does so via the normal retry-then-fail path).
+            if (!DateTime.TryParse(action.GetProperty("newStartDate").GetString(), out var startDate) ||
+                !DateTime.TryParse(action.GetProperty("newEndDate").GetString(), out var endDate))
+            {
+                continue;
+            }
 
             AvailabilityResult availability;
             try
