@@ -12,7 +12,7 @@ internal class PlanDraftingService : IPlanDraftingService
     // these onto BookingActionsController's move-activity / change-site / move-dates DTOs.
     private static readonly HashSet<string> KnownActionTypes = new(StringComparer.OrdinalIgnoreCase)
     {
-        "draftEmailReply", "postComment", "sendTemplateEmail", "moveDates", "changeSite", "moveActivity"
+        "draftEmailReply", "postComment", "sendTemplateEmail", "moveDates", "changeSite", "moveActivity", "addActivity"
     };
 
     private const string SystemPrompt =
@@ -26,7 +26,9 @@ internal class PlanDraftingService : IPlanDraftingService
         "- sendTemplateEmail: {} — sends the booking's standard template email (no extra fields; the booking is already known)\n" +
         "- moveDates: { \"dayShift\": number, \"note\"?: string } — shifts every item in the booking by this many days\n" +
         "- changeSite: { \"itemId\": string, \"newSiteId\": string, \"newSiteName\"?: string, \"note\"?: string } — moves a site item to a different site\n" +
-        "- moveActivity: { \"itemId\": string, \"newStartDate\"?: string, \"newStartTime\"?: string, \"newEndTime\"?: string, \"note\"?: string } — reschedules an activity item\n\n" +
+        "- moveActivity: { \"itemId\": string, \"newStartDate\"?: string, \"newStartTime\"?: string, \"newEndTime\"?: string, \"note\"?: string } — " +
+        "reschedules an activity item. Omitting newStartDate while supplying newStartTime/newEndTime reschedules only the time, keeping the item's original date\n" +
+        "- addActivity: { \"activityId\": string, \"newStartDate\": string, \"newEndDate\": string, \"newStartTime\"?: string, \"newEndTime\"?: string, \"numberPeople\": number, \"note\"?: string } — adds a brand-new activity item to the booking\n\n" +
         "Choose whichever actions (and however many, including zero if none apply) best address the email. " +
         "You decide the order — e.g. draftEmailReply can come first, last, or be omitted entirely. " +
         "Return JSON only: no prose, no markdown code fences, no explanation.";
@@ -224,6 +226,18 @@ internal class PlanDraftingService : IPlanDraftingService
             case "moveactivity":
                 reason = MissingNonEmptyString("itemId");
                 return reason == null;
+
+            case "addactivity":
+                reason = MissingNonEmptyString("activityId") ?? MissingNonEmptyString("newStartDate") ?? MissingNonEmptyString("newEndDate");
+                if (reason != null) return false;
+
+                if (!action.TryGetProperty("numberPeople", out var numberPeopleEl) || numberPeopleEl.ValueKind != JsonValueKind.Number)
+                {
+                    reason = "action \"addActivity\" requires a numeric \"numberPeople\"";
+                    return false;
+                }
+                reason = null;
+                return true;
 
             default:
                 reason = $"unknown action type \"{type}\"";

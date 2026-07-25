@@ -140,6 +140,24 @@ public class PlanExecutionService : IPlanExecutionService
                 return;
             }
 
+            case "addactivity":
+            {
+                var bookingId = RequireBookingId(osmBookingId, type);
+                var request = new AddActivityRequest
+                {
+                    ActivityId = RequireString(action, "activityId", type),
+                    StartDate = RequireDate(action, "newStartDate", type),
+                    EndDate = RequireDate(action, "newEndDate", type),
+                    StartTime = OptionalString(action, "newStartTime"),
+                    EndTime = OptionalString(action, "newEndTime"),
+                    NumberPeople = RequireInt(action, "numberPeople", type),
+                    Note = OptionalString(action, "note")
+                };
+                var result = await _itemActionService.AddActivityAsync(bookingId, request);
+                ThrowIfNotSuccessful(result);
+                return;
+            }
+
             default:
                 throw new InvalidOperationException($"Unknown action type \"{type}\"");
         }
@@ -172,6 +190,21 @@ public class PlanExecutionService : IPlanExecutionService
     {
         var raw = OptionalString(action, prop);
         return raw != null && DateTime.TryParse(raw, out var parsed) ? parsed : null;
+    }
+
+    private static DateTime RequireDate(JsonElement action, string prop, string type)
+    {
+        if (!action.TryGetProperty(prop, out var el) || el.ValueKind != JsonValueKind.String ||
+            !DateTime.TryParse(el.GetString(), out var parsed))
+            throw new InvalidOperationException($"Action \"{type}\" requires a valid date \"{prop}\"");
+        return parsed;
+    }
+
+    private static int RequireInt(JsonElement action, string prop, string type)
+    {
+        if (!action.TryGetProperty(prop, out var el) || el.ValueKind != JsonValueKind.Number || !el.TryGetInt32(out var v))
+            throw new InvalidOperationException($"Action \"{type}\" requires a numeric \"{prop}\"");
+        return v;
     }
 
     private static List<JsonElement> ParseActions(string? actionsJson)
