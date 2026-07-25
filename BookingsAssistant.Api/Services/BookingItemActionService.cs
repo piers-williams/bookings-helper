@@ -83,6 +83,53 @@ public class BookingItemActionService : IBookingItemActionService
         return result;
     }
 
+    public async Task<BookingActionResult> AddActivityAsync(string osmBookingId, AddActivityRequest request)
+    {
+        // No original item here (unlike MoveActivity/ChangeSite/MoveDates, which clone one via
+        // IBookingMutationService) — build the create spec straight from the request and create
+        // it directly. A create failure propagates as-is; there's nothing created yet to roll back.
+        var spec = new BookingItemCreateSpec
+        {
+            CampsiteItemId = request.ActivityId,
+            StartDate = request.StartDate,
+            EndDate = request.EndDate,
+            StartTime = request.StartTime,
+            EndTime = request.EndTime,
+            NumberPeople = request.NumberPeople
+        };
+
+        var newItemId = await _osmService.CreateBookingItemAsync(osmBookingId, spec);
+
+        var result = new BookingActionResult
+        {
+            Status = BookingActionStatus.Completed,
+            Created = new List<string> { newItemId },
+            Deleted = new List<string>(),
+            Message = $"Added new activity item {newItemId}.",
+            Items = await GetItemsSafeAsync(osmBookingId)
+        };
+
+        var summary = BookingActionCommentComposer.ComposeAddActivitySummary(request);
+        await PostAuditCommentAsync(osmBookingId, result, summary);
+        return result;
+    }
+
+    /// <summary>Best-effort fetch of the booking's current items; returns empty on failure rather than throwing.</summary>
+    private async Task<List<BookingItemDto>> GetItemsSafeAsync(string osmBookingId)
+    {
+        try
+        {
+            return await _osmService.GetBookingItemsAsync(osmBookingId);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex,
+                "AddActivityAsync: could not fetch items after operation for booking {BookingId}",
+                osmBookingId);
+            return new List<BookingItemDto>();
+        }
+    }
+
     // ── Audit-trail comment posting ───────────────────────────────────────────
     // Runs after a mutation completes. Posts the given summary as an OSM comment and
     // persists it locally (same shape as BookingsController.PostComment) so it shows up

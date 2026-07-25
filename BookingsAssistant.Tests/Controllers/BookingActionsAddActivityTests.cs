@@ -215,7 +215,7 @@ public class BookingActionsAddActivityTests : IClassFixture<WebApplicationFactor
     public async Task AddActivity_Returns502_WhenOsmCreateFails()
     {
         var bookingId = await SeedBookingAsync("98031");
-        _fakeOsm.FailCreateOnCall = (1, new InvalidOperationException("No available OSM slot"));
+        _fakeOsm.FailCreateOnCall = (1, new InvalidOperationException("No available slot for the requested window"));
 
         var client = _factory.CreateClient();
         var response = await client.PostAsJsonAsync($"/api/bookings/{bookingId}/actions/add-activity", ValidRequest());

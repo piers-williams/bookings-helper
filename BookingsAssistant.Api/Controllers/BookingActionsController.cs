@@ -78,6 +78,32 @@ public class BookingActionsController : ControllerBase
         }
     }
 
+    /// <summary>
+    /// Lists the bookable activities that could be added to the booking (for add-activity).
+    /// </summary>
+    [HttpGet("{id}/available-activities")]
+    public async Task<ActionResult<List<AvailableSiteDto>>> GetAvailableActivities(int id)
+    {
+        var booking = await _context.OsmBookings.FindAsync(id);
+        if (booking == null)
+            return NotFound();
+
+        try
+        {
+            var activities = await _osmService.GetAvailableActivitiesAsync(booking.OsmBookingId);
+            return Ok(activities);
+        }
+        catch (InvalidOperationException ex) when (ex.Message.Contains("OSM"))
+        {
+            return Unauthorized(new { message = "OSM authentication required", detail = ex.Message });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error fetching available activities for booking {Id}", id);
+            return StatusCode(502, new { message = "Error fetching activities from OSM", detail = ex.Message });
+        }
+    }
+
     // ── Error mapping convention for mutation endpoints ───────────────────────
     // - 400 Bad Request: missing/invalid request parameters (checked before OSM calls)
     // - 404 Not Found: booking not in DB, or item not in booking's current item list
@@ -184,6 +210,45 @@ public class BookingActionsController : ControllerBase
         {
             _logger.LogError(ex, "Error during move-dates for booking {Id}", id);
             return StatusCode(502, new { message = "Error executing move-dates", detail = ex.Message });
+        }
+    }
+
+    /// <summary>
+    /// Adds a brand-new activity item to the booking (no existing item to clone — the create
+    /// spec is built entirely from the request).
+    /// </summary>
+    [HttpPost("{id}/actions/add-activity")]
+    public async Task<ActionResult<BookingActionResult>> AddActivity(int id, [FromBody] AddActivityRequest request)
+    {
+        if (string.IsNullOrWhiteSpace(request.ActivityId))
+            return BadRequest(new { message = "ActivityId is required" });
+
+        if (request.StartDate is null)
+            return BadRequest(new { message = "StartDate is required" });
+
+        if (request.EndDate is null)
+            return BadRequest(new { message = "EndDate is required" });
+
+        if (request.NumberPeople is null)
+            return BadRequest(new { message = "NumberPeople is required" });
+
+        var booking = await _context.OsmBookings.FindAsync(id);
+        if (booking == null)
+            return NotFound();
+
+        try
+        {
+            var result = await _itemActionService.AddActivityAsync(booking.OsmBookingId, request);
+            return Ok(result);
+        }
+        catch (InvalidOperationException ex) when (ex.Message.Contains("OSM"))
+        {
+            return Unauthorized(new { message = "OSM authentication required", detail = ex.Message });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error during add-activity for booking {Id}", id);
+            return StatusCode(502, new { message = "Error executing add-activity", detail = ex.Message });
         }
     }
 }

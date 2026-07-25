@@ -24,4 +24,11 @@ public interface IBookingItemActionService
 
     /// <summary>Shifts every item in the booking by the given number of days.</summary>
     Task<BookingActionResult> MoveDatesAsync(string osmBookingId, MoveDatesRequest request);
+
+    /// <summary>
+    /// Adds a brand-new activity item to the booking. Unlike the other actions here, there is
+    /// no original item to resolve or clone from — the create spec is built entirely from
+    /// <paramref name="request"/> and created directly via IOsmService.CreateBookingItemAsync.
+    /// </summary>
+    Task<BookingActionResult> AddActivityAsync(string osmBookingId, AddActivityRequest request);
 }

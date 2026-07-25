@@ -37,6 +37,18 @@ public static class BookingActionCommentComposer
     public static string ComposeMoveDatesSummary(MoveDatesRequest request)
         => AppendNote($"Dates shifted by {request.DayShift} day(s).", request.Note);
 
+    public static string ComposeAddActivitySummary(AddActivityRequest request)
+    {
+        var when = $"{FormatDate(request.StartDate)} → {FormatDate(request.EndDate)}";
+        var time = request.StartTime != null || request.EndTime != null
+            ? $", {request.StartTime ?? "—"}-{request.EndTime ?? "—"}"
+            : string.Empty;
+
+        return AppendNote(
+            $"Added activity (item type {request.ActivityId}): {when}{time}, {request.NumberPeople ?? 0} people.",
+            request.Note);
+    }
+
     private static string FormatDate(DateTime? date)
         => date.HasValue ? date.Value.ToString("d MMM yyyy") : "—";
 
