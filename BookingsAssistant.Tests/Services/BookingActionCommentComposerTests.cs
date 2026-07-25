@@ -108,6 +108,32 @@ public class BookingActionCommentComposerTests
     }
 
     [Fact]
+    public void ComposeChangeNumbersSummary_DescribesNumberChange()
+    {
+        var activity = MakeActivityItem();
+        activity.NumberPeople = 4;
+
+        var summary = BookingActionCommentComposer.ComposeChangeNumbersSummary(
+            activity,
+            new ChangeNumbersRequest { ItemId = "act-item-1", NewNumberPeople = 10 });
+
+        Assert.Equal("Number of people changed for 'Archery Session': 4 → 10.", summary);
+    }
+
+    [Fact]
+    public void ComposeChangeNumbersSummary_AppendsNote_WhenProvided()
+    {
+        var activity = MakeActivityItem();
+        activity.NumberPeople = 4;
+
+        var summary = BookingActionCommentComposer.ComposeChangeNumbersSummary(
+            activity,
+            new ChangeNumbersRequest { ItemId = "act-item-1", NewNumberPeople = 10, Note = "two more joined" });
+
+        Assert.Equal("Number of people changed for 'Archery Session': 4 → 10. Note: two more joined", summary);
+    }
+
+    [Fact]
     public void ComposeMoveDatesSummary_DescribesShift()
     {
         var summary = BookingActionCommentComposer.ComposeMoveDatesSummary(

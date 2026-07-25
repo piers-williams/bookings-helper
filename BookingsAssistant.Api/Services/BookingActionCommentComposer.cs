@@ -52,6 +52,11 @@ public static class BookingActionCommentComposer
     public static string ComposeRemoveActivitySummary(BookingItemDto original, RemoveActivityRequest request)
         => AppendNote($"Removed '{original.Label}'.", request.Note);
 
+    public static string ComposeChangeNumbersSummary(BookingItemDto original, ChangeNumbersRequest request)
+        => AppendNote(
+            $"Number of people changed for '{original.Label}': {original.NumberPeople ?? 0} → {request.NewNumberPeople ?? 0}.",
+            request.Note);
+
     private static string FormatDate(DateTime? date)
         => date.HasValue ? date.Value.ToString("d MMM yyyy") : "—";
 

@@ -39,4 +39,11 @@ public interface IBookingItemActionService
     /// <see cref="BookingItemNotFoundException"/> if ItemId isn't in the booking.
     /// </summary>
     Task<BookingActionResult> RemoveActivityAsync(string osmBookingId, RemoveActivityRequest request);
+
+    /// <summary>
+    /// Changes the headcount (number of people) on an existing item. Uses the same
+    /// clone-then-delete-original engine as MoveActivity/ChangeSite. Throws
+    /// <see cref="BookingItemNotFoundException"/> if ItemId isn't in the booking.
+    /// </summary>
+    Task<BookingActionResult> ChangeNumbersAsync(string osmBookingId, ChangeNumbersRequest request);
 }

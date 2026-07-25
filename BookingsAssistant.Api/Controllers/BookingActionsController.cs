@@ -285,4 +285,44 @@ public class BookingActionsController : ControllerBase
             return StatusCode(502, new { message = "Error executing remove-activity", detail = ex.Message });
         }
     }
+
+    /// <summary>
+    /// Changes the headcount (number of people) on an existing item. Uses the same
+    /// clone-then-delete-original engine as move-activity/change-site.
+    /// </summary>
+    [HttpPost("{id}/actions/change-numbers")]
+    public async Task<ActionResult<BookingActionResult>> ChangeNumbers(int id, [FromBody] ChangeNumbersRequest request)
+    {
+        if (string.IsNullOrWhiteSpace(request.ItemId))
+            return BadRequest(new { message = "ItemId is required" });
+
+        // Upper bound intentionally omitted: OSM enforces its own per-site/per-activity
+        // capacity limits, which surface as a 502 (OSM rejected the create) rather than a
+        // client-side guess we can't validate without visibility into pitch capacity.
+        if (request.NewNumberPeople is null or <= 0)
+            return BadRequest(new { message = "NewNumberPeople is required and must be greater than zero" });
+
+        var booking = await _context.OsmBookings.FindAsync(id);
+        if (booking == null)
+            return NotFound();
+
+        try
+        {
+            var result = await _itemActionService.ChangeNumbersAsync(booking.OsmBookingId, request);
+            return Ok(result);
+        }
+        catch (BookingItemNotFoundException ex)
+        {
+            return NotFound(new { message = ex.Message });
+        }
+        catch (InvalidOperationException ex) when (ex.Message.Contains("OSM"))
+        {
+            return Unauthorized(new { message = "OSM authentication required", detail = ex.Message });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error during change-numbers for booking {Id}", id);
+            return StatusCode(502, new { message = "Error executing change-numbers", detail = ex.Message });
+        }
+    }
 }

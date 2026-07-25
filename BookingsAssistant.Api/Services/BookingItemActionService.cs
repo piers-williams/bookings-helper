@@ -150,6 +150,24 @@ public class BookingItemActionService : IBookingItemActionService
         return result;
     }
 
+    public async Task<BookingActionResult> ChangeNumbersAsync(string osmBookingId, ChangeNumbersRequest request)
+    {
+        var items = await _osmService.GetBookingItemsAsync(osmBookingId);
+        var item = items.FirstOrDefault(i => i.ItemId == request.ItemId)
+            ?? throw new BookingItemNotFoundException(request.ItemId, osmBookingId);
+
+        var replacement = new ItemReplacement
+        {
+            Original = item,
+            NewNumberPeople = request.NewNumberPeople
+        };
+
+        var result = await _mutationService.ReplaceItemsAsync(osmBookingId, new[] { replacement });
+        var summary = BookingActionCommentComposer.ComposeChangeNumbersSummary(item, request);
+        await PostAuditCommentAsync(osmBookingId, result, summary);
+        return result;
+    }
+
     /// <summary>Best-effort fetch of the booking's current items; returns empty on failure rather than throwing.</summary>
     private async Task<List<BookingItemDto>> GetItemsSafeAsync(string osmBookingId)
     {
