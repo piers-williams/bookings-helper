@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { bookingsApi } from '../services/apiClient';
 import type {
+  AddActivityRequest,
   AvailableSite,
   BookingActionResult,
   BookingDetail as BookingDetailType,
@@ -54,6 +55,18 @@ export default function BookingDetail() {
   const [newSiteId, setNewSiteId] = useState('');
   const [note, setNote] = useState('');
 
+  // Add-activity — a brand-new item, not tied to an existing one, so it gets its own form
+  // state and confirm gate rather than reusing the per-item fields above.
+  const [availableActivities, setAvailableActivities] = useState<AvailableSite[]>([]);
+  const [confirmingAddActivity, setConfirmingAddActivity] = useState(false);
+  const [newActivityId, setNewActivityId] = useState('');
+  const [activityStartDate, setActivityStartDate] = useState('');
+  const [activityEndDate, setActivityEndDate] = useState('');
+  const [activityStartTime, setActivityStartTime] = useState('');
+  const [activityEndTime, setActivityEndTime] = useState('');
+  const [activityNumberPeople, setActivityNumberPeople] = useState('');
+  const [activityNote, setActivityNote] = useState('');
+
   useEffect(() => {
     const fetchBooking = async () => {
       if (!id) return;
@@ -102,6 +115,14 @@ export default function BookingDetail() {
       .catch(() => setAvailableSites([]));
   }, [id]);
 
+  useEffect(() => {
+    if (!id) return;
+    // Activities for the add-activity dropdown; best-effort (empty list disables the form).
+    bookingsApi.getAvailableActivities(parseInt(id))
+      .then(setAvailableActivities)
+      .catch(() => setAvailableActivities([]));
+  }, [id]);
+
   const handlePostComment = async () => {
     if (!newComment.trim() || !id) return;
     setPosting(true);
@@ -139,6 +160,14 @@ export default function BookingDetail() {
       setActiveItemAction(null);
       setConfirmingItemAction(false);
       setNote('');
+      setConfirmingAddActivity(false);
+      setNewActivityId('');
+      setActivityStartDate('');
+      setActivityEndDate('');
+      setActivityStartTime('');
+      setActivityEndTime('');
+      setActivityNumberPeople('');
+      setActivityNote('');
     }
   };
 
@@ -179,6 +208,24 @@ export default function BookingDetail() {
     if (selectedSite) req.newSiteName = selectedSite.name;
     if (note.trim()) req.note = note.trim();
     runAction(() => bookingsApi.changeSite(parseInt(id), req));
+  };
+
+  const canAddActivity =
+    !!newActivityId && !!activityStartDate && !!activityEndDate && !!activityNumberPeople;
+
+  const handleAddActivity = () => {
+    const numberPeople = parseInt(activityNumberPeople, 10);
+    if (!id || !canAddActivity || Number.isNaN(numberPeople)) return;
+    const req: AddActivityRequest = {
+      activityId: newActivityId,
+      startDate: activityStartDate,
+      endDate: activityEndDate,
+      numberPeople,
+    };
+    if (activityStartTime) req.startTime = activityStartTime;
+    if (activityEndTime) req.endTime = activityEndTime;
+    if (activityNote.trim()) req.note = activityNote.trim();
+    runAction(() => bookingsApi.addActivity(parseInt(id), req));
   };
 
   if (loading) {
@@ -548,6 +595,87 @@ export default function BookingDetail() {
           </div>
         ) : (
           <p className="text-gray-500">No items on this booking.</p>
+        )}
+      </div>
+
+      {/* Add Activity — a brand-new item, so it's its own section rather than per-item. */}
+      <div className="bg-white rounded-lg shadow p-6 mb-6">
+        <h2 className="text-xl font-semibold text-gray-800 mb-4">Add Activity</h2>
+
+        {availableActivities.length === 0 ? (
+          <p className="text-gray-500">No activities available to add.</p>
+        ) : (
+          <div className="space-y-2">
+            <div>
+              <label htmlFor="activityId" className="block text-sm font-medium text-gray-700">Activity</label>
+              <select id="activityId" value={newActivityId}
+                onChange={(e) => setNewActivityId(e.target.value)} disabled={actionInProgress}
+                className="p-2 border border-gray-300 rounded">
+                <option value="">Select an activity…</option>
+                {availableActivities.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
+              </select>
+            </div>
+            <div>
+              <label htmlFor="activityStartDate" className="block text-sm font-medium text-gray-700">Start date</label>
+              <input id="activityStartDate" type="date" value={activityStartDate}
+                onChange={(e) => setActivityStartDate(e.target.value)} disabled={actionInProgress}
+                className="p-2 border border-gray-300 rounded" />
+            </div>
+            <div>
+              <label htmlFor="activityEndDate" className="block text-sm font-medium text-gray-700">End date</label>
+              <input id="activityEndDate" type="date" value={activityEndDate}
+                onChange={(e) => setActivityEndDate(e.target.value)} disabled={actionInProgress}
+                className="p-2 border border-gray-300 rounded" />
+            </div>
+            <div>
+              <label htmlFor="activityStartTime" className="block text-sm font-medium text-gray-700">Start time (optional)</label>
+              <input id="activityStartTime" type="time" value={activityStartTime}
+                onChange={(e) => setActivityStartTime(e.target.value)} disabled={actionInProgress}
+                className="p-2 border border-gray-300 rounded" />
+            </div>
+            <div>
+              <label htmlFor="activityEndTime" className="block text-sm font-medium text-gray-700">End time (optional)</label>
+              <input id="activityEndTime" type="time" value={activityEndTime}
+                onChange={(e) => setActivityEndTime(e.target.value)} disabled={actionInProgress}
+                className="p-2 border border-gray-300 rounded" />
+            </div>
+            <div>
+              <label htmlFor="activityNumberPeople" className="block text-sm font-medium text-gray-700">Number of people</label>
+              <input id="activityNumberPeople" type="number" min={1} value={activityNumberPeople}
+                onChange={(e) => setActivityNumberPeople(e.target.value)} disabled={actionInProgress}
+                className="w-24 p-2 border border-gray-300 rounded" />
+            </div>
+
+            {!confirmingAddActivity ? (
+              <button
+                onClick={() => { if (canAddActivity) setConfirmingAddActivity(true); }}
+                disabled={actionInProgress || !canAddActivity}
+                className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50"
+              >
+                Add activity
+              </button>
+            ) : (
+              <div className="text-sm text-gray-700 space-y-2">
+                <p>Add this activity to the booking?</p>
+                <div>
+                  <label htmlFor="activityNote" className="block text-sm font-medium text-gray-700">Add a note (optional)</label>
+                  <textarea id="activityNote" value={activityNote}
+                    onChange={(e) => setActivityNote(e.target.value)} disabled={actionInProgress}
+                    className="w-full p-2 border border-gray-300 rounded resize-none" rows={2} />
+                </div>
+                <div>
+                  <button onClick={handleAddActivity} disabled={actionInProgress}
+                    className="px-3 py-1 bg-red-600 text-white rounded hover:bg-red-700 disabled:opacity-50">
+                    {actionInProgress ? 'Working…' : 'Confirm'}
+                  </button>
+                  <button onClick={() => setConfirmingAddActivity(false)} disabled={actionInProgress}
+                    className="ml-2 px-3 py-1 bg-gray-300 text-gray-800 rounded hover:bg-gray-400 disabled:opacity-50">
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
         )}
       </div>
 

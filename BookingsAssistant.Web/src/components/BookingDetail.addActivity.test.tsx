@@ -69,7 +69,6 @@ describe('add-activity action', () => {
   });
 
   it('disables Add activity until an activity, both dates, and number of people are filled in', async () => {
-    const user = userEvent.setup();
     renderDetail();
     await screen.findByText(/Booking #179743/);
 
