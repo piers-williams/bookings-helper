@@ -138,6 +138,13 @@ public class FakeOsmService : IOsmService
     // Availability — configurable for checkAvailability tests
     public AvailabilityResult AvailabilityResultToReturn { get; set; } = new() { Available = true };
 
+    /// <summary>
+    /// If set (and non-empty), each call to CheckAvailabilityAsync dequeues the next result
+    /// instead of returning <see cref="AvailabilityResultToReturn"/> — lets a test simulate a
+    /// slot that's unavailable on the first check and available on a later retry.
+    /// </summary>
+    public Queue<AvailabilityResult>? AvailabilityResultsToReturn { get; set; }
+
     /// <summary>If set, CheckAvailabilityAsync throws this (to exercise the controller's 401/502 paths).</summary>
     public Exception? CheckAvailabilityError { get; set; }
 
@@ -148,7 +155,8 @@ public class FakeOsmService : IOsmService
     {
         AvailabilityChecks.Add((osmBookingId, campsiteItemId, startDate, endDate));
         if (CheckAvailabilityError != null) throw CheckAvailabilityError;
-        return Task.FromResult(AvailabilityResultToReturn);
+        var result = AvailabilityResultsToReturn is { Count: > 0 } queue ? queue.Dequeue() : AvailabilityResultToReturn;
+        return Task.FromResult(result);
     }
 
     public string GetAuthorizationUrl(string redirectUri)

@@ -431,6 +431,164 @@ public class PlanCreateTests : IClassFixture<WebApplicationFactory<Program>>
     }
 
     [Fact]
+    public async Task Create_DraftsAddActivity_WithNoDraftWarning_WhenSlotIsAvailable()
+    {
+        var bookingId = await SeedBookingAsync();
+        _fakeOsm.AvailabilityResultToReturn = new AvailabilityResult { Available = true };
+        _fakeLlm.ResponsesToReturn.Enqueue(
+            "{\"actions\":[{\"type\":\"addActivity\",\"activityId\":\"4962\"," +
+            "\"newStartDate\":\"2026-08-02\",\"newEndDate\":\"2026-08-02\",\"numberPeople\":8}]}");
+
+        var client = _factory.CreateClient();
+        var response = await client.PostAsJsonAsync("/api/plans", new CreatePlanRequest
+        {
+            SourceEmailText = "Can you add an archery session for our group?",
+            OsmBookingId = bookingId
+        });
+
+        Assert.Equal(HttpStatusCode.Created, response.StatusCode);
+        var result = await response.Content.ReadFromJsonAsync<ProposedPlanDto>();
+        Assert.NotNull(result);
+        Assert.Equal("AwaitingApproval", result.Status);
+        Assert.Null(result.DraftWarning);
+        Assert.Single(_fakeLlm.Calls);
+
+        var check = Assert.Single(_fakeOsm.AvailabilityChecks);
+        Assert.Equal(bookingId, check.OsmBookingId);
+        Assert.Equal("4962", check.CampsiteItemId);
+        Assert.Equal(new DateTime(2026, 8, 2), check.StartDate);
+        Assert.Equal(new DateTime(2026, 8, 2), check.EndDate);
+    }
+
+    [Fact]
+    public async Task Create_RetriesOnceWithConflictFeedback_WhenAddActivitySlotUnavailable_AndSucceedsWithNoWarning_WhenRetryIsAvailable()
+    {
+        var bookingId = await SeedBookingAsync();
+        _fakeOsm.AvailabilityResultsToReturn = new Queue<AvailabilityResult>(new[]
+        {
+            new AvailabilityResult { Available = false, Reason = "No slots left on 2026-08-02" },
+            new AvailabilityResult { Available = true }
+        });
+        _fakeLlm.ResponsesToReturn.Enqueue(
+            "{\"actions\":[{\"type\":\"addActivity\",\"activityId\":\"4962\"," +
+            "\"newStartDate\":\"2026-08-02\",\"newEndDate\":\"2026-08-02\",\"numberPeople\":8}]}");
+        _fakeLlm.ResponsesToReturn.Enqueue(
+            "{\"actions\":[{\"type\":\"addActivity\",\"activityId\":\"4962\"," +
+            "\"newStartDate\":\"2026-08-03\",\"newEndDate\":\"2026-08-03\",\"numberPeople\":8}]}");
+
+        var client = _factory.CreateClient();
+        var response = await client.PostAsJsonAsync("/api/plans", new CreatePlanRequest
+        {
+            SourceEmailText = "Can you add an archery session for our group?",
+            OsmBookingId = bookingId
+        });
+
+        Assert.Equal(HttpStatusCode.Created, response.StatusCode);
+        var result = await response.Content.ReadFromJsonAsync<ProposedPlanDto>();
+        Assert.NotNull(result);
+        Assert.Equal("AwaitingApproval", result.Status);
+        Assert.Null(result.DraftWarning);
+        Assert.NotNull(result.ActionsJson);
+        Assert.Contains("2026-08-03", result.ActionsJson);
+
+        Assert.Equal(2, _fakeLlm.Calls.Count);
+        Assert.Equal(2, _fakeOsm.AvailabilityChecks.Count);
+
+        // The retry prompt should name the specific conflict so the LLM can self-correct.
+        Assert.Contains("4962", _fakeLlm.Calls[1].UserPrompt);
+        Assert.Contains("No slots left on 2026-08-02", _fakeLlm.Calls[1].UserPrompt);
+    }
+
+    [Fact]
+    public async Task Create_SavesWithDraftWarning_WhenAddActivityStillUnavailableAfterRetry()
+    {
+        var bookingId = await SeedBookingAsync();
+        _fakeOsm.AvailabilityResultToReturn = new AvailabilityResult { Available = false, Reason = "Fully booked" };
+        var sameResponse = "{\"actions\":[{\"type\":\"addActivity\",\"activityId\":\"4962\"," +
+                            "\"newStartDate\":\"2026-08-02\",\"newEndDate\":\"2026-08-02\",\"numberPeople\":8}]}";
+        _fakeLlm.ResponsesToReturn.Enqueue(sameResponse);
+        _fakeLlm.ResponsesToReturn.Enqueue(sameResponse);
+
+        var client = _factory.CreateClient();
+        var response = await client.PostAsJsonAsync("/api/plans", new CreatePlanRequest
+        {
+            SourceEmailText = "Can you add an archery session for our group?",
+            OsmBookingId = bookingId
+        });
+
+        Assert.Equal(HttpStatusCode.Created, response.StatusCode);
+        var result = await response.Content.ReadFromJsonAsync<ProposedPlanDto>();
+        Assert.NotNull(result);
+        // Drafting does not fail just because the slot is still unavailable after the retry.
+        Assert.Equal("AwaitingApproval", result.Status);
+        Assert.NotNull(result.ActionsJson);
+        Assert.NotNull(result.DraftWarning);
+        Assert.Contains("4962", result.DraftWarning);
+        Assert.Contains("Fully booked", result.DraftWarning);
+        Assert.Equal(2, _fakeLlm.Calls.Count);
+
+        // Persisted, not just returned in the response.
+        using var scope = _factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        var stored = await db.ProposedPlans.FindAsync(result.Id);
+        Assert.NotNull(stored);
+        Assert.Equal(PlanStatus.AwaitingApproval, stored.Status);
+        Assert.NotNull(stored.DraftWarning);
+    }
+
+    [Fact]
+    public async Task Create_SavesWithDraftWarning_AfterSingleRetry_WhenFirstResponseInvalidJson_AndRetryHasAvailabilityConflict()
+    {
+        // The first response is invalid JSON (consuming drafting's one retry) and the retry's
+        // response is valid JSON but has an availability conflict. That must NOT trigger a
+        // second, independent retry -- only one retry total is allowed across the whole attempt.
+        var bookingId = await SeedBookingAsync();
+        _fakeOsm.AvailabilityResultToReturn = new AvailabilityResult { Available = false, Reason = "Fully booked" };
+        _fakeLlm.ResponsesToReturn.Enqueue("not json");
+        _fakeLlm.ResponsesToReturn.Enqueue(
+            "{\"actions\":[{\"type\":\"addActivity\",\"activityId\":\"4962\"," +
+            "\"newStartDate\":\"2026-08-02\",\"newEndDate\":\"2026-08-02\",\"numberPeople\":8}]}");
+
+        var client = _factory.CreateClient();
+        var response = await client.PostAsJsonAsync("/api/plans", new CreatePlanRequest
+        {
+            SourceEmailText = "Can you add an archery session for our group?",
+            OsmBookingId = bookingId
+        });
+
+        Assert.Equal(HttpStatusCode.Created, response.StatusCode);
+        var result = await response.Content.ReadFromJsonAsync<ProposedPlanDto>();
+        Assert.NotNull(result);
+        Assert.Equal("AwaitingApproval", result.Status);
+        Assert.NotNull(result.ActionsJson);
+        Assert.NotNull(result.DraftWarning);
+        Assert.Equal(2, _fakeLlm.Calls.Count);
+    }
+
+    [Fact]
+    public async Task Create_DoesNotCheckAvailability_ForActionsWithoutDateRange()
+    {
+        var bookingId = await SeedBookingAsync();
+        _fakeLlm.ResponsesToReturn.Enqueue(
+            "{\"actions\":[{\"type\":\"postComment\",\"text\":\"noted\"}," +
+            "{\"type\":\"changeNumbers\",\"itemId\":\"act-item-1\",\"newNumberPeople\":10}]}");
+
+        var client = _factory.CreateClient();
+        var response = await client.PostAsJsonAsync("/api/plans", new CreatePlanRequest
+        {
+            SourceEmailText = "Two more people are joining, and please note it.",
+            OsmBookingId = bookingId
+        });
+
+        Assert.Equal(HttpStatusCode.Created, response.StatusCode);
+        var result = await response.Content.ReadFromJsonAsync<ProposedPlanDto>();
+        Assert.NotNull(result);
+        Assert.Equal("AwaitingApproval", result.Status);
+        Assert.Null(result.DraftWarning);
+        Assert.Empty(_fakeOsm.AvailabilityChecks);
+    }
+
+    [Fact]
     public async Task Create_IncludesBookingContextInPrompt_WhenOsmBookingIdProvided()
     {
         var bookingId = await SeedBookingAsync();
