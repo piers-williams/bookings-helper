@@ -190,6 +190,40 @@ describe('plan detail actions', () => {
   });
 });
 
+describe('draft warning banner', () => {
+  it('shows a visible warning banner when the plan has a draftWarning', async () => {
+    api.list.mockResolvedValue([{
+      id: 9,
+      status: 'AwaitingApproval',
+      sourceEmailText: 'Can you add an archery session?',
+      osmBookingId: '179751',
+      actionsJson: JSON.stringify([
+        { type: 'addActivity', activityId: '4962', newStartDate: '2026-08-02', newEndDate: '2026-08-02', numberPeople: 8 },
+      ]),
+      draftWarning: 'addActivity for activityId "4962" (2026-08-02 to 2026-08-02) is not available: Fully booked',
+      executionResultJson: null,
+      createdAt: '2026-07-25T09:00:00Z',
+    }]);
+    const user = userEvent.setup();
+    renderTriage();
+
+    await user.click(await screen.findByRole('button', { name: /plan #9/i }));
+
+    expect(screen.getByText(/fully booked/i)).toBeInTheDocument();
+  });
+
+  it('does not show a warning banner when the plan has no draftWarning', async () => {
+    api.list.mockResolvedValue([executedPlan]);
+    const user = userEvent.setup();
+    renderTriage();
+
+    await user.click(await screen.findByRole('button', { name: /plan #2/i }));
+
+    expect(screen.queryByText(/not available/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/fully booked/i)).not.toBeInTheDocument();
+  });
+});
+
 describe('action rendering', () => {
   it('renders a draftEmailReply action as copyable text and an OSM action as a readable description', async () => {
     api.create.mockResolvedValue(draftReplyPlan);
