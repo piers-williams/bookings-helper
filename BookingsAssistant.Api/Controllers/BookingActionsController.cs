@@ -104,6 +104,44 @@ public class BookingActionsController : ControllerBase
         }
     }
 
+    /// <summary>
+    /// Read-only check of whether a site/activity item-type has an available slot for the
+    /// given date range. Unlike the mutation endpoints below, "not available" is a normal 200
+    /// result (AvailabilityResult.Available = false) — it is not treated as an error.
+    /// </summary>
+    [HttpGet("{id}/availability")]
+    public async Task<ActionResult<AvailabilityResult>> CheckAvailability(
+        int id, [FromQuery] string? activityId, [FromQuery] DateTime? startDate, [FromQuery] DateTime? endDate)
+    {
+        if (string.IsNullOrWhiteSpace(activityId))
+            return BadRequest(new { message = "activityId is required" });
+
+        if (startDate is null)
+            return BadRequest(new { message = "startDate is required" });
+
+        if (endDate is null)
+            return BadRequest(new { message = "endDate is required" });
+
+        var booking = await _context.OsmBookings.FindAsync(id);
+        if (booking == null)
+            return NotFound();
+
+        try
+        {
+            var result = await _osmService.CheckAvailabilityAsync(booking.OsmBookingId, activityId, startDate.Value, endDate.Value);
+            return Ok(result);
+        }
+        catch (InvalidOperationException ex) when (ex.Message.Contains("OSM"))
+        {
+            return Unauthorized(new { message = "OSM authentication required", detail = ex.Message });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error checking availability for booking {Id}", id);
+            return StatusCode(502, new { message = "Error checking availability with OSM", detail = ex.Message });
+        }
+    }
+
     // ── Error mapping convention for mutation endpoints ───────────────────────
     // - 400 Bad Request: missing/invalid request parameters (checked before OSM calls)
     // - 404 Not Found: booking not in DB, or item not in booking's current item list
