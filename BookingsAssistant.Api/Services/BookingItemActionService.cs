@@ -125,6 +125,7 @@ public class BookingItemActionService : IBookingItemActionService
         // return means OSM declined the delete without erroring, which we surface as a Failed
         // result rather than reporting success.
         var deleted = await _osmService.DeleteBookingItemAsync(osmBookingId, item.ItemId);
+        var itemsAfter = await GetItemsSafeAsync(osmBookingId);
 
         var result = deleted
             ? new BookingActionResult
@@ -133,7 +134,7 @@ public class BookingItemActionService : IBookingItemActionService
                 Created = new List<string>(),
                 Deleted = new List<string> { item.ItemId },
                 Message = $"Removed '{item.Label}'.",
-                Items = await GetItemsSafeAsync(osmBookingId)
+                Items = itemsAfter
             }
             : new BookingActionResult
             {
@@ -141,7 +142,7 @@ public class BookingItemActionService : IBookingItemActionService
                 Created = new List<string>(),
                 Deleted = new List<string>(),
                 Message = $"Failed to remove '{item.Label}': OSM declined the delete.",
-                Items = await GetItemsSafeAsync(osmBookingId)
+                Items = itemsAfter
             };
 
         var summary = BookingActionCommentComposer.ComposeRemoveActivitySummary(item, request);
