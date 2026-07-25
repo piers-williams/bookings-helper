@@ -243,6 +243,56 @@ public class BookingMutationServiceTests
     }
 
     [Fact]
+    public async Task Override_NewNumberPeople_ReflectedInSpec_OtherFieldsUnchanged()
+    {
+        var fake = new FakeOsmService
+        {
+            ItemsToReturn = new List<BookingItemDto>()
+        };
+
+        var original = MakeItem("orig-1", siteId: "site-42", startTime: "09:00", endTime: "17:00");
+        original.NumberPeople = 4;
+
+        var svc = CreateService(fake);
+        var replacements = new List<ItemReplacement>
+        {
+            new() { Original = original, NewNumberPeople = 10 }
+        };
+
+        await svc.ReplaceItemsAsync("booking-99", replacements);
+
+        var spec = Assert.Single(fake.CapturedSpecs);
+        Assert.Equal(10, spec.NumberPeople);          // overridden
+        Assert.Equal("site-42", spec.CampsiteItemId); // unchanged
+        Assert.Equal("09:00", spec.StartTime);        // unchanged
+        Assert.Equal("17:00", spec.EndTime);          // unchanged
+    }
+
+    [Fact]
+    public async Task NoNewNumberPeopleOverride_FallsBackToOriginalNumberPeople()
+    {
+        var fake = new FakeOsmService
+        {
+            ItemsToReturn = new List<BookingItemDto>()
+        };
+
+        var original = MakeItem("orig-1");
+        original.NumberPeople = 6;
+
+        var svc = CreateService(fake);
+        var replacements = new List<ItemReplacement>
+        {
+            new() { Original = original }
+            // No NewNumberPeople override
+        };
+
+        await svc.ReplaceItemsAsync("booking-99", replacements);
+
+        var spec = Assert.Single(fake.CapturedSpecs);
+        Assert.Equal(6, spec.NumberPeople);
+    }
+
+    [Fact]
     public async Task BuildSpec_CarriesOriginalQuestionAnswers_KeyedByQuestionDefId()
     {
         var fake = new FakeOsmService { ItemsToReturn = new List<BookingItemDto>() };

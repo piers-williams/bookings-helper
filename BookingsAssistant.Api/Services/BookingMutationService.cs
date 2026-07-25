@@ -162,7 +162,7 @@ public class BookingMutationService : IBookingMutationService
             EndDate = replacement.NewEndDate ?? original.EndDate,
             StartTime = replacement.NewStartTime ?? original.StartTime,
             EndTime = replacement.NewEndTime ?? original.EndTime,
-            NumberPeople = original.NumberPeople,
+            NumberPeople = replacement.NewNumberPeople ?? original.NumberPeople,
             QuestionAnswers = original.Questions.ToDictionary(q => q.QuestionDefId, q => q.Answer)
         };
     }
