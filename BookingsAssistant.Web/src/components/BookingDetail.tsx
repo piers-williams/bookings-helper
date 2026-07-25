@@ -229,11 +229,14 @@ export default function BookingDetail() {
     runAction(() => bookingsApi.removeActivity(parseInt(id), req));
   };
 
+  // Parsed once and reused by both the "Update" button's disabled check and the submit
+  // handler, rather than re-parsing newNumberPeople in three separate places.
+  const parsedNewNumberPeople = parseInt(newNumberPeople, 10);
+  const isNewNumberPeopleValid = !Number.isNaN(parsedNewNumberPeople) && parsedNewNumberPeople > 0;
+
   const handleChangeNumbers = (itemId: string) => {
-    if (!id) return;
-    const people = parseInt(newNumberPeople, 10);
-    if (Number.isNaN(people) || people <= 0) return;
-    const req: ChangeNumbersRequest = { itemId, newNumberPeople: people };
+    if (!id || !isNewNumberPeopleValid) return;
+    const req: ChangeNumbersRequest = { itemId, newNumberPeople: parsedNewNumberPeople };
     if (note.trim()) req.note = note.trim();
     runAction(() => bookingsApi.changeNumbers(parseInt(id), req));
   };
@@ -564,11 +567,8 @@ export default function BookingDetail() {
                     {!confirmingItemAction ? (
                       <div>
                         <button
-                          onClick={() => {
-                            const people = parseInt(newNumberPeople, 10);
-                            if (!Number.isNaN(people) && people > 0) setConfirmingItemAction(true);
-                          }}
-                          disabled={actionInProgress || !(parseInt(newNumberPeople, 10) > 0)}
+                          onClick={() => { if (isNewNumberPeopleValid) setConfirmingItemAction(true); }}
+                          disabled={actionInProgress || !isNewNumberPeopleValid}
                           className="px-3 py-1 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50">Update</button>
                         <button onClick={() => setActiveItemAction(null)} disabled={actionInProgress}
                           className="ml-2 px-3 py-1 bg-gray-300 text-gray-800 rounded hover:bg-gray-400">Cancel</button>
