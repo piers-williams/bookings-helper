@@ -222,4 +222,25 @@ describe('action rendering', () => {
     const templateEmailRow = screen.getByText(/send template email/i).closest('div')!.parentElement!;
     expect(within(templateEmailRow).getByText(/not_attempted/i)).toBeInTheDocument();
   });
+
+  it('renders an addActivity action with a readable description', async () => {
+    api.list.mockResolvedValue([{
+      id: 4,
+      status: 'AwaitingApproval',
+      sourceEmailText: 'Can we add an archery session?',
+      osmBookingId: '179746',
+      actionsJson: JSON.stringify([
+        { type: 'addActivity', activityId: '4962', newStartDate: '2026-08-02', newStartTime: '10:00', numberPeople: 8 },
+      ]),
+      executionResultJson: null,
+      createdAt: '2026-07-21T09:00:00Z',
+    }]);
+    const user = userEvent.setup();
+    renderTriage();
+
+    await user.click(await screen.findByRole('button', { name: /plan #4/i }));
+
+    expect(screen.getByText(/add activity 4962/i)).toBeInTheDocument();
+    expect(screen.getByText(/8 people/i)).toBeInTheDocument();
+  });
 });

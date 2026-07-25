@@ -105,6 +105,18 @@ export interface MoveDatesRequest {
   note?: string;
 }
 
+/** Request to add a brand-new activity item to a booking (no existing item to clone). */
+export interface AddActivityRequest {
+  activityId: string;
+  startDate: string;
+  endDate: string;
+  startTime?: string;
+  endTime?: string;
+  numberPeople: number;
+  /** Optional free-text note appended to the auto-generated audit comment. */
+  note?: string;
+}
+
 /** A bookable site/pitch a booked item can be moved to (for change-site). */
 export interface AvailableSite {
   id: string;
@@ -142,11 +154,16 @@ export interface PlanAction {
   /** changeSite */
   newSiteId?: string;
   newSiteName?: string;
-  /** moveActivity */
+  /** addActivity */
+  activityId?: string;
+  /** moveActivity / addActivity */
   newStartDate?: string;
   newStartTime?: string;
   newEndTime?: string;
-  /** moveDates / changeSite / moveActivity */
+  /** addActivity */
+  newEndDate?: string;
+  numberPeople?: number;
+  /** moveDates / changeSite / moveActivity / addActivity */
   note?: string;
 }
 

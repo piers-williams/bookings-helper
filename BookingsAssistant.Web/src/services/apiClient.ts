@@ -1,5 +1,6 @@
 import axios from 'axios';
 import type {
+  AddActivityRequest,
   AvailableSite,
   Booking,
   BookingActionResult,
@@ -94,6 +95,16 @@ export const bookingsApi = {
 
   moveDates: async (id: number, req: MoveDatesRequest): Promise<BookingActionResult> => {
     const response = await apiClient.post<BookingActionResult>(`/bookings/${id}/actions/move-dates`, req);
+    return response.data;
+  },
+
+  getAvailableActivities: async (id: number): Promise<AvailableSite[]> => {
+    const response = await apiClient.get<AvailableSite[]>(`/bookings/${id}/available-activities`);
+    return response.data;
+  },
+
+  addActivity: async (id: number, req: AddActivityRequest): Promise<BookingActionResult> => {
+    const response = await apiClient.post<BookingActionResult>(`/bookings/${id}/actions/add-activity`, req);
     return response.data;
   },
 };

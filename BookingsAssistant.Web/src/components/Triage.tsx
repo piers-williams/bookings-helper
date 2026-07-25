@@ -40,6 +40,11 @@ function describeAction(action: PlanAction): string {
       const when = [action.newStartDate, action.newStartTime].filter(Boolean).join(' ');
       return `Move activity ${action.itemId}${when ? ` to ${when}` : ''}`;
     }
+    case 'addActivity': {
+      const when = [action.newStartDate, action.newStartTime].filter(Boolean).join(' ');
+      const people = action.numberPeople != null ? ` for ${action.numberPeople} people` : '';
+      return `Add activity ${action.activityId}${when ? ` on ${when}` : ''}${people}`;
+    }
     default:
       return `Unknown action: ${action.type}`;
   }
