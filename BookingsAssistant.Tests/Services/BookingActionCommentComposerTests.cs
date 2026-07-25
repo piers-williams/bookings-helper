@@ -88,6 +88,26 @@ public class BookingActionCommentComposerTests
     }
 
     [Fact]
+    public void ComposeRemoveActivitySummary_DescribesRemovedItem()
+    {
+        var summary = BookingActionCommentComposer.ComposeRemoveActivitySummary(
+            MakeActivityItem(),
+            new RemoveActivityRequest { ItemId = "act-item-1" });
+
+        Assert.Equal("Removed 'Archery Session'.", summary);
+    }
+
+    [Fact]
+    public void ComposeRemoveActivitySummary_AppendsNote_WhenProvided()
+    {
+        var summary = BookingActionCommentComposer.ComposeRemoveActivitySummary(
+            MakeActivityItem(),
+            new RemoveActivityRequest { ItemId = "act-item-1", Note = "customer cancelled this session" });
+
+        Assert.Equal("Removed 'Archery Session'. Note: customer cancelled this session", summary);
+    }
+
+    [Fact]
     public void ComposeMoveDatesSummary_DescribesShift()
     {
         var summary = BookingActionCommentComposer.ComposeMoveDatesSummary(

@@ -106,6 +106,12 @@ public class FakeOsmService : IOsmService
     /// </summary>
     public HashSet<string> DeleteThrowForIds { get; } = new();
 
+    /// <summary>
+    /// The exception thrown for ids in <see cref="DeleteThrowForIds"/>. Defaults to a generic
+    /// error; set to an "OSM authentication..." message to exercise the controller's 401 path.
+    /// </summary>
+    public Exception? DeleteThrowException { get; set; }
+
     public Task<string> CreateBookingItemAsync(string osmBookingId, BookingItemCreateSpec spec)
     {
         _createCallCount++;
@@ -123,7 +129,7 @@ public class FakeOsmService : IOsmService
     public Task<bool> DeleteBookingItemAsync(string osmBookingId, string itemId)
     {
         if (DeleteThrowForIds.Contains(itemId))
-            throw new InvalidOperationException($"Fake: delete forced to throw for item {itemId}");
+            throw DeleteThrowException ?? new InvalidOperationException($"Fake: delete forced to throw for item {itemId}");
         CallLog.Add(("delete", itemId));
         DeletedItems.Add((osmBookingId, itemId));
         return Task.FromResult(!DeleteReturnFalseForIds.Contains(itemId));
