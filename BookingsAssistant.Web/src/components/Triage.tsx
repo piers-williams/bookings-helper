@@ -45,6 +45,8 @@ function describeAction(action: PlanAction): string {
       const people = action.numberPeople != null ? ` for ${action.numberPeople} people` : '';
       return `Add activity ${action.activityId}${when ? ` on ${when}` : ''}${people}`;
     }
+    case 'removeActivity':
+      return `Remove item ${action.itemId}${action.note ? ` — ${action.note}` : ''}`;
     default:
       return `Unknown action: ${action.type}`;
   }

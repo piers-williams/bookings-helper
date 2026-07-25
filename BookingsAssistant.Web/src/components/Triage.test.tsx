@@ -243,4 +243,24 @@ describe('action rendering', () => {
     expect(screen.getByText(/add activity 4962/i)).toBeInTheDocument();
     expect(screen.getByText(/8 people/i)).toBeInTheDocument();
   });
+
+  it('renders a removeActivity action with a readable description', async () => {
+    api.list.mockResolvedValue([{
+      id: 5,
+      status: 'AwaitingApproval',
+      sourceEmailText: 'Please cancel our archery session',
+      osmBookingId: '179747',
+      actionsJson: JSON.stringify([
+        { type: 'removeActivity', itemId: '411468', note: 'customer cancelled' },
+      ]),
+      executionResultJson: null,
+      createdAt: '2026-07-22T09:00:00Z',
+    }]);
+    const user = userEvent.setup();
+    renderTriage();
+
+    await user.click(await screen.findByRole('button', { name: /plan #5/i }));
+
+    expect(screen.getByText(/remove item 411468/i)).toBeInTheDocument();
+  });
 });
