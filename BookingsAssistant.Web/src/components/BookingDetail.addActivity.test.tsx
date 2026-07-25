@@ -89,4 +89,18 @@ describe('add-activity action', () => {
 
     expect(api.addActivity).not.toHaveBeenCalled();
   });
+
+  it('disables Add activity until a positive number of people is entered', async () => {
+    const user = userEvent.setup();
+    renderDetail();
+    await screen.findByText(/Booking #179743/);
+
+    await user.selectOptions(await screen.findByLabelText(/^activity$/i), '4962');
+    await user.type(screen.getByLabelText(/start date/i), '2027-12-04');
+    await user.type(screen.getByLabelText(/end date/i), '2027-12-04');
+    expect(screen.getByRole('button', { name: /^add activity$/i })).toBeDisabled();
+
+    await user.type(screen.getByLabelText(/number of people/i), '0');
+    expect(screen.getByRole('button', { name: /^add activity$/i })).toBeDisabled();
+  });
 });

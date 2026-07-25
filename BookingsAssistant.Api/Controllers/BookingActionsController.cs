@@ -267,8 +267,8 @@ public class BookingActionsController : ControllerBase
         if (request.EndDate is null)
             return BadRequest(new { message = "EndDate is required" });
 
-        if (request.NumberPeople is null)
-            return BadRequest(new { message = "NumberPeople is required" });
+        if (request.NumberPeople is null or <= 0)
+            return BadRequest(new { message = "NumberPeople is required and must be greater than zero" });
 
         var booking = await _context.OsmBookings.FindAsync(id);
         if (booking == null)

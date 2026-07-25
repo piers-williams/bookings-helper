@@ -241,17 +241,22 @@ export default function BookingDetail() {
     runAction(() => bookingsApi.changeNumbers(parseInt(id), req));
   };
 
+  // Parsed once and reused by both the "Add activity" button's disabled check and the submit
+  // handler, mirroring parsedNewNumberPeople/isNewNumberPeopleValid above.
+  const parsedActivityNumberPeople = parseInt(activityNumberPeople, 10);
+  const isActivityNumberPeopleValid =
+    !Number.isNaN(parsedActivityNumberPeople) && parsedActivityNumberPeople > 0;
+
   const canAddActivity =
-    !!newActivityId && !!activityStartDate && !!activityEndDate && !!activityNumberPeople;
+    !!newActivityId && !!activityStartDate && !!activityEndDate && isActivityNumberPeopleValid;
 
   const handleAddActivity = () => {
-    const numberPeople = parseInt(activityNumberPeople, 10);
-    if (!id || !canAddActivity || Number.isNaN(numberPeople)) return;
+    if (!id || !canAddActivity) return;
     const req: AddActivityRequest = {
       activityId: newActivityId,
       startDate: activityStartDate,
       endDate: activityEndDate,
-      numberPeople,
+      numberPeople: parsedActivityNumberPeople,
     };
     if (activityStartTime) req.startTime = activityStartTime;
     if (activityEndTime) req.endTime = activityEndTime;

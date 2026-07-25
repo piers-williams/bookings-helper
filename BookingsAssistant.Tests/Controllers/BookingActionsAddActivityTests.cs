@@ -189,6 +189,26 @@ public class BookingActionsAddActivityTests : IClassFixture<WebApplicationFactor
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
     }
 
+    [Theory]
+    [InlineData(0)]
+    [InlineData(-3)]
+    public async Task AddActivity_Returns400_WhenNumberPeopleNotPositive(int numberPeople)
+    {
+        var bookingId = await SeedBookingAsync("98024");
+        var request = new AddActivityRequest
+        {
+            ActivityId = "4962",
+            StartDate = new DateTime(2026, 8, 2),
+            EndDate = new DateTime(2026, 8, 2),
+            NumberPeople = numberPeople
+        };
+
+        var client = _factory.CreateClient();
+        var response = await client.PostAsJsonAsync($"/api/bookings/{bookingId}/actions/add-activity", request);
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+    }
+
     [Fact]
     public async Task AddActivity_Returns404_WhenBookingNotFound()
     {
