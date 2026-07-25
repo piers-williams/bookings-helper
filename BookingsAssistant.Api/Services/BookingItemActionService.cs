@@ -178,7 +178,7 @@ public class BookingItemActionService : IBookingItemActionService
         catch (Exception ex)
         {
             _logger.LogWarning(ex,
-                "AddActivityAsync: could not fetch items after operation for booking {BookingId}",
+                "GetItemsSafeAsync: could not fetch items after operation for booking {BookingId}",
                 osmBookingId);
             return new List<BookingItemDto>();
         }
