@@ -9,10 +9,11 @@ internal class PlanDraftingService : IPlanDraftingService
 {
     // The action types the LLM is allowed to propose. Kept in sync with the schema described
     // in the system prompt below and with PlanExecutionService, which maps these onto
-    // BookingActionsController's move-activity / change-site / move-dates / add-activity DTOs.
+    // BookingActionsController's move-activity / change-site / move-dates / add-activity /
+    // remove-activity DTOs.
     private static readonly HashSet<string> KnownActionTypes = new(StringComparer.OrdinalIgnoreCase)
     {
-        "draftEmailReply", "postComment", "sendTemplateEmail", "moveDates", "changeSite", "moveActivity", "addActivity"
+        "draftEmailReply", "postComment", "sendTemplateEmail", "moveDates", "changeSite", "moveActivity", "addActivity", "removeActivity"
     };
 
     private const string SystemPrompt =
@@ -28,7 +29,8 @@ internal class PlanDraftingService : IPlanDraftingService
         "- changeSite: { \"itemId\": string, \"newSiteId\": string, \"newSiteName\"?: string, \"note\"?: string } — moves a site item to a different site\n" +
         "- moveActivity: { \"itemId\": string, \"newStartDate\"?: string, \"newStartTime\"?: string, \"newEndTime\"?: string, \"note\"?: string } — " +
         "reschedules an activity item. Omitting newStartDate while supplying newStartTime/newEndTime reschedules only the time, keeping the item's original date\n" +
-        "- addActivity: { \"activityId\": string, \"newStartDate\": string, \"newEndDate\": string, \"newStartTime\"?: string, \"newEndTime\"?: string, \"numberPeople\": number, \"note\"?: string } — adds a brand-new activity item to the booking\n\n" +
+        "- addActivity: { \"activityId\": string, \"newStartDate\": string, \"newEndDate\": string, \"newStartTime\"?: string, \"newEndTime\"?: string, \"numberPeople\": number, \"note\"?: string } — adds a brand-new activity item to the booking\n" +
+        "- removeActivity: { \"itemId\": string, \"note\"?: string } — permanently removes an existing item (activity or site) from the booking\n\n" +
         "Choose whichever actions (and however many, including zero if none apply) best address the email. " +
         "You decide the order — e.g. draftEmailReply can come first, last, or be omitted entirely. " +
         "Return JSON only: no prose, no markdown code fences, no explanation.";
@@ -224,6 +226,7 @@ internal class PlanDraftingService : IPlanDraftingService
                 return reason == null;
 
             case "moveactivity":
+            case "removeactivity":
                 reason = MissingNonEmptyString("itemId");
                 return reason == null;
 

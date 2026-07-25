@@ -158,6 +158,19 @@ public class PlanExecutionService : IPlanExecutionService
                 return;
             }
 
+            case "removeactivity":
+            {
+                var bookingId = RequireBookingId(osmBookingId, type);
+                var request = new RemoveActivityRequest
+                {
+                    ItemId = RequireString(action, "itemId", type),
+                    Note = OptionalString(action, "note")
+                };
+                var result = await _itemActionService.RemoveActivityAsync(bookingId, request);
+                ThrowIfNotSuccessful(result);
+                return;
+            }
+
             default:
                 throw new InvalidOperationException($"Unknown action type \"{type}\"");
         }
