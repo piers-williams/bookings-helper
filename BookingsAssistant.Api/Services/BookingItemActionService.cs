@@ -114,6 +114,41 @@ public class BookingItemActionService : IBookingItemActionService
         return result;
     }
 
+    public async Task<BookingActionResult> RemoveActivityAsync(string osmBookingId, RemoveActivityRequest request)
+    {
+        var items = await _osmService.GetBookingItemsAsync(osmBookingId);
+        var item = items.FirstOrDefault(i => i.ItemId == request.ItemId)
+            ?? throw new BookingItemNotFoundException(request.ItemId, osmBookingId);
+
+        // No replacement created here (unlike MoveActivity/ChangeSite) — a straight delete of an
+        // existing item. A thrown OSM exception (e.g. auth failure) propagates as-is; a `false`
+        // return means OSM declined the delete without erroring, which we surface as a Failed
+        // result rather than reporting success.
+        var deleted = await _osmService.DeleteBookingItemAsync(osmBookingId, item.ItemId);
+
+        var result = deleted
+            ? new BookingActionResult
+            {
+                Status = BookingActionStatus.Completed,
+                Created = new List<string>(),
+                Deleted = new List<string> { item.ItemId },
+                Message = $"Removed '{item.Label}'.",
+                Items = await GetItemsSafeAsync(osmBookingId)
+            }
+            : new BookingActionResult
+            {
+                Status = BookingActionStatus.Failed,
+                Created = new List<string>(),
+                Deleted = new List<string>(),
+                Message = $"Failed to remove '{item.Label}': OSM declined the delete.",
+                Items = await GetItemsSafeAsync(osmBookingId)
+            };
+
+        var summary = BookingActionCommentComposer.ComposeRemoveActivitySummary(item, request);
+        await PostAuditCommentAsync(osmBookingId, result, summary);
+        return result;
+    }
+
     /// <summary>Best-effort fetch of the booking's current items; returns empty on failure rather than throwing.</summary>
     private async Task<List<BookingItemDto>> GetItemsSafeAsync(string osmBookingId)
     {

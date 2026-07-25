@@ -49,6 +49,9 @@ public static class BookingActionCommentComposer
             request.Note);
     }
 
+    public static string ComposeRemoveActivitySummary(BookingItemDto original, RemoveActivityRequest request)
+        => AppendNote($"Removed '{original.Label}'.", request.Note);
+
     private static string FormatDate(DateTime? date)
         => date.HasValue ? date.Value.ToString("d MMM yyyy") : "—";
 

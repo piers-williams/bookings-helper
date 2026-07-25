@@ -31,4 +31,12 @@ public interface IBookingItemActionService
     /// <paramref name="request"/> and created directly via IOsmService.CreateBookingItemAsync.
     /// </summary>
     Task<BookingActionResult> AddActivityAsync(string osmBookingId, AddActivityRequest request);
+
+    /// <summary>
+    /// Removes (hard-deletes) an existing item — activity or site — from the booking. Unlike
+    /// the other actions here, there is no replacement created: the item is resolved via
+    /// ItemId and deleted directly via IOsmService.DeleteBookingItemAsync. Throws
+    /// <see cref="BookingItemNotFoundException"/> if ItemId isn't in the booking.
+    /// </summary>
+    Task<BookingActionResult> RemoveActivityAsync(string osmBookingId, RemoveActivityRequest request);
 }

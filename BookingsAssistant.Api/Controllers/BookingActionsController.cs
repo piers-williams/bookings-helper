@@ -251,4 +251,38 @@ public class BookingActionsController : ControllerBase
             return StatusCode(502, new { message = "Error executing add-activity", detail = ex.Message });
         }
     }
+
+    /// <summary>
+    /// Removes (hard-deletes) an existing item — activity or site — from the booking. No
+    /// replacement is created; this is a straight delete of an existing item.
+    /// </summary>
+    [HttpPost("{id}/actions/remove-activity")]
+    public async Task<ActionResult<BookingActionResult>> RemoveActivity(int id, [FromBody] RemoveActivityRequest request)
+    {
+        if (string.IsNullOrWhiteSpace(request.ItemId))
+            return BadRequest(new { message = "ItemId is required" });
+
+        var booking = await _context.OsmBookings.FindAsync(id);
+        if (booking == null)
+            return NotFound();
+
+        try
+        {
+            var result = await _itemActionService.RemoveActivityAsync(booking.OsmBookingId, request);
+            return Ok(result);
+        }
+        catch (BookingItemNotFoundException ex)
+        {
+            return NotFound(new { message = ex.Message });
+        }
+        catch (InvalidOperationException ex) when (ex.Message.Contains("OSM"))
+        {
+            return Unauthorized(new { message = "OSM authentication required", detail = ex.Message });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error during remove-activity for booking {Id}", id);
+            return StatusCode(502, new { message = "Error executing remove-activity", detail = ex.Message });
+        }
+    }
 }
