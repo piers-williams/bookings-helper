@@ -44,6 +44,12 @@ public interface IOsmService
     /// </summary>
     Task<List<AvailableSiteDto>> GetAvailableSitesAsync(string osmBookingId);
 
+    /// <summary>
+    /// Lists the bookable activities that can be added to a booking (for add-activity),
+    /// sourced from the same OSM item-type catalogue as <see cref="GetAvailableSitesAsync"/>.
+    /// </summary>
+    Task<List<AvailableSiteDto>> GetAvailableActivitiesAsync(string osmBookingId);
+
     // Auth
     string GetAuthorizationUrl(string redirectUri);
     Task<bool> HandleOAuthCallbackAsync(string code, int userId, string redirectUri);

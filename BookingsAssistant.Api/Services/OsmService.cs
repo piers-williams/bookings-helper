@@ -329,6 +329,26 @@ internal class OsmService : IOsmService
         return ParseAvailableSites(await response.Content.ReadAsStringAsync());
     }
 
+    public async Task<List<AvailableSiteDto>> GetAvailableActivitiesAsync(string osmBookingId)
+    {
+        // Same catalogue endpoint as GetAvailableSitesAsync, filtered to the "Activities"
+        // category instead. See ParseAvailableActivities.
+        var url = $"/v3/campsites/{_campsiteId}/items?booking_id={Uri.EscapeDataString(osmBookingId)}&mode=booking&audience=venue";
+
+        var response = await SendAuthorizedAsync(HttpMethod.Get, url, null);
+        if (!response.IsSuccessStatusCode)
+        {
+            if (response.StatusCode == System.Net.HttpStatusCode.Unauthorized)
+                throw new InvalidOperationException($"OSM authentication failed fetching activities for booking {osmBookingId}");
+
+            _logger.LogError("OSM catalogue endpoint returned {StatusCode} for booking {BookingId}",
+                response.StatusCode, osmBookingId);
+            return new List<AvailableSiteDto>();
+        }
+
+        return ParseAvailableActivities(await response.Content.ReadAsStringAsync());
+    }
+
     private async Task ReplayQuestionAnswersAsync(string itemId, IReadOnlyDictionary<int, string> answersByDefId)
     {
         try
@@ -624,20 +644,40 @@ internal class OsmService : IOsmService
     /// Pure/static for testing.
     /// </summary>
     internal static List<AvailableSiteDto> ParseAvailableSites(string? catalogueJson)
+        => ParseCatalogueLeaves(catalogueJson, "Campsites", "Indoor Accommodation");
+
+    /// <summary>
+    /// Parses the same OSM item-type catalogue as <see cref="ParseAvailableSites"/> into the bookable
+    /// activities: the leaf item-types under the "Activities" category (e.g. "ACTIVITY - Archery"),
+    /// which ParseAvailableSites deliberately excludes. Category nodes (including activity
+    /// sub-categories such as "Tower") are excluded here too. Pure/static for testing.
+    /// </summary>
+    internal static List<AvailableSiteDto> ParseAvailableActivities(string? catalogueJson)
+        => ParseCatalogueLeaves(catalogueJson, "Activities");
+
+    /// <summary>
+    /// Shared BFS walk over the OSM item-type catalogue tree: finds the category node(s) whose
+    /// name matches one of <paramref name="rootCategoryNames"/>, then walks all descendants,
+    /// returning the leaves (nodes that are not themselves parents of anything) as bookable
+    /// item-types. Category nodes at any depth are excluded — only the requested root(s) named
+    /// and their bookable leaf descendants matter to callers.
+    /// </summary>
+    private static List<AvailableSiteDto> ParseCatalogueLeaves(string? catalogueJson, params string[] rootCategoryNames)
     {
-        var sites = new List<AvailableSiteDto>();
-        if (string.IsNullOrWhiteSpace(catalogueJson)) return sites;
+        var items = new List<AvailableSiteDto>();
+        if (string.IsNullOrWhiteSpace(catalogueJson)) return items;
 
         using var doc = JsonDocument.Parse(catalogueJson);
         if (!doc.RootElement.TryGetProperty("data", out var data) || data.ValueKind != JsonValueKind.Array)
-            return sites;
+            return items;
 
-        // First pass: index nodes by id, group children by parent, find the site category roots
-        // (by name), and record which ids are themselves parents (i.e. categories, not leaves).
+        // First pass: index nodes by id, group children by parent, find the requested category
+        // roots (by name), and record which ids are themselves parents (i.e. categories, not leaves).
         var nameById = new Dictionary<int, string>();
         var childrenByParent = new Dictionary<int, List<int>>();
         var parentIds = new HashSet<int>();
-        var siteCategoryIds = new List<int>();
+        var rootCategoryIds = new List<int>();
+        var rootNames = new HashSet<string>(rootCategoryNames, StringComparer.Ordinal);
         foreach (var node in data.EnumerateArray())
         {
             var id = GetInt(node, "id");
@@ -648,14 +688,14 @@ internal class OsmService : IOsmService
                 parentIds.Add(pid);
                 (childrenByParent.TryGetValue(pid, out var list) ? list : childrenByParent[pid] = new List<int>()).Add(id);
             }
-            if (name is "Campsites" or "Indoor Accommodation")
-                siteCategoryIds.Add(id);
+            if (rootNames.Contains(name))
+                rootCategoryIds.Add(id);
         }
 
-        // Walk all descendants of the site categories; the bookable sites are the leaves
+        // Walk all descendants of the root categories; the bookable item-types are the leaves
         // (nodes that are not themselves parents of anything). Handles arbitrary nesting depth.
-        var queue = new Queue<int>(siteCategoryIds);
-        var seen = new HashSet<int>(siteCategoryIds);
+        var queue = new Queue<int>(rootCategoryIds);
+        var seen = new HashSet<int>(rootCategoryIds);
         while (queue.Count > 0)
         {
             var current = queue.Dequeue();
@@ -666,11 +706,11 @@ internal class OsmService : IOsmService
                 if (parentIds.Contains(child))
                     queue.Enqueue(child);   // sub-category — descend
                 else
-                    sites.Add(new AvailableSiteDto { Id = child.ToString(), Name = nameById[child] });
+                    items.Add(new AvailableSiteDto { Id = child.ToString(), Name = nameById[child] });
             }
         }
 
-        return sites;
+        return items;
     }
 
     /// <summary>Splits an OSM "yyyy-MM-dd HH:mm:ss" timestamp into a date and the "HH:mm" portion of the time.</summary>
