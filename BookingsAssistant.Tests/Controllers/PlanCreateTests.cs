@@ -388,6 +388,49 @@ public class PlanCreateTests : IClassFixture<WebApplicationFactory<Program>>
     }
 
     [Fact]
+    public async Task Create_ReturnsAwaitingApprovalWithActionsJson_WhenLlmReturnsValidCheckAvailability()
+    {
+        _fakeLlm.ResponsesToReturn.Enqueue(
+            "{\"actions\":[{\"type\":\"checkAvailability\",\"activityId\":\"4962\"," +
+            "\"newStartDate\":\"2026-08-02\",\"newEndDate\":\"2026-08-02\"}]}");
+
+        var client = _factory.CreateClient();
+        var response = await client.PostAsJsonAsync("/api/plans", new CreatePlanRequest
+        {
+            SourceEmailText = "Is archery available on the 2nd?"
+        });
+
+        Assert.Equal(HttpStatusCode.Created, response.StatusCode);
+        var result = await response.Content.ReadFromJsonAsync<ProposedPlanDto>();
+        Assert.NotNull(result);
+        Assert.Equal("AwaitingApproval", result.Status);
+        Assert.NotNull(result.ActionsJson);
+        Assert.Contains("checkAvailability", result.ActionsJson);
+    }
+
+    [Theory]
+    [InlineData("{\"actions\":[{\"type\":\"checkAvailability\",\"newStartDate\":\"2026-08-02\",\"newEndDate\":\"2026-08-02\"}]}")]
+    [InlineData("{\"actions\":[{\"type\":\"checkAvailability\",\"activityId\":\"4962\",\"newEndDate\":\"2026-08-02\"}]}")]
+    [InlineData("{\"actions\":[{\"type\":\"checkAvailability\",\"activityId\":\"4962\",\"newStartDate\":\"2026-08-02\"}]}")]
+    public async Task Create_ReturnsFailedStatus_WhenLlmReturnsCheckAvailabilityMissingRequiredField(string malformed)
+    {
+        _fakeLlm.ResponsesToReturn.Enqueue(malformed);
+        _fakeLlm.ResponsesToReturn.Enqueue(malformed);
+
+        var client = _factory.CreateClient();
+        var response = await client.PostAsJsonAsync("/api/plans", new CreatePlanRequest
+        {
+            SourceEmailText = "Is archery available on the 2nd?"
+        });
+
+        Assert.Equal(HttpStatusCode.Created, response.StatusCode);
+        var result = await response.Content.ReadFromJsonAsync<ProposedPlanDto>();
+        Assert.NotNull(result);
+        Assert.Equal("Failed", result.Status);
+        Assert.Null(result.ActionsJson);
+    }
+
+    [Fact]
     public async Task Create_IncludesBookingContextInPrompt_WhenOsmBookingIdProvided()
     {
         var bookingId = await SeedBookingAsync();

@@ -10,10 +10,10 @@ internal class PlanDraftingService : IPlanDraftingService
     // The action types the LLM is allowed to propose. Kept in sync with the schema described
     // in the system prompt below and with PlanExecutionService, which maps these onto
     // BookingActionsController's move-activity / change-site / move-dates / add-activity /
-    // remove-activity / change-numbers DTOs.
+    // remove-activity / change-numbers / availability DTOs.
     private static readonly HashSet<string> KnownActionTypes = new(StringComparer.OrdinalIgnoreCase)
     {
-        "draftEmailReply", "postComment", "sendTemplateEmail", "moveDates", "changeSite", "moveActivity", "addActivity", "removeActivity", "changeNumbers"
+        "draftEmailReply", "postComment", "sendTemplateEmail", "moveDates", "changeSite", "moveActivity", "addActivity", "removeActivity", "changeNumbers", "checkAvailability"
     };
 
     private const string SystemPrompt =
@@ -31,7 +31,10 @@ internal class PlanDraftingService : IPlanDraftingService
         "reschedules an activity item. Omitting newStartDate while supplying newStartTime/newEndTime reschedules only the time, keeping the item's original date\n" +
         "- addActivity: { \"activityId\": string, \"newStartDate\": string, \"newEndDate\": string, \"newStartTime\"?: string, \"newEndTime\"?: string, \"numberPeople\": number, \"note\"?: string } — adds a brand-new activity item to the booking\n" +
         "- removeActivity: { \"itemId\": string, \"note\"?: string } — permanently removes an existing item (activity or site) from the booking\n" +
-        "- changeNumbers: { \"itemId\": string, \"newNumberPeople\": number, \"note\"?: string } — changes the number of people on an existing item\n\n" +
+        "- changeNumbers: { \"itemId\": string, \"newNumberPeople\": number, \"note\"?: string } — changes the number of people on an existing item\n" +
+        "- checkAvailability: { \"activityId\": string, \"newStartDate\": string, \"newEndDate\": string, \"note\"?: string } — " +
+        "read-only check of whether a site/activity item-type has an available slot for the given date range. " +
+        "This is the only action that never creates/modifies/deletes anything — use it to check before proposing addActivity\n\n" +
         "Choose whichever actions (and however many, including zero if none apply) best address the email. " +
         "You decide the order — e.g. draftEmailReply can come first, last, or be omitted entirely. " +
         "Return JSON only: no prose, no markdown code fences, no explanation.";
@@ -254,6 +257,10 @@ internal class PlanDraftingService : IPlanDraftingService
                 }
                 reason = null;
                 return true;
+
+            case "checkavailability":
+                reason = MissingNonEmptyString("activityId") ?? MissingNonEmptyString("newStartDate") ?? MissingNonEmptyString("newEndDate");
+                return reason == null;
 
             default:
                 reason = $"unknown action type \"{type}\"";
