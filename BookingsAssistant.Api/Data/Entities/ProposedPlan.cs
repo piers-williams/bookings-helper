@@ -39,6 +39,16 @@ public class ProposedPlan
     public string? ActionsJson { get; set; }
 
     /// <summary>
+    /// Set when plan drafting completed successfully but an automatic availability pre-check
+    /// (see PlanDraftingService) found a date-carrying action (currently addActivity) whose
+    /// slot was still unavailable after the one retry the drafting flow allows itself. Drafting
+    /// does not fail in this case — the plan is saved as normal — but a human reviewing it in
+    /// the Triage UI should see this warning before approving. Null when no conflict was found
+    /// (the common case) or the plan predates this field.
+    /// </summary>
+    public string? DraftWarning { get; set; }
+
+    /// <summary>
     /// Per-action execution outcomes, set once the plan has been approved and executed
     /// (or the attempt failed partway through). JSON array of objects shaped like
     /// { type, status, reason? } — one entry per action in ActionsJson, in the same order.
