@@ -279,6 +279,67 @@ public class PlanApprovalTests : IClassFixture<WebApplicationFactory<Program>>
     }
 
     [Fact]
+    public async Task Approve_AddActivityActionSucceeds_MarksExecuted_CreatesItemAndPostsComment()
+    {
+        var bookingId = await SeedBookingAsync("77506");
+        _fakeOsm.CreatedItemIds = new List<string> { "new-activity-item" };
+        _fakeOsm.CommentToReturn = new CommentDto
+        {
+            OsmBookingId = bookingId,
+            OsmCommentId = "cmt-add-activity-1",
+            AuthorName = "Site Manager",
+            TextPreview = "Added activity",
+            CreatedDate = new DateTime(2026, 8, 1, 9, 0, 0, DateTimeKind.Utc)
+        };
+        var planId = await SeedPlanAsync(
+            "[{\"type\":\"addActivity\",\"activityId\":\"4962\",\"newStartDate\":\"2026-08-02\"," +
+            "\"newEndDate\":\"2026-08-02\",\"numberPeople\":8}]",
+            bookingId);
+
+        var client = _factory.CreateClient();
+        var response = await client.PostAsync($"/api/plans/{planId}/approve", content: null);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var result = await response.Content.ReadFromJsonAsync<ProposedPlanDto>();
+        Assert.NotNull(result);
+        Assert.Equal("Executed", result.Status);
+
+        var spec = Assert.Single(_fakeOsm.CapturedSpecs);
+        Assert.Equal("4962", spec.CampsiteItemId);
+        Assert.Equal(8, spec.NumberPeople);
+
+        Assert.Single(_fakeOsm.CommentsPosted);
+    }
+
+    [Fact]
+    public async Task Approve_AddActivityActionFails_MarksFailed_WhenOsmCreateFails()
+    {
+        var bookingId = await SeedBookingAsync("77507");
+        _fakeOsm.FailCreateOnCall = (1, new InvalidOperationException("No available slot for the requested window"));
+
+        var planId = await SeedPlanAsync(
+            "[{\"type\":\"addActivity\",\"activityId\":\"4962\",\"newStartDate\":\"2026-08-02\"," +
+            "\"newEndDate\":\"2026-08-02\",\"numberPeople\":8}]",
+            bookingId);
+
+        var client = _factory.CreateClient();
+        var response = await client.PostAsync($"/api/plans/{planId}/approve", content: null);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var result = await response.Content.ReadFromJsonAsync<ProposedPlanDto>();
+        Assert.NotNull(result);
+        Assert.Equal("Failed", result.Status);
+
+        var results = System.Text.Json.JsonSerializer.Deserialize<List<PlanActionExecutionResult>>(result.ExecutionResultJson!)!;
+        var single = Assert.Single(results);
+        Assert.Equal("addActivity", single.Type);
+        Assert.Equal(PlanActionExecutionStatus.Failed, single.Status);
+        // Must be the OSM create failure surfacing, not a generic "unknown action type" —
+        // proves addActivity actually reached IBookingItemActionService.AddActivityAsync.
+        Assert.Contains("No available slot", single.Reason);
+    }
+
+    [Fact]
     public async Task Approve_ReturnsConflict_WhenPlanNotAwaitingApproval()
     {
         var planId = await SeedPlanAsync(

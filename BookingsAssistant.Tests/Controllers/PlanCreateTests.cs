@@ -205,6 +205,69 @@ public class PlanCreateTests : IClassFixture<WebApplicationFactory<Program>>
     }
 
     [Fact]
+    public async Task Create_ReturnsAwaitingApprovalWithActionsJson_WhenLlmReturnsValidAddActivity()
+    {
+        _fakeLlm.ResponsesToReturn.Enqueue(
+            "{\"actions\":[{\"type\":\"addActivity\",\"activityId\":\"4962\"," +
+            "\"newStartDate\":\"2026-08-02\",\"newEndDate\":\"2026-08-02\",\"numberPeople\":8}]}");
+
+        var client = _factory.CreateClient();
+        var response = await client.PostAsJsonAsync("/api/plans", new CreatePlanRequest
+        {
+            SourceEmailText = "Can you add an archery session for our group?"
+        });
+
+        Assert.Equal(HttpStatusCode.Created, response.StatusCode);
+        var result = await response.Content.ReadFromJsonAsync<ProposedPlanDto>();
+        Assert.NotNull(result);
+        Assert.Equal("AwaitingApproval", result.Status);
+        Assert.NotNull(result.ActionsJson);
+        Assert.Contains("addActivity", result.ActionsJson);
+    }
+
+    [Theory]
+    [InlineData("{\"actions\":[{\"newStartDate\":\"2026-08-02\",\"newEndDate\":\"2026-08-02\",\"numberPeople\":8,\"type\":\"addActivity\"}]}")]
+    public async Task Create_ReturnsFailedStatus_WhenLlmReturnsAddActivityMissingActivityId(string malformedFirstAttempt)
+    {
+        // Both attempts omit activityId — invalid on the first try and the retry.
+        _fakeLlm.ResponsesToReturn.Enqueue(malformedFirstAttempt);
+        _fakeLlm.ResponsesToReturn.Enqueue(malformedFirstAttempt);
+
+        var client = _factory.CreateClient();
+        var response = await client.PostAsJsonAsync("/api/plans", new CreatePlanRequest
+        {
+            SourceEmailText = "Can you add an archery session for our group?"
+        });
+
+        Assert.Equal(HttpStatusCode.Created, response.StatusCode);
+        var result = await response.Content.ReadFromJsonAsync<ProposedPlanDto>();
+        Assert.NotNull(result);
+        Assert.Equal("Failed", result.Status);
+        Assert.Null(result.ActionsJson);
+    }
+
+    [Fact]
+    public async Task Create_ReturnsFailedStatus_WhenLlmReturnsAddActivityMissingNumberPeople()
+    {
+        var malformed = "{\"actions\":[{\"type\":\"addActivity\",\"activityId\":\"4962\"," +
+                         "\"newStartDate\":\"2026-08-02\",\"newEndDate\":\"2026-08-02\"}]}";
+        _fakeLlm.ResponsesToReturn.Enqueue(malformed);
+        _fakeLlm.ResponsesToReturn.Enqueue(malformed);
+
+        var client = _factory.CreateClient();
+        var response = await client.PostAsJsonAsync("/api/plans", new CreatePlanRequest
+        {
+            SourceEmailText = "Can you add an archery session for our group?"
+        });
+
+        Assert.Equal(HttpStatusCode.Created, response.StatusCode);
+        var result = await response.Content.ReadFromJsonAsync<ProposedPlanDto>();
+        Assert.NotNull(result);
+        Assert.Equal("Failed", result.Status);
+        Assert.Null(result.ActionsJson);
+    }
+
+    [Fact]
     public async Task Create_IncludesBookingContextInPrompt_WhenOsmBookingIdProvided()
     {
         var bookingId = await SeedBookingAsync();
