@@ -501,6 +501,99 @@ public class PlanApprovalTests : IClassFixture<WebApplicationFactory<Program>>
     }
 
     [Fact]
+    public async Task Approve_CheckAvailabilityAvailable_MarksExecuted_StatusSucceeded_DetailSaysAvailable()
+    {
+        // The important behavioral distinction: checkAvailability is read-only, so BOTH the
+        // available and unavailable outcomes are a "succeeded" query -- only real OSM/auth
+        // failures should ever produce "failed" here.
+        var bookingId = await SeedBookingAsync("77514");
+        _fakeOsm.AvailabilityResultToReturn = new AvailabilityResult { Available = true };
+
+        var planId = await SeedPlanAsync(
+            "[{\"type\":\"checkAvailability\",\"activityId\":\"4962\"," +
+            "\"newStartDate\":\"2026-08-02\",\"newEndDate\":\"2026-08-02\"}]",
+            bookingId);
+
+        var client = _factory.CreateClient();
+        var response = await client.PostAsync($"/api/plans/{planId}/approve", content: null);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var result = await response.Content.ReadFromJsonAsync<ProposedPlanDto>();
+        Assert.NotNull(result);
+        Assert.Equal("Executed", result.Status);
+
+        var results = System.Text.Json.JsonSerializer.Deserialize<List<PlanActionExecutionResult>>(result.ExecutionResultJson!)!;
+        var single = Assert.Single(results);
+        Assert.Equal("checkAvailability", single.Type);
+        Assert.Equal(PlanActionExecutionStatus.Succeeded, single.Status);
+        Assert.NotNull(single.Detail);
+        Assert.Contains("Available", single.Detail);
+
+        var call = Assert.Single(_fakeOsm.AvailabilityChecks);
+        Assert.Equal(bookingId, call.OsmBookingId);
+        Assert.Equal("4962", call.CampsiteItemId);
+    }
+
+    [Fact]
+    public async Task Approve_CheckAvailabilityUnavailable_StillMarksExecuted_StatusSucceeded_DetailExplainsWhy()
+    {
+        var bookingId = await SeedBookingAsync("77515");
+        _fakeOsm.AvailabilityResultToReturn = new AvailabilityResult
+        {
+            Available = false,
+            Reason = "No available slot for 2026-08-02 to 2026-08-02"
+        };
+
+        var planId = await SeedPlanAsync(
+            "[{\"type\":\"checkAvailability\",\"activityId\":\"4962\"," +
+            "\"newStartDate\":\"2026-08-02\",\"newEndDate\":\"2026-08-02\"}]",
+            bookingId);
+
+        var client = _factory.CreateClient();
+        var response = await client.PostAsync($"/api/plans/{planId}/approve", content: null);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var result = await response.Content.ReadFromJsonAsync<ProposedPlanDto>();
+        Assert.NotNull(result);
+        // Not a failure -- the query ran fine, it just reports the slot doesn't exist.
+        Assert.Equal("Executed", result.Status);
+
+        var results = System.Text.Json.JsonSerializer.Deserialize<List<PlanActionExecutionResult>>(result.ExecutionResultJson!)!;
+        var single = Assert.Single(results);
+        Assert.Equal("checkAvailability", single.Type);
+        Assert.Equal(PlanActionExecutionStatus.Succeeded, single.Status);
+        Assert.NotNull(single.Detail);
+        Assert.Contains("No available slot", single.Detail);
+        Assert.Null(single.Reason); // Reason is for actual failures, not this
+    }
+
+    [Fact]
+    public async Task Approve_CheckAvailabilityActionFails_MarksFailed_WhenOsmThrows()
+    {
+        var bookingId = await SeedBookingAsync("77516");
+        _fakeOsm.CheckAvailabilityError = new InvalidOperationException("OSM authentication failed checking availability");
+
+        var planId = await SeedPlanAsync(
+            "[{\"type\":\"checkAvailability\",\"activityId\":\"4962\"," +
+            "\"newStartDate\":\"2026-08-02\",\"newEndDate\":\"2026-08-02\"}]",
+            bookingId);
+
+        var client = _factory.CreateClient();
+        var response = await client.PostAsync($"/api/plans/{planId}/approve", content: null);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var result = await response.Content.ReadFromJsonAsync<ProposedPlanDto>();
+        Assert.NotNull(result);
+        Assert.Equal("Failed", result.Status);
+
+        var results = System.Text.Json.JsonSerializer.Deserialize<List<PlanActionExecutionResult>>(result.ExecutionResultJson!)!;
+        var single = Assert.Single(results);
+        Assert.Equal("checkAvailability", single.Type);
+        Assert.Equal(PlanActionExecutionStatus.Failed, single.Status);
+        Assert.NotNull(single.Reason);
+    }
+
+    [Fact]
     public async Task Approve_ReturnsConflict_WhenPlanNotAwaitingApproval()
     {
         var planId = await SeedPlanAsync(

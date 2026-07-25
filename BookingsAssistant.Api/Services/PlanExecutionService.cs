@@ -41,8 +41,8 @@ public class PlanExecutionService : IPlanExecutionService
 
             try
             {
-                await ExecuteActionAsync(type, action, plan.OsmBookingId);
-                results.Add(new PlanActionExecutionResult { Type = type, Status = PlanActionExecutionStatus.Succeeded });
+                var detail = await ExecuteActionAsync(type, action, plan.OsmBookingId);
+                results.Add(new PlanActionExecutionResult { Type = type, Status = PlanActionExecutionStatus.Succeeded, Detail = detail });
             }
             catch (Exception ex)
             {
@@ -66,13 +66,20 @@ public class PlanExecutionService : IPlanExecutionService
         };
     }
 
-    private async Task ExecuteActionAsync(string type, JsonElement action, string? osmBookingId)
+    /// <summary>
+    /// Executes one action. Returns an optional "detail" string that gets attached to the
+    /// action's PlanActionExecutionResult on success — used only by "checkAvailability" (the
+    /// one read-only action in this set) to carry its Available/Reason outcome back to the
+    /// caller; every other action returns null. Failure is always reported by throwing, which
+    /// ExecuteAsync catches and records as a "failed" result.
+    /// </summary>
+    private async Task<string?> ExecuteActionAsync(string type, JsonElement action, string? osmBookingId)
     {
         switch (type.ToLowerInvariant())
         {
             case "draftemailreply":
                 // Purely informational — nothing to execute against OSM.
-                return;
+                return null;
 
             case "postcomment":
             {
@@ -81,7 +88,7 @@ public class PlanExecutionService : IPlanExecutionService
                 var posted = await _osmService.PostCommentAsync(bookingId, text);
                 if (posted == null)
                     throw new InvalidOperationException($"Failed to post comment to OSM for booking {bookingId}");
-                return;
+                return null;
             }
 
             case "sendtemplateemail":
@@ -90,7 +97,7 @@ public class PlanExecutionService : IPlanExecutionService
                 var sent = await _osmService.SendBookingTemplateEmailAsync(bookingId);
                 if (!sent)
                     throw new InvalidOperationException($"Failed to send template email for booking {bookingId}");
-                return;
+                return null;
             }
 
             case "movedates":
@@ -106,7 +113,7 @@ public class PlanExecutionService : IPlanExecutionService
                 };
                 var result = await _itemActionService.MoveDatesAsync(bookingId, request);
                 ThrowIfNotSuccessful(result);
-                return;
+                return null;
             }
 
             case "changesite":
@@ -121,7 +128,7 @@ public class PlanExecutionService : IPlanExecutionService
                 };
                 var result = await _itemActionService.ChangeSiteAsync(bookingId, request);
                 ThrowIfNotSuccessful(result);
-                return;
+                return null;
             }
 
             case "moveactivity":
@@ -137,7 +144,7 @@ public class PlanExecutionService : IPlanExecutionService
                 };
                 var result = await _itemActionService.MoveActivityAsync(bookingId, request);
                 ThrowIfNotSuccessful(result);
-                return;
+                return null;
             }
 
             case "addactivity":
@@ -155,7 +162,7 @@ public class PlanExecutionService : IPlanExecutionService
                 };
                 var result = await _itemActionService.AddActivityAsync(bookingId, request);
                 ThrowIfNotSuccessful(result);
-                return;
+                return null;
             }
 
             case "removeactivity":
@@ -168,7 +175,7 @@ public class PlanExecutionService : IPlanExecutionService
                 };
                 var result = await _itemActionService.RemoveActivityAsync(bookingId, request);
                 ThrowIfNotSuccessful(result);
-                return;
+                return null;
             }
 
             case "changenumbers":
@@ -182,7 +189,19 @@ public class PlanExecutionService : IPlanExecutionService
                 };
                 var result = await _itemActionService.ChangeNumbersAsync(bookingId, request);
                 ThrowIfNotSuccessful(result);
-                return;
+                return null;
+            }
+
+            case "checkavailability":
+            {
+                // The only read-only action: never throws for "no slot available" — that is a
+                // successful query, reported via the returned detail string, not a failure.
+                var bookingId = RequireBookingId(osmBookingId, type);
+                var activityId = RequireString(action, "activityId", type);
+                var startDate = RequireDate(action, "newStartDate", type);
+                var endDate = RequireDate(action, "newEndDate", type);
+                var availability = await _osmService.CheckAvailabilityAsync(bookingId, activityId, startDate, endDate);
+                return availability.Available ? "Available" : $"Not available: {availability.Reason}";
             }
 
             default:
