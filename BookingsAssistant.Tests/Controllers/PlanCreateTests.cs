@@ -268,6 +268,46 @@ public class PlanCreateTests : IClassFixture<WebApplicationFactory<Program>>
     }
 
     [Fact]
+    public async Task Create_ReturnsAwaitingApprovalWithActionsJson_WhenLlmReturnsValidRemoveActivity()
+    {
+        _fakeLlm.ResponsesToReturn.Enqueue(
+            "{\"actions\":[{\"type\":\"removeActivity\",\"itemId\":\"act-item-1\",\"note\":\"customer cancelled\"}]}");
+
+        var client = _factory.CreateClient();
+        var response = await client.PostAsJsonAsync("/api/plans", new CreatePlanRequest
+        {
+            SourceEmailText = "Please cancel our archery session."
+        });
+
+        Assert.Equal(HttpStatusCode.Created, response.StatusCode);
+        var result = await response.Content.ReadFromJsonAsync<ProposedPlanDto>();
+        Assert.NotNull(result);
+        Assert.Equal("AwaitingApproval", result.Status);
+        Assert.NotNull(result.ActionsJson);
+        Assert.Contains("removeActivity", result.ActionsJson);
+    }
+
+    [Fact]
+    public async Task Create_ReturnsFailedStatus_WhenLlmReturnsRemoveActivityMissingItemId()
+    {
+        var malformed = "{\"actions\":[{\"type\":\"removeActivity\"}]}";
+        _fakeLlm.ResponsesToReturn.Enqueue(malformed);
+        _fakeLlm.ResponsesToReturn.Enqueue(malformed);
+
+        var client = _factory.CreateClient();
+        var response = await client.PostAsJsonAsync("/api/plans", new CreatePlanRequest
+        {
+            SourceEmailText = "Please cancel our archery session."
+        });
+
+        Assert.Equal(HttpStatusCode.Created, response.StatusCode);
+        var result = await response.Content.ReadFromJsonAsync<ProposedPlanDto>();
+        Assert.NotNull(result);
+        Assert.Equal("Failed", result.Status);
+        Assert.Null(result.ActionsJson);
+    }
+
+    [Fact]
     public async Task Create_IncludesBookingContextInPrompt_WhenOsmBookingIdProvided()
     {
         var bookingId = await SeedBookingAsync();
