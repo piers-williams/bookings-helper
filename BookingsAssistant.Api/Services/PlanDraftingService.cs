@@ -7,9 +7,9 @@ namespace BookingsAssistant.Api.Services;
 
 internal class PlanDraftingService : IPlanDraftingService
 {
-    // The six action types the LLM is allowed to propose. Kept in sync with the schema
-    // described in the system prompt below and with chunk 3 (execution), which will map
-    // these onto BookingActionsController's move-activity / change-site / move-dates DTOs.
+    // The action types the LLM is allowed to propose. Kept in sync with the schema described
+    // in the system prompt below and with PlanExecutionService, which maps these onto
+    // BookingActionsController's move-activity / change-site / move-dates / add-activity DTOs.
     private static readonly HashSet<string> KnownActionTypes = new(StringComparer.OrdinalIgnoreCase)
     {
         "draftEmailReply", "postComment", "sendTemplateEmail", "moveDates", "changeSite", "moveActivity", "addActivity"
