@@ -49,6 +49,10 @@ function describeAction(action: PlanAction): string {
       return `Remove item ${action.itemId}${action.note ? ` — ${action.note}` : ''}`;
     case 'changeNumbers':
       return `Change numbers for item ${action.itemId} to ${action.newNumberPeople ?? '?'}${action.note ? ` — ${action.note}` : ''}`;
+    case 'checkAvailability': {
+      const when = [action.newStartDate, action.newEndDate].filter(Boolean).join(' to ');
+      return `Check availability for ${action.activityId}${when ? ` (${when})` : ''}`;
+    }
     default:
       return `Unknown action: ${action.type}`;
   }
@@ -108,6 +112,7 @@ function PlanActionRow({ action, result }: { action: PlanAction; result?: PlanAc
             {result.status}
           </span>
           {result.reason && <span className="ml-2 text-xs text-red-700">{result.reason}</span>}
+          {result.detail && <span className="ml-2 text-xs text-gray-700">{result.detail}</span>}
         </div>
       )}
     </div>

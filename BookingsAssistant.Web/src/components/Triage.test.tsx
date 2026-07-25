@@ -264,6 +264,58 @@ describe('action rendering', () => {
     expect(screen.getByText(/remove item 411468/i)).toBeInTheDocument();
   });
 
+  it('renders a checkAvailability action with a readable description and its available detail', async () => {
+    api.list.mockResolvedValue([{
+      id: 7,
+      status: 'Executed',
+      sourceEmailText: null,
+      osmBookingId: '179749',
+      actionsJson: JSON.stringify([
+        { type: 'checkAvailability', activityId: '4962', newStartDate: '2026-08-02', newEndDate: '2026-08-02' },
+      ]),
+      executionResultJson: JSON.stringify([
+        { type: 'checkAvailability', status: 'succeeded', detail: 'Available' },
+      ]),
+      createdAt: '2026-07-24T09:00:00Z',
+    }]);
+    const user = userEvent.setup();
+    renderTriage();
+
+    await user.click(await screen.findByRole('button', { name: /plan #7/i }));
+
+    expect(screen.getByText(/check availability.*4962/i)).toBeInTheDocument();
+    const row = screen.getByText(/check availability.*4962/i).closest('div')!.parentElement!;
+    expect(within(row).getByText(/succeeded/i)).toBeInTheDocument();
+    expect(within(row).getByText(/^available$/i)).toBeInTheDocument();
+  });
+
+  it('renders a checkAvailability action result as succeeded even when unavailable', async () => {
+    // The important behavioral distinction: "not available" is still a succeeded query, not a
+    // failure -- the status badge must read "succeeded", with the unavailability explained via
+    // the detail text, not the (failure-only) reason text.
+    api.list.mockResolvedValue([{
+      id: 8,
+      status: 'Executed',
+      sourceEmailText: null,
+      osmBookingId: '179750',
+      actionsJson: JSON.stringify([
+        { type: 'checkAvailability', activityId: '4962', newStartDate: '2026-08-02', newEndDate: '2026-08-02' },
+      ]),
+      executionResultJson: JSON.stringify([
+        { type: 'checkAvailability', status: 'succeeded', detail: 'Not available: No available slot for 2026-08-02 to 2026-08-02' },
+      ]),
+      createdAt: '2026-07-24T09:00:00Z',
+    }]);
+    const user = userEvent.setup();
+    renderTriage();
+
+    await user.click(await screen.findByRole('button', { name: /plan #8/i }));
+
+    const row = screen.getByText(/check availability.*4962/i).closest('div')!.parentElement!;
+    expect(within(row).getByText(/succeeded/i)).toBeInTheDocument();
+    expect(within(row).getByText(/not available/i)).toBeInTheDocument();
+  });
+
   it('renders a changeNumbers action with a readable description', async () => {
     api.list.mockResolvedValue([{
       id: 6,

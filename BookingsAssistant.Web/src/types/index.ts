@@ -169,18 +169,18 @@ export interface PlanAction {
   /** changeSite */
   newSiteId?: string;
   newSiteName?: string;
-  /** addActivity */
+  /** addActivity / checkAvailability */
   activityId?: string;
-  /** moveActivity / addActivity */
+  /** moveActivity / addActivity / checkAvailability */
   newStartDate?: string;
   newStartTime?: string;
   newEndTime?: string;
-  /** addActivity */
+  /** addActivity / checkAvailability */
   newEndDate?: string;
   numberPeople?: number;
   /** changeNumbers */
   newNumberPeople?: number;
-  /** moveDates / changeSite / moveActivity / addActivity / removeActivity / changeNumbers */
+  /** moveDates / changeSite / moveActivity / addActivity / removeActivity / changeNumbers / checkAvailability */
   note?: string;
 }
 
@@ -190,4 +190,10 @@ export interface PlanActionExecutionResult {
   /** One of: "succeeded", "failed", "not_attempted". */
   status: 'succeeded' | 'failed' | 'not_attempted';
   reason?: string | null;
+  /**
+   * Present for actions that produce a result beyond success/failure (currently only
+   * "checkAvailability" — e.g. "Available" or "Not available: ..."). Unlike `reason`, this is
+   * populated on a "succeeded" outcome too.
+   */
+  detail?: string | null;
 }
