@@ -47,6 +47,8 @@ function describeAction(action: PlanAction): string {
     }
     case 'removeActivity':
       return `Remove item ${action.itemId}${action.note ? ` — ${action.note}` : ''}`;
+    case 'changeNumbers':
+      return `Change numbers for item ${action.itemId} to ${action.newNumberPeople ?? '?'}${action.note ? ` — ${action.note}` : ''}`;
     default:
       return `Unknown action: ${action.type}`;
   }

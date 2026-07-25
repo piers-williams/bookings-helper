@@ -7,13 +7,14 @@ import type {
   BookingActionResult,
   BookingDetail as BookingDetailType,
   BookingItem,
+  ChangeNumbersRequest,
   ChangeSiteRequest,
   MoveActivityRequest,
   MoveDatesRequest,
   RemoveActivityRequest,
 } from '../types';
 
-type ItemActionKind = 'move-activity' | 'change-site' | 'remove-activity';
+type ItemActionKind = 'move-activity' | 'change-site' | 'remove-activity' | 'change-numbers';
 
 /** Tailwind classes for the action result banner, keyed by BookingActionResult.status. */
 function actionBannerClass(status: string): string {
@@ -54,6 +55,7 @@ export default function BookingDetail() {
   const [newStartTime, setNewStartTime] = useState('');
   const [newEndTime, setNewEndTime] = useState('');
   const [newSiteId, setNewSiteId] = useState('');
+  const [newNumberPeople, setNewNumberPeople] = useState('');
   const [note, setNote] = useState('');
 
   // Add-activity — a brand-new item, not tied to an existing one, so it gets its own form
@@ -189,6 +191,7 @@ export default function BookingDetail() {
     setNewStartTime('');
     setNewEndTime('');
     setNewSiteId('');
+    setNewNumberPeople('');
     setNote('');
   };
 
@@ -224,6 +227,15 @@ export default function BookingDetail() {
     const req: RemoveActivityRequest = { itemId };
     if (note.trim()) req.note = note.trim();
     runAction(() => bookingsApi.removeActivity(parseInt(id), req));
+  };
+
+  const handleChangeNumbers = (itemId: string) => {
+    if (!id) return;
+    const people = parseInt(newNumberPeople, 10);
+    if (Number.isNaN(people) || people <= 0) return;
+    const req: ChangeNumbersRequest = { itemId, newNumberPeople: people };
+    if (note.trim()) req.note = note.trim();
+    runAction(() => bookingsApi.changeNumbers(parseInt(id), req));
   };
 
   const canAddActivity =
@@ -502,6 +514,13 @@ export default function BookingDetail() {
                       </button>
                     )}
                     <button
+                      onClick={() => openItemAction(item.itemId, 'change-numbers')}
+                      disabled={actionInProgress}
+                      className="ml-2 px-3 py-1 text-sm bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50"
+                    >
+                      Change numbers
+                    </button>
+                    <button
                       onClick={() => openRemoveActivity(item.itemId)}
                       disabled={actionInProgress}
                       className="ml-2 px-3 py-1 text-sm bg-red-600 text-white rounded hover:bg-red-700 disabled:opacity-50"
@@ -530,6 +549,48 @@ export default function BookingDetail() {
                           className="ml-2 px-3 py-1 bg-gray-300 text-gray-800 rounded hover:bg-gray-400">Cancel</button>
                       </div>
                     </div>
+                  </div>
+                )}
+
+                {/* Change-numbers form */}
+                {activeItemAction?.itemId === item.itemId && activeItemAction.kind === 'change-numbers' && (
+                  <div className="mt-3 border-t pt-3 space-y-2">
+                    <div>
+                      <label htmlFor={`np-${item.itemId}`} className="block text-sm font-medium text-gray-700">New number of people</label>
+                      <input id={`np-${item.itemId}`} type="number" min={1} value={newNumberPeople}
+                        onChange={(e) => setNewNumberPeople(e.target.value)} disabled={actionInProgress}
+                        className="w-24 p-2 border border-gray-300 rounded" />
+                    </div>
+                    {!confirmingItemAction ? (
+                      <div>
+                        <button
+                          onClick={() => {
+                            const people = parseInt(newNumberPeople, 10);
+                            if (!Number.isNaN(people) && people > 0) setConfirmingItemAction(true);
+                          }}
+                          disabled={actionInProgress || !(parseInt(newNumberPeople, 10) > 0)}
+                          className="px-3 py-1 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50">Update</button>
+                        <button onClick={() => setActiveItemAction(null)} disabled={actionInProgress}
+                          className="ml-2 px-3 py-1 bg-gray-300 text-gray-800 rounded hover:bg-gray-400">Cancel</button>
+                      </div>
+                    ) : (
+                      <div className="text-sm text-gray-700 space-y-2">
+                        <p>Recreate this item with {newNumberPeople} people, then delete the original?</p>
+                        <div>
+                          <label htmlFor={`note-${item.itemId}`} className="block text-sm font-medium text-gray-700">Add a note (optional)</label>
+                          <textarea id={`note-${item.itemId}`} value={note}
+                            onChange={(e) => setNote(e.target.value)} disabled={actionInProgress}
+                            className="w-full p-2 border border-gray-300 rounded resize-none" rows={2} />
+                        </div>
+                        <div>
+                          <button onClick={() => handleChangeNumbers(item.itemId)} disabled={actionInProgress}
+                            className="px-3 py-1 bg-red-600 text-white rounded hover:bg-red-700 disabled:opacity-50">
+                            {actionInProgress ? 'Working…' : 'Confirm'}</button>
+                          <button onClick={() => setConfirmingItemAction(false)} disabled={actionInProgress}
+                            className="ml-2 px-3 py-1 bg-gray-300 text-gray-800 rounded hover:bg-gray-400">Cancel</button>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 )}
 

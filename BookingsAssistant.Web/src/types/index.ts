@@ -124,6 +124,14 @@ export interface RemoveActivityRequest {
   note?: string;
 }
 
+/** Request to change the headcount (number of people) on an existing item. */
+export interface ChangeNumbersRequest {
+  itemId: string;
+  newNumberPeople: number;
+  /** Optional free-text note appended to the auto-generated audit comment. */
+  note?: string;
+}
+
 /** A bookable site/pitch a booked item can be moved to (for change-site). */
 export interface AvailableSite {
   id: string;
@@ -170,7 +178,9 @@ export interface PlanAction {
   /** addActivity */
   newEndDate?: string;
   numberPeople?: number;
-  /** moveDates / changeSite / moveActivity / addActivity / removeActivity */
+  /** changeNumbers */
+  newNumberPeople?: number;
+  /** moveDates / changeSite / moveActivity / addActivity / removeActivity / changeNumbers */
   note?: string;
 }
 

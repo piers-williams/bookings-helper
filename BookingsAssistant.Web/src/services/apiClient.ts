@@ -6,6 +6,7 @@ import type {
   BookingActionResult,
   BookingDetail,
   BookingItem,
+  ChangeNumbersRequest,
   ChangeSiteRequest,
   BookingStats,
   MoveActivityRequest,
@@ -111,6 +112,11 @@ export const bookingsApi = {
 
   removeActivity: async (id: number, req: RemoveActivityRequest): Promise<BookingActionResult> => {
     const response = await apiClient.post<BookingActionResult>(`/bookings/${id}/actions/remove-activity`, req);
+    return response.data;
+  },
+
+  changeNumbers: async (id: number, req: ChangeNumbersRequest): Promise<BookingActionResult> => {
+    const response = await apiClient.post<BookingActionResult>(`/bookings/${id}/actions/change-numbers`, req);
     return response.data;
   },
 };

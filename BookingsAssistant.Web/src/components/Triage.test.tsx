@@ -263,4 +263,24 @@ describe('action rendering', () => {
 
     expect(screen.getByText(/remove item 411468/i)).toBeInTheDocument();
   });
+
+  it('renders a changeNumbers action with a readable description', async () => {
+    api.list.mockResolvedValue([{
+      id: 6,
+      status: 'AwaitingApproval',
+      sourceEmailText: 'Two more people are joining our archery session.',
+      osmBookingId: '179748',
+      actionsJson: JSON.stringify([
+        { type: 'changeNumbers', itemId: '411468', newNumberPeople: 10, note: 'two more joined' },
+      ]),
+      executionResultJson: null,
+      createdAt: '2026-07-23T09:00:00Z',
+    }]);
+    const user = userEvent.setup();
+    renderTriage();
+
+    await user.click(await screen.findByRole('button', { name: /plan #6/i }));
+
+    expect(screen.getByText(/change numbers for item 411468 to 10/i)).toBeInTheDocument();
+  });
 });
