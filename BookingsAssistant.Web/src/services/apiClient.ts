@@ -11,6 +11,7 @@ import type {
   MoveActivityRequest,
   MoveDatesRequest,
   ProposedPlan,
+  RemoveActivityRequest,
 } from '../types';
 
 const apiClient = axios.create({
@@ -105,6 +106,11 @@ export const bookingsApi = {
 
   addActivity: async (id: number, req: AddActivityRequest): Promise<BookingActionResult> => {
     const response = await apiClient.post<BookingActionResult>(`/bookings/${id}/actions/add-activity`, req);
+    return response.data;
+  },
+
+  removeActivity: async (id: number, req: RemoveActivityRequest): Promise<BookingActionResult> => {
+    const response = await apiClient.post<BookingActionResult>(`/bookings/${id}/actions/remove-activity`, req);
     return response.data;
   },
 };

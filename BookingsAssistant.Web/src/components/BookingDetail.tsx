@@ -10,9 +10,10 @@ import type {
   ChangeSiteRequest,
   MoveActivityRequest,
   MoveDatesRequest,
+  RemoveActivityRequest,
 } from '../types';
 
-type ItemActionKind = 'move-activity' | 'change-site';
+type ItemActionKind = 'move-activity' | 'change-site' | 'remove-activity';
 
 /** Tailwind classes for the action result banner, keyed by BookingActionResult.status. */
 function actionBannerClass(status: string): string {
@@ -208,6 +209,21 @@ export default function BookingDetail() {
     if (selectedSite) req.newSiteName = selectedSite.name;
     if (note.trim()) req.note = note.trim();
     runAction(() => bookingsApi.changeSite(parseInt(id), req));
+  };
+
+  // Remove is a hard delete with no fields to fill in first, so it skips the intermediate
+  // panel that move-activity/change-site use and opens straight into the confirm gate.
+  const openRemoveActivity = (itemId: string) => {
+    setActiveItemAction({ itemId, kind: 'remove-activity' });
+    setConfirmingItemAction(true);
+    setNote('');
+  };
+
+  const handleRemoveActivity = (itemId: string) => {
+    if (!id) return;
+    const req: RemoveActivityRequest = { itemId };
+    if (note.trim()) req.note = note.trim();
+    runAction(() => bookingsApi.removeActivity(parseInt(id), req));
   };
 
   const canAddActivity =
@@ -485,6 +501,35 @@ export default function BookingDetail() {
                         Change site
                       </button>
                     )}
+                    <button
+                      onClick={() => openRemoveActivity(item.itemId)}
+                      disabled={actionInProgress}
+                      className="ml-2 px-3 py-1 text-sm bg-red-600 text-white rounded hover:bg-red-700 disabled:opacity-50"
+                    >
+                      Remove
+                    </button>
+                  </div>
+                )}
+
+                {/* Remove form — irreversible, so it opens straight into the confirm gate. */}
+                {activeItemAction?.itemId === item.itemId && activeItemAction.kind === 'remove-activity' && (
+                  <div className="mt-3 border-t pt-3 space-y-2">
+                    <div className="text-sm text-gray-700 space-y-2">
+                      <p>Permanently remove '{item.label}' from this booking? This cannot be undone.</p>
+                      <div>
+                        <label htmlFor={`remove-note-${item.itemId}`} className="block text-sm font-medium text-gray-700">Add a note (optional)</label>
+                        <textarea id={`remove-note-${item.itemId}`} value={note}
+                          onChange={(e) => setNote(e.target.value)} disabled={actionInProgress}
+                          className="w-full p-2 border border-gray-300 rounded resize-none" rows={2} />
+                      </div>
+                      <div>
+                        <button onClick={() => handleRemoveActivity(item.itemId)} disabled={actionInProgress}
+                          className="px-3 py-1 bg-red-600 text-white rounded hover:bg-red-700 disabled:opacity-50">
+                          {actionInProgress ? 'Working…' : 'Confirm'}</button>
+                        <button onClick={() => setActiveItemAction(null)} disabled={actionInProgress}
+                          className="ml-2 px-3 py-1 bg-gray-300 text-gray-800 rounded hover:bg-gray-400">Cancel</button>
+                      </div>
+                    </div>
                   </div>
                 )}
 

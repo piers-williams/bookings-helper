@@ -117,6 +117,13 @@ export interface AddActivityRequest {
   note?: string;
 }
 
+/** Request to remove (hard-delete) an existing item — activity or site — from a booking. */
+export interface RemoveActivityRequest {
+  itemId: string;
+  /** Optional free-text note appended to the auto-generated audit comment. */
+  note?: string;
+}
+
 /** A bookable site/pitch a booked item can be moved to (for change-site). */
 export interface AvailableSite {
   id: string;
@@ -163,7 +170,7 @@ export interface PlanAction {
   /** addActivity */
   newEndDate?: string;
   numberPeople?: number;
-  /** moveDates / changeSite / moveActivity / addActivity */
+  /** moveDates / changeSite / moveActivity / addActivity / removeActivity */
   note?: string;
 }
 
