@@ -148,6 +148,13 @@ export interface ProposedPlan {
   osmBookingId?: string | null;
   /** JSON-encoded array of PlanAction, in execution order. */
   actionsJson?: string | null;
+  /**
+   * Set when drafting succeeded but an automatic availability pre-check found a date-carrying
+   * action (currently addActivity) whose slot was still unavailable after drafting's one retry.
+   * Drafting isn't failed for this — the plan is saved as normal — but a human reviewing it
+   * here should see the conflict before approving.
+   */
+  draftWarning?: string | null;
   /** JSON-encoded array of PlanActionExecutionResult, parallel to the actions array. */
   executionResultJson?: string | null;
   createdAt: string;

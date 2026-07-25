@@ -143,6 +143,13 @@ function PlanDetail({ plan, onApprove, onReject, busy }: PlanDetailProps) {
         <p className="text-sm text-gray-600 mb-2">Booking: {plan.osmBookingId}</p>
       )}
 
+      {plan.draftWarning && (
+        <div className="mb-4 p-3 bg-amber-50 border border-amber-300 rounded text-sm text-amber-800">
+          <span className="font-semibold">Availability warning: </span>
+          {plan.draftWarning}
+        </div>
+      )}
+
       {plan.sourceEmailText && (
         <div className="mb-4">
           <h3 className="text-sm font-semibold text-gray-700 mb-1">Source email</h3>
