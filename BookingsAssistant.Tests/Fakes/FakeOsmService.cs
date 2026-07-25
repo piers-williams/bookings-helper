@@ -135,6 +135,22 @@ public class FakeOsmService : IOsmService
         return Task.FromResult(!DeleteReturnFalseForIds.Contains(itemId));
     }
 
+    // Availability — configurable for checkAvailability tests
+    public AvailabilityResult AvailabilityResultToReturn { get; set; } = new() { Available = true };
+
+    /// <summary>If set, CheckAvailabilityAsync throws this (to exercise the controller's 401/502 paths).</summary>
+    public Exception? CheckAvailabilityError { get; set; }
+
+    /// <summary>Captures each call to CheckAvailabilityAsync, in order.</summary>
+    public List<(string OsmBookingId, string CampsiteItemId, DateTime StartDate, DateTime EndDate)> AvailabilityChecks { get; } = new();
+
+    public Task<AvailabilityResult> CheckAvailabilityAsync(string osmBookingId, string campsiteItemId, DateTime startDate, DateTime endDate)
+    {
+        AvailabilityChecks.Add((osmBookingId, campsiteItemId, startDate, endDate));
+        if (CheckAvailabilityError != null) throw CheckAvailabilityError;
+        return Task.FromResult(AvailabilityResultToReturn);
+    }
+
     public string GetAuthorizationUrl(string redirectUri)
     {
         return string.Empty;

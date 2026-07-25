@@ -349,6 +349,27 @@ internal class OsmService : IOsmService
         return ParseAvailableActivities(await response.Content.ReadAsStringAsync());
     }
 
+    public async Task<AvailabilityResult> CheckAvailabilityAsync(
+        string osmBookingId, string campsiteItemId, DateTime startDate, DateTime endDate)
+    {
+        // Same per-item availability endpoint and slot-resolution logic as step 1 of
+        // CreateBookingItemAsync — but purely read-only: no addItem call follows.
+        var availUrl = $"/v3/campsites/items/{Uri.EscapeDataString(campsiteItemId)}/availability?booking_id={Uri.EscapeDataString(osmBookingId)}";
+        var response = await SendAuthorizedAsync(HttpMethod.Get, availUrl, null);
+        if (!response.IsSuccessStatusCode)
+            throw await CreateOsmExceptionAsync(response, $"checking availability for item {campsiteItemId}");
+
+        var json = await response.Content.ReadAsStringAsync();
+        var slotId = ResolveSlotId(json, startDate, endDate);
+        return slotId != null
+            ? new AvailabilityResult { Available = true }
+            : new AvailabilityResult
+            {
+                Available = false,
+                Reason = $"No available slot for {startDate:yyyy-MM-dd} to {endDate:yyyy-MM-dd}"
+            };
+    }
+
     private async Task ReplayQuestionAnswersAsync(string itemId, IReadOnlyDictionary<int, string> answersByDefId)
     {
         try
