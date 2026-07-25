@@ -171,6 +171,20 @@ public class PlanExecutionService : IPlanExecutionService
                 return;
             }
 
+            case "changenumbers":
+            {
+                var bookingId = RequireBookingId(osmBookingId, type);
+                var request = new ChangeNumbersRequest
+                {
+                    ItemId = RequireString(action, "itemId", type),
+                    NewNumberPeople = RequireInt(action, "newNumberPeople", type),
+                    Note = OptionalString(action, "note")
+                };
+                var result = await _itemActionService.ChangeNumbersAsync(bookingId, request);
+                ThrowIfNotSuccessful(result);
+                return;
+            }
+
             default:
                 throw new InvalidOperationException($"Unknown action type \"{type}\"");
         }

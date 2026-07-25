@@ -308,6 +308,86 @@ public class PlanCreateTests : IClassFixture<WebApplicationFactory<Program>>
     }
 
     [Fact]
+    public async Task Create_ReturnsAwaitingApprovalWithActionsJson_WhenLlmReturnsValidChangeNumbers()
+    {
+        _fakeLlm.ResponsesToReturn.Enqueue(
+            "{\"actions\":[{\"type\":\"changeNumbers\",\"itemId\":\"act-item-1\",\"newNumberPeople\":10}]}");
+
+        var client = _factory.CreateClient();
+        var response = await client.PostAsJsonAsync("/api/plans", new CreatePlanRequest
+        {
+            SourceEmailText = "Two more people are joining our archery session."
+        });
+
+        Assert.Equal(HttpStatusCode.Created, response.StatusCode);
+        var result = await response.Content.ReadFromJsonAsync<ProposedPlanDto>();
+        Assert.NotNull(result);
+        Assert.Equal("AwaitingApproval", result.Status);
+        Assert.NotNull(result.ActionsJson);
+        Assert.Contains("changeNumbers", result.ActionsJson);
+    }
+
+    [Fact]
+    public async Task Create_ReturnsFailedStatus_WhenLlmReturnsChangeNumbersMissingItemId()
+    {
+        var malformed = "{\"actions\":[{\"type\":\"changeNumbers\",\"newNumberPeople\":10}]}";
+        _fakeLlm.ResponsesToReturn.Enqueue(malformed);
+        _fakeLlm.ResponsesToReturn.Enqueue(malformed);
+
+        var client = _factory.CreateClient();
+        var response = await client.PostAsJsonAsync("/api/plans", new CreatePlanRequest
+        {
+            SourceEmailText = "Two more people are joining our archery session."
+        });
+
+        Assert.Equal(HttpStatusCode.Created, response.StatusCode);
+        var result = await response.Content.ReadFromJsonAsync<ProposedPlanDto>();
+        Assert.NotNull(result);
+        Assert.Equal("Failed", result.Status);
+        Assert.Null(result.ActionsJson);
+    }
+
+    [Fact]
+    public async Task Create_ReturnsFailedStatus_WhenLlmReturnsChangeNumbersMissingNewNumberPeople()
+    {
+        var malformed = "{\"actions\":[{\"type\":\"changeNumbers\",\"itemId\":\"act-item-1\"}]}";
+        _fakeLlm.ResponsesToReturn.Enqueue(malformed);
+        _fakeLlm.ResponsesToReturn.Enqueue(malformed);
+
+        var client = _factory.CreateClient();
+        var response = await client.PostAsJsonAsync("/api/plans", new CreatePlanRequest
+        {
+            SourceEmailText = "Two more people are joining our archery session."
+        });
+
+        Assert.Equal(HttpStatusCode.Created, response.StatusCode);
+        var result = await response.Content.ReadFromJsonAsync<ProposedPlanDto>();
+        Assert.NotNull(result);
+        Assert.Equal("Failed", result.Status);
+        Assert.Null(result.ActionsJson);
+    }
+
+    [Fact]
+    public async Task Create_ReturnsFailedStatus_WhenLlmReturnsChangeNumbersWithNonNumericNewNumberPeople()
+    {
+        var malformed = "{\"actions\":[{\"type\":\"changeNumbers\",\"itemId\":\"act-item-1\",\"newNumberPeople\":\"ten\"}]}";
+        _fakeLlm.ResponsesToReturn.Enqueue(malformed);
+        _fakeLlm.ResponsesToReturn.Enqueue(malformed);
+
+        var client = _factory.CreateClient();
+        var response = await client.PostAsJsonAsync("/api/plans", new CreatePlanRequest
+        {
+            SourceEmailText = "Two more people are joining our archery session."
+        });
+
+        Assert.Equal(HttpStatusCode.Created, response.StatusCode);
+        var result = await response.Content.ReadFromJsonAsync<ProposedPlanDto>();
+        Assert.NotNull(result);
+        Assert.Equal("Failed", result.Status);
+        Assert.Null(result.ActionsJson);
+    }
+
+    [Fact]
     public async Task Create_IncludesBookingContextInPrompt_WhenOsmBookingIdProvided()
     {
         var bookingId = await SeedBookingAsync();

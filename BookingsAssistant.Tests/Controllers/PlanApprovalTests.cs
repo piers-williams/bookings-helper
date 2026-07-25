@@ -393,6 +393,88 @@ public class PlanApprovalTests : IClassFixture<WebApplicationFactory<Program>>
     }
 
     [Fact]
+    public async Task Approve_ChangeNumbersActionSucceeds_MarksExecuted_ReplacesItemAndPostsComment()
+    {
+        var bookingId = await SeedBookingAsync("77511");
+        _fakeOsm.ItemsToReturn = new List<BookingItemDto> { MakeSiteItem("site-item-1") };
+        _fakeOsm.CreatedItemIds = new List<string> { "site-item-new" };
+        _fakeOsm.CommentToReturn = new CommentDto
+        {
+            OsmBookingId = bookingId,
+            OsmCommentId = "cmt-change-numbers-1",
+            AuthorName = "Site Manager",
+            TextPreview = "Number of people changed",
+            CreatedDate = new DateTime(2026, 8, 1, 9, 0, 0, DateTimeKind.Utc)
+        };
+        var planId = await SeedPlanAsync(
+            "[{\"type\":\"changeNumbers\",\"itemId\":\"site-item-1\",\"newNumberPeople\":10}]",
+            bookingId);
+
+        var client = _factory.CreateClient();
+        var response = await client.PostAsync($"/api/plans/{planId}/approve", content: null);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var result = await response.Content.ReadFromJsonAsync<ProposedPlanDto>();
+        Assert.NotNull(result);
+        Assert.Equal("Executed", result.Status);
+
+        var spec = Assert.Single(_fakeOsm.CapturedSpecs);
+        Assert.Equal(10, spec.NumberPeople);
+        Assert.Contains("site-item-1", _fakeOsm.DeletedItems.Select(d => d.ItemId));
+        Assert.Single(_fakeOsm.CommentsPosted);
+    }
+
+    [Fact]
+    public async Task Approve_ChangeNumbersActionFails_MarksFailed_WhenItemNotInBooking()
+    {
+        var bookingId = await SeedBookingAsync("77512");
+        _fakeOsm.ItemsToReturn = new List<BookingItemDto>(); // item-does-not-exist isn't among the booking's items
+
+        var planId = await SeedPlanAsync(
+            "[{\"type\":\"changeNumbers\",\"itemId\":\"item-does-not-exist\",\"newNumberPeople\":10}]",
+            bookingId);
+
+        var client = _factory.CreateClient();
+        var response = await client.PostAsync($"/api/plans/{planId}/approve", content: null);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var result = await response.Content.ReadFromJsonAsync<ProposedPlanDto>();
+        Assert.NotNull(result);
+        Assert.Equal("Failed", result.Status);
+
+        var results = System.Text.Json.JsonSerializer.Deserialize<List<PlanActionExecutionResult>>(result.ExecutionResultJson!)!;
+        var single = Assert.Single(results);
+        Assert.Equal("changeNumbers", single.Type);
+        Assert.Equal(PlanActionExecutionStatus.Failed, single.Status);
+    }
+
+    [Fact]
+    public async Task Approve_ChangeNumbersActionFailure_StopsSubsequentActions()
+    {
+        var bookingId = await SeedBookingAsync("77513");
+        _fakeOsm.ItemsToReturn = new List<BookingItemDto>(); // changeNumbers' itemId won't be found
+
+        var planId = await SeedPlanAsync(
+            "[{\"type\":\"changeNumbers\",\"itemId\":\"item-does-not-exist\",\"newNumberPeople\":10}," +
+            "{\"type\":\"postComment\",\"text\":\"should not run\"}]",
+            bookingId);
+
+        var client = _factory.CreateClient();
+        var response = await client.PostAsync($"/api/plans/{planId}/approve", content: null);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var result = await response.Content.ReadFromJsonAsync<ProposedPlanDto>();
+        Assert.NotNull(result);
+        Assert.Equal("Failed", result.Status);
+
+        var results = System.Text.Json.JsonSerializer.Deserialize<List<PlanActionExecutionResult>>(result.ExecutionResultJson!)!;
+        Assert.Equal(2, results.Count);
+        Assert.Equal(PlanActionExecutionStatus.Failed, results[0].Status);
+        Assert.Equal(PlanActionExecutionStatus.NotAttempted, results[1].Status);
+        Assert.Empty(_fakeOsm.CommentsPosted);
+    }
+
+    [Fact]
     public async Task Approve_RemoveActivityActionFailure_StopsSubsequentActions()
     {
         var bookingId = await SeedBookingAsync("77510");

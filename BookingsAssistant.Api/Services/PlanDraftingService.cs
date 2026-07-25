@@ -10,10 +10,10 @@ internal class PlanDraftingService : IPlanDraftingService
     // The action types the LLM is allowed to propose. Kept in sync with the schema described
     // in the system prompt below and with PlanExecutionService, which maps these onto
     // BookingActionsController's move-activity / change-site / move-dates / add-activity /
-    // remove-activity DTOs.
+    // remove-activity / change-numbers DTOs.
     private static readonly HashSet<string> KnownActionTypes = new(StringComparer.OrdinalIgnoreCase)
     {
-        "draftEmailReply", "postComment", "sendTemplateEmail", "moveDates", "changeSite", "moveActivity", "addActivity", "removeActivity"
+        "draftEmailReply", "postComment", "sendTemplateEmail", "moveDates", "changeSite", "moveActivity", "addActivity", "removeActivity", "changeNumbers"
     };
 
     private const string SystemPrompt =
@@ -30,7 +30,8 @@ internal class PlanDraftingService : IPlanDraftingService
         "- moveActivity: { \"itemId\": string, \"newStartDate\"?: string, \"newStartTime\"?: string, \"newEndTime\"?: string, \"note\"?: string } — " +
         "reschedules an activity item. Omitting newStartDate while supplying newStartTime/newEndTime reschedules only the time, keeping the item's original date\n" +
         "- addActivity: { \"activityId\": string, \"newStartDate\": string, \"newEndDate\": string, \"newStartTime\"?: string, \"newEndTime\"?: string, \"numberPeople\": number, \"note\"?: string } — adds a brand-new activity item to the booking\n" +
-        "- removeActivity: { \"itemId\": string, \"note\"?: string } — permanently removes an existing item (activity or site) from the booking\n\n" +
+        "- removeActivity: { \"itemId\": string, \"note\"?: string } — permanently removes an existing item (activity or site) from the booking\n" +
+        "- changeNumbers: { \"itemId\": string, \"newNumberPeople\": number, \"note\"?: string } — changes the number of people on an existing item\n\n" +
         "Choose whichever actions (and however many, including zero if none apply) best address the email. " +
         "You decide the order — e.g. draftEmailReply can come first, last, or be omitted entirely. " +
         "Return JSON only: no prose, no markdown code fences, no explanation.";
@@ -229,6 +230,18 @@ internal class PlanDraftingService : IPlanDraftingService
             case "removeactivity":
                 reason = MissingNonEmptyString("itemId");
                 return reason == null;
+
+            case "changenumbers":
+                reason = MissingNonEmptyString("itemId");
+                if (reason != null) return false;
+
+                if (!action.TryGetProperty("newNumberPeople", out var newNumberPeopleEl) || newNumberPeopleEl.ValueKind != JsonValueKind.Number)
+                {
+                    reason = "action \"changeNumbers\" requires a numeric \"newNumberPeople\"";
+                    return false;
+                }
+                reason = null;
+                return true;
 
             case "addactivity":
                 reason = MissingNonEmptyString("activityId") ?? MissingNonEmptyString("newStartDate") ?? MissingNonEmptyString("newEndDate");
