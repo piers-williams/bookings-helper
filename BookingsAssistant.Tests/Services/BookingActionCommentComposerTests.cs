@@ -88,6 +88,52 @@ public class BookingActionCommentComposerTests
     }
 
     [Fact]
+    public void ComposeRemoveActivitySummary_DescribesRemovedItem()
+    {
+        var summary = BookingActionCommentComposer.ComposeRemoveActivitySummary(
+            MakeActivityItem(),
+            new RemoveActivityRequest { ItemId = "act-item-1" });
+
+        Assert.Equal("Removed 'Archery Session'.", summary);
+    }
+
+    [Fact]
+    public void ComposeRemoveActivitySummary_AppendsNote_WhenProvided()
+    {
+        var summary = BookingActionCommentComposer.ComposeRemoveActivitySummary(
+            MakeActivityItem(),
+            new RemoveActivityRequest { ItemId = "act-item-1", Note = "customer cancelled this session" });
+
+        Assert.Equal("Removed 'Archery Session'. Note: customer cancelled this session", summary);
+    }
+
+    [Fact]
+    public void ComposeChangeNumbersSummary_DescribesNumberChange()
+    {
+        var activity = MakeActivityItem();
+        activity.NumberPeople = 4;
+
+        var summary = BookingActionCommentComposer.ComposeChangeNumbersSummary(
+            activity,
+            new ChangeNumbersRequest { ItemId = "act-item-1", NewNumberPeople = 10 });
+
+        Assert.Equal("Number of people changed for 'Archery Session': 4 → 10.", summary);
+    }
+
+    [Fact]
+    public void ComposeChangeNumbersSummary_AppendsNote_WhenProvided()
+    {
+        var activity = MakeActivityItem();
+        activity.NumberPeople = 4;
+
+        var summary = BookingActionCommentComposer.ComposeChangeNumbersSummary(
+            activity,
+            new ChangeNumbersRequest { ItemId = "act-item-1", NewNumberPeople = 10, Note = "two more joined" });
+
+        Assert.Equal("Number of people changed for 'Archery Session': 4 → 10. Note: two more joined", summary);
+    }
+
+    [Fact]
     public void ComposeMoveDatesSummary_DescribesShift()
     {
         var summary = BookingActionCommentComposer.ComposeMoveDatesSummary(

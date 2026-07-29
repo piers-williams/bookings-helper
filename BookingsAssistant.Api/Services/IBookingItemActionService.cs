@@ -24,4 +24,26 @@ public interface IBookingItemActionService
 
     /// <summary>Shifts every item in the booking by the given number of days.</summary>
     Task<BookingActionResult> MoveDatesAsync(string osmBookingId, MoveDatesRequest request);
+
+    /// <summary>
+    /// Adds a brand-new activity item to the booking. Unlike the other actions here, there is
+    /// no original item to resolve or clone from — the create spec is built entirely from
+    /// <paramref name="request"/> and created directly via IOsmService.CreateBookingItemAsync.
+    /// </summary>
+    Task<BookingActionResult> AddActivityAsync(string osmBookingId, AddActivityRequest request);
+
+    /// <summary>
+    /// Removes (hard-deletes) an existing item — activity or site — from the booking. Unlike
+    /// the other actions here, there is no replacement created: the item is resolved via
+    /// ItemId and deleted directly via IOsmService.DeleteBookingItemAsync. Throws
+    /// <see cref="BookingItemNotFoundException"/> if ItemId isn't in the booking.
+    /// </summary>
+    Task<BookingActionResult> RemoveActivityAsync(string osmBookingId, RemoveActivityRequest request);
+
+    /// <summary>
+    /// Changes the headcount (number of people) on an existing item. Uses the same
+    /// clone-then-delete-original engine as MoveActivity/ChangeSite. Throws
+    /// <see cref="BookingItemNotFoundException"/> if ItemId isn't in the booking.
+    /// </summary>
+    Task<BookingActionResult> ChangeNumbersAsync(string osmBookingId, ChangeNumbersRequest request);
 }

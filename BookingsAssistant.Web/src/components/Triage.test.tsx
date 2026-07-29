@@ -190,6 +190,40 @@ describe('plan detail actions', () => {
   });
 });
 
+describe('draft warning banner', () => {
+  it('shows a visible warning banner when the plan has a draftWarning', async () => {
+    api.list.mockResolvedValue([{
+      id: 9,
+      status: 'AwaitingApproval',
+      sourceEmailText: 'Can you add an archery session?',
+      osmBookingId: '179751',
+      actionsJson: JSON.stringify([
+        { type: 'addActivity', activityId: '4962', newStartDate: '2026-08-02', newEndDate: '2026-08-02', numberPeople: 8 },
+      ]),
+      draftWarning: 'addActivity for activityId "4962" (2026-08-02 to 2026-08-02) is not available: Fully booked',
+      executionResultJson: null,
+      createdAt: '2026-07-25T09:00:00Z',
+    }]);
+    const user = userEvent.setup();
+    renderTriage();
+
+    await user.click(await screen.findByRole('button', { name: /plan #9/i }));
+
+    expect(screen.getByText(/fully booked/i)).toBeInTheDocument();
+  });
+
+  it('does not show a warning banner when the plan has no draftWarning', async () => {
+    api.list.mockResolvedValue([executedPlan]);
+    const user = userEvent.setup();
+    renderTriage();
+
+    await user.click(await screen.findByRole('button', { name: /plan #2/i }));
+
+    expect(screen.queryByText(/not available/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/fully booked/i)).not.toBeInTheDocument();
+  });
+});
+
 describe('action rendering', () => {
   it('renders a draftEmailReply action as copyable text and an OSM action as a readable description', async () => {
     api.create.mockResolvedValue(draftReplyPlan);
@@ -221,5 +255,118 @@ describe('action rendering', () => {
 
     const templateEmailRow = screen.getByText(/send template email/i).closest('div')!.parentElement!;
     expect(within(templateEmailRow).getByText(/not_attempted/i)).toBeInTheDocument();
+  });
+
+  it('renders an addActivity action with a readable description', async () => {
+    api.list.mockResolvedValue([{
+      id: 4,
+      status: 'AwaitingApproval',
+      sourceEmailText: 'Can we add an archery session?',
+      osmBookingId: '179746',
+      actionsJson: JSON.stringify([
+        { type: 'addActivity', activityId: '4962', newStartDate: '2026-08-02', newStartTime: '10:00', numberPeople: 8 },
+      ]),
+      executionResultJson: null,
+      createdAt: '2026-07-21T09:00:00Z',
+    }]);
+    const user = userEvent.setup();
+    renderTriage();
+
+    await user.click(await screen.findByRole('button', { name: /plan #4/i }));
+
+    expect(screen.getByText(/add activity 4962/i)).toBeInTheDocument();
+    expect(screen.getByText(/8 people/i)).toBeInTheDocument();
+  });
+
+  it('renders a removeActivity action with a readable description', async () => {
+    api.list.mockResolvedValue([{
+      id: 5,
+      status: 'AwaitingApproval',
+      sourceEmailText: 'Please cancel our archery session',
+      osmBookingId: '179747',
+      actionsJson: JSON.stringify([
+        { type: 'removeActivity', itemId: '411468', note: 'customer cancelled' },
+      ]),
+      executionResultJson: null,
+      createdAt: '2026-07-22T09:00:00Z',
+    }]);
+    const user = userEvent.setup();
+    renderTriage();
+
+    await user.click(await screen.findByRole('button', { name: /plan #5/i }));
+
+    expect(screen.getByText(/remove item 411468/i)).toBeInTheDocument();
+  });
+
+  it('renders a checkAvailability action with a readable description and its available detail', async () => {
+    api.list.mockResolvedValue([{
+      id: 7,
+      status: 'Executed',
+      sourceEmailText: null,
+      osmBookingId: '179749',
+      actionsJson: JSON.stringify([
+        { type: 'checkAvailability', activityId: '4962', newStartDate: '2026-08-02', newEndDate: '2026-08-02' },
+      ]),
+      executionResultJson: JSON.stringify([
+        { type: 'checkAvailability', status: 'succeeded', detail: 'Available' },
+      ]),
+      createdAt: '2026-07-24T09:00:00Z',
+    }]);
+    const user = userEvent.setup();
+    renderTriage();
+
+    await user.click(await screen.findByRole('button', { name: /plan #7/i }));
+
+    expect(screen.getByText(/check availability.*4962/i)).toBeInTheDocument();
+    const row = screen.getByText(/check availability.*4962/i).closest('div')!.parentElement!;
+    expect(within(row).getByText(/succeeded/i)).toBeInTheDocument();
+    expect(within(row).getByText(/^available$/i)).toBeInTheDocument();
+  });
+
+  it('renders a checkAvailability action result as succeeded even when unavailable', async () => {
+    // The important behavioral distinction: "not available" is still a succeeded query, not a
+    // failure -- the status badge must read "succeeded", with the unavailability explained via
+    // the detail text, not the (failure-only) reason text.
+    api.list.mockResolvedValue([{
+      id: 8,
+      status: 'Executed',
+      sourceEmailText: null,
+      osmBookingId: '179750',
+      actionsJson: JSON.stringify([
+        { type: 'checkAvailability', activityId: '4962', newStartDate: '2026-08-02', newEndDate: '2026-08-02' },
+      ]),
+      executionResultJson: JSON.stringify([
+        { type: 'checkAvailability', status: 'succeeded', detail: 'Not available: No available slot for 2026-08-02 to 2026-08-02' },
+      ]),
+      createdAt: '2026-07-24T09:00:00Z',
+    }]);
+    const user = userEvent.setup();
+    renderTriage();
+
+    await user.click(await screen.findByRole('button', { name: /plan #8/i }));
+
+    const row = screen.getByText(/check availability.*4962/i).closest('div')!.parentElement!;
+    expect(within(row).getByText(/succeeded/i)).toBeInTheDocument();
+    expect(within(row).getByText(/not available/i)).toBeInTheDocument();
+  });
+
+  it('renders a changeNumbers action with a readable description', async () => {
+    api.list.mockResolvedValue([{
+      id: 6,
+      status: 'AwaitingApproval',
+      sourceEmailText: 'Two more people are joining our archery session.',
+      osmBookingId: '179748',
+      actionsJson: JSON.stringify([
+        { type: 'changeNumbers', itemId: '411468', newNumberPeople: 10, note: 'two more joined' },
+      ]),
+      executionResultJson: null,
+      createdAt: '2026-07-23T09:00:00Z',
+    }]);
+    const user = userEvent.setup();
+    renderTriage();
+
+    await user.click(await screen.findByRole('button', { name: /plan #6/i }));
+
+    expect(screen.getByText(/change numbers for item 411468 to 10/i)).toBeInTheDocument();
   });
 });

@@ -78,6 +78,70 @@ public class BookingActionsController : ControllerBase
         }
     }
 
+    /// <summary>
+    /// Lists the bookable activities that could be added to the booking (for add-activity).
+    /// </summary>
+    [HttpGet("{id}/available-activities")]
+    public async Task<ActionResult<List<AvailableSiteDto>>> GetAvailableActivities(int id)
+    {
+        var booking = await _context.OsmBookings.FindAsync(id);
+        if (booking == null)
+            return NotFound();
+
+        try
+        {
+            var activities = await _osmService.GetAvailableActivitiesAsync(booking.OsmBookingId);
+            return Ok(activities);
+        }
+        catch (InvalidOperationException ex) when (ex.Message.Contains("OSM"))
+        {
+            return Unauthorized(new { message = "OSM authentication required", detail = ex.Message });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error fetching available activities for booking {Id}", id);
+            return StatusCode(502, new { message = "Error fetching activities from OSM", detail = ex.Message });
+        }
+    }
+
+    /// <summary>
+    /// Read-only check of whether a site/activity item-type has an available slot for the
+    /// given date range. Unlike the mutation endpoints below, "not available" is a normal 200
+    /// result (AvailabilityResult.Available = false) — it is not treated as an error.
+    /// </summary>
+    [HttpGet("{id}/availability")]
+    public async Task<ActionResult<AvailabilityResult>> CheckAvailability(
+        int id, [FromQuery] string? activityId, [FromQuery] DateTime? startDate, [FromQuery] DateTime? endDate)
+    {
+        if (string.IsNullOrWhiteSpace(activityId))
+            return BadRequest(new { message = "activityId is required" });
+
+        if (startDate is null)
+            return BadRequest(new { message = "startDate is required" });
+
+        if (endDate is null)
+            return BadRequest(new { message = "endDate is required" });
+
+        var booking = await _context.OsmBookings.FindAsync(id);
+        if (booking == null)
+            return NotFound();
+
+        try
+        {
+            var result = await _osmService.CheckAvailabilityAsync(booking.OsmBookingId, activityId, startDate.Value, endDate.Value);
+            return Ok(result);
+        }
+        catch (InvalidOperationException ex) when (ex.Message.Contains("OSM"))
+        {
+            return Unauthorized(new { message = "OSM authentication required", detail = ex.Message });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error checking availability for booking {Id}", id);
+            return StatusCode(502, new { message = "Error checking availability with OSM", detail = ex.Message });
+        }
+    }
+
     // ── Error mapping convention for mutation endpoints ───────────────────────
     // - 400 Bad Request: missing/invalid request parameters (checked before OSM calls)
     // - 404 Not Found: booking not in DB, or item not in booking's current item list
@@ -184,6 +248,119 @@ public class BookingActionsController : ControllerBase
         {
             _logger.LogError(ex, "Error during move-dates for booking {Id}", id);
             return StatusCode(502, new { message = "Error executing move-dates", detail = ex.Message });
+        }
+    }
+
+    /// <summary>
+    /// Adds a brand-new activity item to the booking (no existing item to clone — the create
+    /// spec is built entirely from the request).
+    /// </summary>
+    [HttpPost("{id}/actions/add-activity")]
+    public async Task<ActionResult<BookingActionResult>> AddActivity(int id, [FromBody] AddActivityRequest request)
+    {
+        if (string.IsNullOrWhiteSpace(request.ActivityId))
+            return BadRequest(new { message = "ActivityId is required" });
+
+        if (request.StartDate is null)
+            return BadRequest(new { message = "StartDate is required" });
+
+        if (request.EndDate is null)
+            return BadRequest(new { message = "EndDate is required" });
+
+        if (request.NumberPeople is null or <= 0)
+            return BadRequest(new { message = "NumberPeople is required and must be greater than zero" });
+
+        var booking = await _context.OsmBookings.FindAsync(id);
+        if (booking == null)
+            return NotFound();
+
+        try
+        {
+            var result = await _itemActionService.AddActivityAsync(booking.OsmBookingId, request);
+            return Ok(result);
+        }
+        catch (InvalidOperationException ex) when (ex.Message.Contains("OSM"))
+        {
+            return Unauthorized(new { message = "OSM authentication required", detail = ex.Message });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error during add-activity for booking {Id}", id);
+            return StatusCode(502, new { message = "Error executing add-activity", detail = ex.Message });
+        }
+    }
+
+    /// <summary>
+    /// Removes (hard-deletes) an existing item — activity or site — from the booking. No
+    /// replacement is created; this is a straight delete of an existing item.
+    /// </summary>
+    [HttpPost("{id}/actions/remove-activity")]
+    public async Task<ActionResult<BookingActionResult>> RemoveActivity(int id, [FromBody] RemoveActivityRequest request)
+    {
+        if (string.IsNullOrWhiteSpace(request.ItemId))
+            return BadRequest(new { message = "ItemId is required" });
+
+        var booking = await _context.OsmBookings.FindAsync(id);
+        if (booking == null)
+            return NotFound();
+
+        try
+        {
+            var result = await _itemActionService.RemoveActivityAsync(booking.OsmBookingId, request);
+            return Ok(result);
+        }
+        catch (BookingItemNotFoundException ex)
+        {
+            return NotFound(new { message = ex.Message });
+        }
+        catch (InvalidOperationException ex) when (ex.Message.Contains("OSM"))
+        {
+            return Unauthorized(new { message = "OSM authentication required", detail = ex.Message });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error during remove-activity for booking {Id}", id);
+            return StatusCode(502, new { message = "Error executing remove-activity", detail = ex.Message });
+        }
+    }
+
+    /// <summary>
+    /// Changes the headcount (number of people) on an existing item. Uses the same
+    /// clone-then-delete-original engine as move-activity/change-site.
+    /// </summary>
+    [HttpPost("{id}/actions/change-numbers")]
+    public async Task<ActionResult<BookingActionResult>> ChangeNumbers(int id, [FromBody] ChangeNumbersRequest request)
+    {
+        if (string.IsNullOrWhiteSpace(request.ItemId))
+            return BadRequest(new { message = "ItemId is required" });
+
+        // Upper bound intentionally omitted: OSM enforces its own per-site/per-activity
+        // capacity limits, which surface as a 502 (OSM rejected the create) rather than a
+        // client-side guess we can't validate without visibility into pitch capacity.
+        if (request.NewNumberPeople is null or <= 0)
+            return BadRequest(new { message = "NewNumberPeople is required and must be greater than zero" });
+
+        var booking = await _context.OsmBookings.FindAsync(id);
+        if (booking == null)
+            return NotFound();
+
+        try
+        {
+            var result = await _itemActionService.ChangeNumbersAsync(booking.OsmBookingId, request);
+            return Ok(result);
+        }
+        catch (BookingItemNotFoundException ex)
+        {
+            return NotFound(new { message = ex.Message });
+        }
+        catch (InvalidOperationException ex) when (ex.Message.Contains("OSM"))
+        {
+            return Unauthorized(new { message = "OSM authentication required", detail = ex.Message });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error during change-numbers for booking {Id}", id);
+            return StatusCode(502, new { message = "Error executing change-numbers", detail = ex.Message });
         }
     }
 }

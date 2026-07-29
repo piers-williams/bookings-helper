@@ -44,6 +44,21 @@ public interface IOsmService
     /// </summary>
     Task<List<AvailableSiteDto>> GetAvailableSitesAsync(string osmBookingId);
 
+    /// <summary>
+    /// Lists the bookable activities that can be added to a booking (for add-activity),
+    /// sourced from the same OSM item-type catalogue as <see cref="GetAvailableSitesAsync"/>.
+    /// </summary>
+    Task<List<AvailableSiteDto>> GetAvailableActivitiesAsync(string osmBookingId);
+
+    /// <summary>
+    /// Read-only check of whether an item-type (site or activity) has an available slot for
+    /// the given date range. Reuses the same per-item availability endpoint and slot-resolution
+    /// logic as <see cref="CreateBookingItemAsync"/>, but never creates anything. A "no slot"
+    /// outcome is reported via <see cref="AvailabilityResult.Available"/> = false, not an
+    /// exception — only OSM/auth failures throw.
+    /// </summary>
+    Task<AvailabilityResult> CheckAvailabilityAsync(string osmBookingId, string campsiteItemId, DateTime startDate, DateTime endDate);
+
     // Auth
     string GetAuthorizationUrl(string redirectUri);
     Task<bool> HandleOAuthCallbackAsync(string code, int userId, string redirectUri);

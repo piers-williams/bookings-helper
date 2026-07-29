@@ -1,15 +1,18 @@
 import axios from 'axios';
 import type {
+  AddActivityRequest,
   AvailableSite,
   Booking,
   BookingActionResult,
   BookingDetail,
   BookingItem,
+  ChangeNumbersRequest,
   ChangeSiteRequest,
   BookingStats,
   MoveActivityRequest,
   MoveDatesRequest,
   ProposedPlan,
+  RemoveActivityRequest,
 } from '../types';
 
 const apiClient = axios.create({
@@ -94,6 +97,26 @@ export const bookingsApi = {
 
   moveDates: async (id: number, req: MoveDatesRequest): Promise<BookingActionResult> => {
     const response = await apiClient.post<BookingActionResult>(`/bookings/${id}/actions/move-dates`, req);
+    return response.data;
+  },
+
+  getAvailableActivities: async (id: number): Promise<AvailableSite[]> => {
+    const response = await apiClient.get<AvailableSite[]>(`/bookings/${id}/available-activities`);
+    return response.data;
+  },
+
+  addActivity: async (id: number, req: AddActivityRequest): Promise<BookingActionResult> => {
+    const response = await apiClient.post<BookingActionResult>(`/bookings/${id}/actions/add-activity`, req);
+    return response.data;
+  },
+
+  removeActivity: async (id: number, req: RemoveActivityRequest): Promise<BookingActionResult> => {
+    const response = await apiClient.post<BookingActionResult>(`/bookings/${id}/actions/remove-activity`, req);
+    return response.data;
+  },
+
+  changeNumbers: async (id: number, req: ChangeNumbersRequest): Promise<BookingActionResult> => {
+    const response = await apiClient.post<BookingActionResult>(`/bookings/${id}/actions/change-numbers`, req);
     return response.data;
   },
 };
