@@ -25,4 +25,11 @@ public class PlanActionExecutionResult
 
     /// <summary>Present when Status is "failed" — a human-readable explanation.</summary>
     public string? Reason { get; set; }
+
+    /// <summary>
+    /// Present for actions that produce a result beyond success/failure (currently only
+    /// "checkAvailability" — e.g. "Available" or "Not available: no slot covers 12-14 Aug").
+    /// Unlike <see cref="Reason"/>, this is populated on a "succeeded" outcome too.
+    /// </summary>
+    public string? Detail { get; set; }
 }

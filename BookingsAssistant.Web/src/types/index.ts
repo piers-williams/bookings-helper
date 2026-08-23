@@ -105,6 +105,33 @@ export interface MoveDatesRequest {
   note?: string;
 }
 
+/** Request to add a brand-new activity item to a booking (no existing item to clone). */
+export interface AddActivityRequest {
+  activityId: string;
+  startDate: string;
+  endDate: string;
+  startTime?: string;
+  endTime?: string;
+  numberPeople: number;
+  /** Optional free-text note appended to the auto-generated audit comment. */
+  note?: string;
+}
+
+/** Request to remove (hard-delete) an existing item — activity or site — from a booking. */
+export interface RemoveActivityRequest {
+  itemId: string;
+  /** Optional free-text note appended to the auto-generated audit comment. */
+  note?: string;
+}
+
+/** Request to change the headcount (number of people) on an existing item. */
+export interface ChangeNumbersRequest {
+  itemId: string;
+  newNumberPeople: number;
+  /** Optional free-text note appended to the auto-generated audit comment. */
+  note?: string;
+}
+
 /** A bookable site/pitch a booked item can be moved to (for change-site). */
 export interface AvailableSite {
   id: string;
@@ -121,6 +148,13 @@ export interface ProposedPlan {
   osmBookingId?: string | null;
   /** JSON-encoded array of PlanAction, in execution order. */
   actionsJson?: string | null;
+  /**
+   * Set when drafting succeeded but an automatic availability pre-check found a date-carrying
+   * action (currently addActivity) whose slot was still unavailable after drafting's one retry.
+   * Drafting isn't failed for this — the plan is saved as normal — but a human reviewing it
+   * here should see the conflict before approving.
+   */
+  draftWarning?: string | null;
   /** JSON-encoded array of PlanActionExecutionResult, parallel to the actions array. */
   executionResultJson?: string | null;
   createdAt: string;
@@ -142,11 +176,18 @@ export interface PlanAction {
   /** changeSite */
   newSiteId?: string;
   newSiteName?: string;
-  /** moveActivity */
+  /** addActivity / checkAvailability */
+  activityId?: string;
+  /** moveActivity / addActivity / checkAvailability */
   newStartDate?: string;
   newStartTime?: string;
   newEndTime?: string;
-  /** moveDates / changeSite / moveActivity */
+  /** addActivity / checkAvailability */
+  newEndDate?: string;
+  numberPeople?: number;
+  /** changeNumbers */
+  newNumberPeople?: number;
+  /** moveDates / changeSite / moveActivity / addActivity / removeActivity / changeNumbers / checkAvailability */
   note?: string;
 }
 
@@ -156,4 +197,10 @@ export interface PlanActionExecutionResult {
   /** One of: "succeeded", "failed", "not_attempted". */
   status: 'succeeded' | 'failed' | 'not_attempted';
   reason?: string | null;
+  /**
+   * Present for actions that produce a result beyond success/failure (currently only
+   * "checkAvailability" — e.g. "Available" or "Not available: ..."). Unlike `reason`, this is
+   * populated on a "succeeded" outcome too.
+   */
+  detail?: string | null;
 }

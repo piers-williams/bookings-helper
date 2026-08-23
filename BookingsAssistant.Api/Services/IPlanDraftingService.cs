@@ -26,6 +26,16 @@ public class PlanDraftResult
     public string? ActionsJson { get; init; }
     public string? FailureReason { get; init; }
 
-    public static PlanDraftResult Ok(string actionsJson) => new() { Success = true, ActionsJson = actionsJson };
+    /// <summary>
+    /// Set on an otherwise-successful result when the automatic availability pre-check found a
+    /// date-carrying action (e.g. addActivity) whose slot was still unavailable after the one
+    /// retry drafting allows itself. Drafting still succeeds (<see cref="Success"/> is true) —
+    /// the caller should copy this onto <c>ProposedPlan.DraftWarning</c> so a human reviewing
+    /// the plan sees it before approving. Null in the common case (no conflict, or not checked).
+    /// </summary>
+    public string? Warning { get; init; }
+
+    public static PlanDraftResult Ok(string actionsJson, string? warning = null) =>
+        new() { Success = true, ActionsJson = actionsJson, Warning = warning };
     public static PlanDraftResult Fail(string reason) => new() { Success = false, FailureReason = reason };
 }

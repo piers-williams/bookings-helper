@@ -11,9 +11,11 @@ vi.mock('../services/apiClient', () => ({
     getById: vi.fn(),
     getItems: vi.fn(),
     getAvailableSites: vi.fn(),
+    getAvailableActivities: vi.fn(),
     moveDates: vi.fn(),
     moveActivity: vi.fn(),
     changeSite: vi.fn(),
+    addActivity: vi.fn(),
   },
 }));
 
@@ -41,6 +43,7 @@ beforeEach(() => {
   api.getById.mockResolvedValue(booking);
   api.getItems.mockResolvedValue(initialItems);
   api.getAvailableSites.mockResolvedValue([]);
+  api.getAvailableActivities.mockResolvedValue([]);
 });
 
 describe('move-dates action', () => {

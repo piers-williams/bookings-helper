@@ -24,4 +24,7 @@ public class ItemReplacement
 
     /// <summary>If set, overrides the EndTime on the cloned item.</summary>
     public string? NewEndTime { get; set; }
+
+    /// <summary>If set, overrides the NumberPeople on the cloned item.</summary>
+    public int? NewNumberPeople { get; set; }
 }

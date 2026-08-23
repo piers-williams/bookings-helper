@@ -53,6 +53,7 @@ public class PlansController : ControllerBase
                 SourceEmailText = p.SourceEmailText,
                 OsmBookingId = p.OsmBookingId,
                 ActionsJson = p.ActionsJson,
+                DraftWarning = p.DraftWarning,
                 ExecutionResultJson = p.ExecutionResultJson,
                 CreatedAt = p.CreatedAt
             })
@@ -124,6 +125,7 @@ public class PlansController : ControllerBase
         if (draftResult is { Success: true })
         {
             plan.ActionsJson = draftResult.ActionsJson;
+            plan.DraftWarning = draftResult.Warning;
         }
         else
         {
@@ -219,6 +221,7 @@ public class PlansController : ControllerBase
         SourceEmailText = plan.SourceEmailText,
         OsmBookingId = plan.OsmBookingId,
         ActionsJson = plan.ActionsJson,
+        DraftWarning = plan.DraftWarning,
         ExecutionResultJson = plan.ExecutionResultJson,
         CreatedAt = plan.CreatedAt
     };

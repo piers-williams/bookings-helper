@@ -279,6 +279,321 @@ public class PlanApprovalTests : IClassFixture<WebApplicationFactory<Program>>
     }
 
     [Fact]
+    public async Task Approve_AddActivityActionSucceeds_MarksExecuted_CreatesItemAndPostsComment()
+    {
+        var bookingId = await SeedBookingAsync("77506");
+        _fakeOsm.CreatedItemIds = new List<string> { "new-activity-item" };
+        _fakeOsm.CommentToReturn = new CommentDto
+        {
+            OsmBookingId = bookingId,
+            OsmCommentId = "cmt-add-activity-1",
+            AuthorName = "Site Manager",
+            TextPreview = "Added activity",
+            CreatedDate = new DateTime(2026, 8, 1, 9, 0, 0, DateTimeKind.Utc)
+        };
+        var planId = await SeedPlanAsync(
+            "[{\"type\":\"addActivity\",\"activityId\":\"4962\",\"newStartDate\":\"2026-08-02\"," +
+            "\"newEndDate\":\"2026-08-02\",\"numberPeople\":8}]",
+            bookingId);
+
+        var client = _factory.CreateClient();
+        var response = await client.PostAsync($"/api/plans/{planId}/approve", content: null);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var result = await response.Content.ReadFromJsonAsync<ProposedPlanDto>();
+        Assert.NotNull(result);
+        Assert.Equal("Executed", result.Status);
+
+        var spec = Assert.Single(_fakeOsm.CapturedSpecs);
+        Assert.Equal("4962", spec.CampsiteItemId);
+        Assert.Equal(8, spec.NumberPeople);
+
+        Assert.Single(_fakeOsm.CommentsPosted);
+    }
+
+    [Fact]
+    public async Task Approve_AddActivityActionFails_MarksFailed_WhenOsmCreateFails()
+    {
+        var bookingId = await SeedBookingAsync("77507");
+        _fakeOsm.FailCreateOnCall = (1, new InvalidOperationException("No available slot for the requested window"));
+
+        var planId = await SeedPlanAsync(
+            "[{\"type\":\"addActivity\",\"activityId\":\"4962\",\"newStartDate\":\"2026-08-02\"," +
+            "\"newEndDate\":\"2026-08-02\",\"numberPeople\":8}]",
+            bookingId);
+
+        var client = _factory.CreateClient();
+        var response = await client.PostAsync($"/api/plans/{planId}/approve", content: null);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var result = await response.Content.ReadFromJsonAsync<ProposedPlanDto>();
+        Assert.NotNull(result);
+        Assert.Equal("Failed", result.Status);
+
+        var results = System.Text.Json.JsonSerializer.Deserialize<List<PlanActionExecutionResult>>(result.ExecutionResultJson!)!;
+        var single = Assert.Single(results);
+        Assert.Equal("addActivity", single.Type);
+        Assert.Equal(PlanActionExecutionStatus.Failed, single.Status);
+        // Must be the OSM create failure surfacing, not a generic "unknown action type" —
+        // proves addActivity actually reached IBookingItemActionService.AddActivityAsync.
+        Assert.Contains("No available slot", single.Reason);
+    }
+
+    [Fact]
+    public async Task Approve_RemoveActivityActionSucceeds_MarksExecuted_DeletesItemAndPostsComment()
+    {
+        var bookingId = await SeedBookingAsync("77508");
+        _fakeOsm.ItemsToReturn = new List<BookingItemDto> { MakeSiteItem("site-item-1") };
+        _fakeOsm.CommentToReturn = new CommentDto
+        {
+            OsmBookingId = bookingId,
+            OsmCommentId = "cmt-remove-activity-1",
+            AuthorName = "Site Manager",
+            TextPreview = "Removed 'Pitch A'.",
+            CreatedDate = new DateTime(2026, 8, 1, 9, 0, 0, DateTimeKind.Utc)
+        };
+        var planId = await SeedPlanAsync(
+            "[{\"type\":\"removeActivity\",\"itemId\":\"site-item-1\"}]",
+            bookingId);
+
+        var client = _factory.CreateClient();
+        var response = await client.PostAsync($"/api/plans/{planId}/approve", content: null);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var result = await response.Content.ReadFromJsonAsync<ProposedPlanDto>();
+        Assert.NotNull(result);
+        Assert.Equal("Executed", result.Status);
+
+        Assert.Contains((bookingId, "site-item-1"), _fakeOsm.DeletedItems);
+        Assert.Single(_fakeOsm.CommentsPosted);
+    }
+
+    [Fact]
+    public async Task Approve_RemoveActivityActionFails_MarksFailed_WhenItemNotInBooking()
+    {
+        var bookingId = await SeedBookingAsync("77509");
+        _fakeOsm.ItemsToReturn = new List<BookingItemDto>(); // item-does-not-exist isn't among the booking's items
+
+        var planId = await SeedPlanAsync(
+            "[{\"type\":\"removeActivity\",\"itemId\":\"item-does-not-exist\"}]",
+            bookingId);
+
+        var client = _factory.CreateClient();
+        var response = await client.PostAsync($"/api/plans/{planId}/approve", content: null);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var result = await response.Content.ReadFromJsonAsync<ProposedPlanDto>();
+        Assert.NotNull(result);
+        Assert.Equal("Failed", result.Status);
+
+        var results = System.Text.Json.JsonSerializer.Deserialize<List<PlanActionExecutionResult>>(result.ExecutionResultJson!)!;
+        var single = Assert.Single(results);
+        Assert.Equal("removeActivity", single.Type);
+        Assert.Equal(PlanActionExecutionStatus.Failed, single.Status);
+    }
+
+    [Fact]
+    public async Task Approve_ChangeNumbersActionSucceeds_MarksExecuted_ReplacesItemAndPostsComment()
+    {
+        var bookingId = await SeedBookingAsync("77511");
+        _fakeOsm.ItemsToReturn = new List<BookingItemDto> { MakeSiteItem("site-item-1") };
+        _fakeOsm.CreatedItemIds = new List<string> { "site-item-new" };
+        _fakeOsm.CommentToReturn = new CommentDto
+        {
+            OsmBookingId = bookingId,
+            OsmCommentId = "cmt-change-numbers-1",
+            AuthorName = "Site Manager",
+            TextPreview = "Number of people changed",
+            CreatedDate = new DateTime(2026, 8, 1, 9, 0, 0, DateTimeKind.Utc)
+        };
+        var planId = await SeedPlanAsync(
+            "[{\"type\":\"changeNumbers\",\"itemId\":\"site-item-1\",\"newNumberPeople\":10}]",
+            bookingId);
+
+        var client = _factory.CreateClient();
+        var response = await client.PostAsync($"/api/plans/{planId}/approve", content: null);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var result = await response.Content.ReadFromJsonAsync<ProposedPlanDto>();
+        Assert.NotNull(result);
+        Assert.Equal("Executed", result.Status);
+
+        var spec = Assert.Single(_fakeOsm.CapturedSpecs);
+        Assert.Equal(10, spec.NumberPeople);
+        Assert.Contains("site-item-1", _fakeOsm.DeletedItems.Select(d => d.ItemId));
+        Assert.Single(_fakeOsm.CommentsPosted);
+    }
+
+    [Fact]
+    public async Task Approve_ChangeNumbersActionFails_MarksFailed_WhenItemNotInBooking()
+    {
+        var bookingId = await SeedBookingAsync("77512");
+        _fakeOsm.ItemsToReturn = new List<BookingItemDto>(); // item-does-not-exist isn't among the booking's items
+
+        var planId = await SeedPlanAsync(
+            "[{\"type\":\"changeNumbers\",\"itemId\":\"item-does-not-exist\",\"newNumberPeople\":10}]",
+            bookingId);
+
+        var client = _factory.CreateClient();
+        var response = await client.PostAsync($"/api/plans/{planId}/approve", content: null);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var result = await response.Content.ReadFromJsonAsync<ProposedPlanDto>();
+        Assert.NotNull(result);
+        Assert.Equal("Failed", result.Status);
+
+        var results = System.Text.Json.JsonSerializer.Deserialize<List<PlanActionExecutionResult>>(result.ExecutionResultJson!)!;
+        var single = Assert.Single(results);
+        Assert.Equal("changeNumbers", single.Type);
+        Assert.Equal(PlanActionExecutionStatus.Failed, single.Status);
+    }
+
+    [Fact]
+    public async Task Approve_ChangeNumbersActionFailure_StopsSubsequentActions()
+    {
+        var bookingId = await SeedBookingAsync("77513");
+        _fakeOsm.ItemsToReturn = new List<BookingItemDto>(); // changeNumbers' itemId won't be found
+
+        var planId = await SeedPlanAsync(
+            "[{\"type\":\"changeNumbers\",\"itemId\":\"item-does-not-exist\",\"newNumberPeople\":10}," +
+            "{\"type\":\"postComment\",\"text\":\"should not run\"}]",
+            bookingId);
+
+        var client = _factory.CreateClient();
+        var response = await client.PostAsync($"/api/plans/{planId}/approve", content: null);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var result = await response.Content.ReadFromJsonAsync<ProposedPlanDto>();
+        Assert.NotNull(result);
+        Assert.Equal("Failed", result.Status);
+
+        var results = System.Text.Json.JsonSerializer.Deserialize<List<PlanActionExecutionResult>>(result.ExecutionResultJson!)!;
+        Assert.Equal(2, results.Count);
+        Assert.Equal(PlanActionExecutionStatus.Failed, results[0].Status);
+        Assert.Equal(PlanActionExecutionStatus.NotAttempted, results[1].Status);
+        Assert.Empty(_fakeOsm.CommentsPosted);
+    }
+
+    [Fact]
+    public async Task Approve_RemoveActivityActionFailure_StopsSubsequentActions()
+    {
+        var bookingId = await SeedBookingAsync("77510");
+        _fakeOsm.ItemsToReturn = new List<BookingItemDto>(); // removeActivity's itemId won't be found
+
+        var planId = await SeedPlanAsync(
+            "[{\"type\":\"removeActivity\",\"itemId\":\"item-does-not-exist\"}," +
+            "{\"type\":\"postComment\",\"text\":\"should not run\"}]",
+            bookingId);
+
+        var client = _factory.CreateClient();
+        var response = await client.PostAsync($"/api/plans/{planId}/approve", content: null);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var result = await response.Content.ReadFromJsonAsync<ProposedPlanDto>();
+        Assert.NotNull(result);
+        Assert.Equal("Failed", result.Status);
+
+        var results = System.Text.Json.JsonSerializer.Deserialize<List<PlanActionExecutionResult>>(result.ExecutionResultJson!)!;
+        Assert.Equal(2, results.Count);
+        Assert.Equal(PlanActionExecutionStatus.Failed, results[0].Status);
+        Assert.Equal(PlanActionExecutionStatus.NotAttempted, results[1].Status);
+        Assert.Empty(_fakeOsm.CommentsPosted);
+    }
+
+    [Fact]
+    public async Task Approve_CheckAvailabilityAvailable_MarksExecuted_StatusSucceeded_DetailSaysAvailable()
+    {
+        // The important behavioral distinction: checkAvailability is read-only, so BOTH the
+        // available and unavailable outcomes are a "succeeded" query -- only real OSM/auth
+        // failures should ever produce "failed" here.
+        var bookingId = await SeedBookingAsync("77514");
+        _fakeOsm.AvailabilityResultToReturn = new AvailabilityResult { Available = true };
+
+        var planId = await SeedPlanAsync(
+            "[{\"type\":\"checkAvailability\",\"activityId\":\"4962\"," +
+            "\"newStartDate\":\"2026-08-02\",\"newEndDate\":\"2026-08-02\"}]",
+            bookingId);
+
+        var client = _factory.CreateClient();
+        var response = await client.PostAsync($"/api/plans/{planId}/approve", content: null);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var result = await response.Content.ReadFromJsonAsync<ProposedPlanDto>();
+        Assert.NotNull(result);
+        Assert.Equal("Executed", result.Status);
+
+        var results = System.Text.Json.JsonSerializer.Deserialize<List<PlanActionExecutionResult>>(result.ExecutionResultJson!)!;
+        var single = Assert.Single(results);
+        Assert.Equal("checkAvailability", single.Type);
+        Assert.Equal(PlanActionExecutionStatus.Succeeded, single.Status);
+        Assert.NotNull(single.Detail);
+        Assert.Contains("Available", single.Detail);
+
+        var call = Assert.Single(_fakeOsm.AvailabilityChecks);
+        Assert.Equal(bookingId, call.OsmBookingId);
+        Assert.Equal("4962", call.CampsiteItemId);
+    }
+
+    [Fact]
+    public async Task Approve_CheckAvailabilityUnavailable_StillMarksExecuted_StatusSucceeded_DetailExplainsWhy()
+    {
+        var bookingId = await SeedBookingAsync("77515");
+        _fakeOsm.AvailabilityResultToReturn = new AvailabilityResult
+        {
+            Available = false,
+            Reason = "No available slot for 2026-08-02 to 2026-08-02"
+        };
+
+        var planId = await SeedPlanAsync(
+            "[{\"type\":\"checkAvailability\",\"activityId\":\"4962\"," +
+            "\"newStartDate\":\"2026-08-02\",\"newEndDate\":\"2026-08-02\"}]",
+            bookingId);
+
+        var client = _factory.CreateClient();
+        var response = await client.PostAsync($"/api/plans/{planId}/approve", content: null);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var result = await response.Content.ReadFromJsonAsync<ProposedPlanDto>();
+        Assert.NotNull(result);
+        // Not a failure -- the query ran fine, it just reports the slot doesn't exist.
+        Assert.Equal("Executed", result.Status);
+
+        var results = System.Text.Json.JsonSerializer.Deserialize<List<PlanActionExecutionResult>>(result.ExecutionResultJson!)!;
+        var single = Assert.Single(results);
+        Assert.Equal("checkAvailability", single.Type);
+        Assert.Equal(PlanActionExecutionStatus.Succeeded, single.Status);
+        Assert.NotNull(single.Detail);
+        Assert.Contains("No available slot", single.Detail);
+        Assert.Null(single.Reason); // Reason is for actual failures, not this
+    }
+
+    [Fact]
+    public async Task Approve_CheckAvailabilityActionFails_MarksFailed_WhenOsmThrows()
+    {
+        var bookingId = await SeedBookingAsync("77516");
+        _fakeOsm.CheckAvailabilityError = new InvalidOperationException("OSM authentication failed checking availability");
+
+        var planId = await SeedPlanAsync(
+            "[{\"type\":\"checkAvailability\",\"activityId\":\"4962\"," +
+            "\"newStartDate\":\"2026-08-02\",\"newEndDate\":\"2026-08-02\"}]",
+            bookingId);
+
+        var client = _factory.CreateClient();
+        var response = await client.PostAsync($"/api/plans/{planId}/approve", content: null);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var result = await response.Content.ReadFromJsonAsync<ProposedPlanDto>();
+        Assert.NotNull(result);
+        Assert.Equal("Failed", result.Status);
+
+        var results = System.Text.Json.JsonSerializer.Deserialize<List<PlanActionExecutionResult>>(result.ExecutionResultJson!)!;
+        var single = Assert.Single(results);
+        Assert.Equal("checkAvailability", single.Type);
+        Assert.Equal(PlanActionExecutionStatus.Failed, single.Status);
+        Assert.NotNull(single.Reason);
+    }
+
+    [Fact]
     public async Task Approve_ReturnsConflict_WhenPlanNotAwaitingApproval()
     {
         var planId = await SeedPlanAsync(

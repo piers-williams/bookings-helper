@@ -40,6 +40,19 @@ function describeAction(action: PlanAction): string {
       const when = [action.newStartDate, action.newStartTime].filter(Boolean).join(' ');
       return `Move activity ${action.itemId}${when ? ` to ${when}` : ''}`;
     }
+    case 'addActivity': {
+      const when = [action.newStartDate, action.newStartTime].filter(Boolean).join(' ');
+      const people = action.numberPeople != null ? ` for ${action.numberPeople} people` : '';
+      return `Add activity ${action.activityId}${when ? ` on ${when}` : ''}${people}`;
+    }
+    case 'removeActivity':
+      return `Remove item ${action.itemId}${action.note ? ` — ${action.note}` : ''}`;
+    case 'changeNumbers':
+      return `Change numbers for item ${action.itemId} to ${action.newNumberPeople ?? '?'}${action.note ? ` — ${action.note}` : ''}`;
+    case 'checkAvailability': {
+      const when = [action.newStartDate, action.newEndDate].filter(Boolean).join(' to ');
+      return `Check availability for ${action.activityId}${when ? ` (${when})` : ''}`;
+    }
     default:
       return `Unknown action: ${action.type}`;
   }
@@ -99,6 +112,7 @@ function PlanActionRow({ action, result }: { action: PlanAction; result?: PlanAc
             {result.status}
           </span>
           {result.reason && <span className="ml-2 text-xs text-red-700">{result.reason}</span>}
+          {result.detail && <span className="ml-2 text-xs text-gray-700">{result.detail}</span>}
         </div>
       )}
     </div>
@@ -127,6 +141,13 @@ function PlanDetail({ plan, onApprove, onReject, busy }: PlanDetailProps) {
 
       {plan.osmBookingId && (
         <p className="text-sm text-gray-600 mb-2">Booking: {plan.osmBookingId}</p>
+      )}
+
+      {plan.draftWarning && (
+        <div className="mb-4 p-3 bg-amber-50 border border-amber-300 rounded text-sm text-amber-800">
+          <span className="font-semibold">Availability warning: </span>
+          {plan.draftWarning}
+        </div>
       )}
 
       {plan.sourceEmailText && (

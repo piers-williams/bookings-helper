@@ -60,6 +60,17 @@ public class FakeOsmService : IOsmService
         return Task.FromResult(AvailableSitesToReturn);
     }
 
+    public List<AvailableSiteDto> AvailableActivitiesToReturn { get; set; } = new();
+
+    /// <summary>If set, GetAvailableActivitiesAsync throws this (to exercise the controller's 401/502 paths).</summary>
+    public Exception? GetActivitiesError { get; set; }
+
+    public Task<List<AvailableSiteDto>> GetAvailableActivitiesAsync(string osmBookingId)
+    {
+        if (GetActivitiesError != null) throw GetActivitiesError;
+        return Task.FromResult(AvailableActivitiesToReturn);
+    }
+
     // Create / Delete — configurable for mutation service tests
     public List<string> CreatedItemIds { get; set; } = new();
     private int _createCallCount;
@@ -95,6 +106,12 @@ public class FakeOsmService : IOsmService
     /// </summary>
     public HashSet<string> DeleteThrowForIds { get; } = new();
 
+    /// <summary>
+    /// The exception thrown for ids in <see cref="DeleteThrowForIds"/>. Defaults to a generic
+    /// error; set to an "OSM authentication..." message to exercise the controller's 401 path.
+    /// </summary>
+    public Exception? DeleteThrowException { get; set; }
+
     public Task<string> CreateBookingItemAsync(string osmBookingId, BookingItemCreateSpec spec)
     {
         _createCallCount++;
@@ -112,10 +129,34 @@ public class FakeOsmService : IOsmService
     public Task<bool> DeleteBookingItemAsync(string osmBookingId, string itemId)
     {
         if (DeleteThrowForIds.Contains(itemId))
-            throw new InvalidOperationException($"Fake: delete forced to throw for item {itemId}");
+            throw DeleteThrowException ?? new InvalidOperationException($"Fake: delete forced to throw for item {itemId}");
         CallLog.Add(("delete", itemId));
         DeletedItems.Add((osmBookingId, itemId));
         return Task.FromResult(!DeleteReturnFalseForIds.Contains(itemId));
+    }
+
+    // Availability — configurable for checkAvailability tests
+    public AvailabilityResult AvailabilityResultToReturn { get; set; } = new() { Available = true };
+
+    /// <summary>
+    /// If set (and non-empty), each call to CheckAvailabilityAsync dequeues the next result
+    /// instead of returning <see cref="AvailabilityResultToReturn"/> — lets a test simulate a
+    /// slot that's unavailable on the first check and available on a later retry.
+    /// </summary>
+    public Queue<AvailabilityResult>? AvailabilityResultsToReturn { get; set; }
+
+    /// <summary>If set, CheckAvailabilityAsync throws this (to exercise the controller's 401/502 paths).</summary>
+    public Exception? CheckAvailabilityError { get; set; }
+
+    /// <summary>Captures each call to CheckAvailabilityAsync, in order.</summary>
+    public List<(string OsmBookingId, string CampsiteItemId, DateTime StartDate, DateTime EndDate)> AvailabilityChecks { get; } = new();
+
+    public Task<AvailabilityResult> CheckAvailabilityAsync(string osmBookingId, string campsiteItemId, DateTime startDate, DateTime endDate)
+    {
+        AvailabilityChecks.Add((osmBookingId, campsiteItemId, startDate, endDate));
+        if (CheckAvailabilityError != null) throw CheckAvailabilityError;
+        var result = AvailabilityResultsToReturn is { Count: > 0 } queue ? queue.Dequeue() : AvailabilityResultToReturn;
+        return Task.FromResult(result);
     }
 
     public string GetAuthorizationUrl(string redirectUri)

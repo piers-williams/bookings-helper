@@ -2,16 +2,19 @@ import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { bookingsApi } from '../services/apiClient';
 import type {
+  AddActivityRequest,
   AvailableSite,
   BookingActionResult,
   BookingDetail as BookingDetailType,
   BookingItem,
+  ChangeNumbersRequest,
   ChangeSiteRequest,
   MoveActivityRequest,
   MoveDatesRequest,
+  RemoveActivityRequest,
 } from '../types';
 
-type ItemActionKind = 'move-activity' | 'change-site';
+type ItemActionKind = 'move-activity' | 'change-site' | 'remove-activity' | 'change-numbers';
 
 /** Tailwind classes for the action result banner, keyed by BookingActionResult.status. */
 function actionBannerClass(status: string): string {
@@ -52,7 +55,20 @@ export default function BookingDetail() {
   const [newStartTime, setNewStartTime] = useState('');
   const [newEndTime, setNewEndTime] = useState('');
   const [newSiteId, setNewSiteId] = useState('');
+  const [newNumberPeople, setNewNumberPeople] = useState('');
   const [note, setNote] = useState('');
+
+  // Add-activity — a brand-new item, not tied to an existing one, so it gets its own form
+  // state and confirm gate rather than reusing the per-item fields above.
+  const [availableActivities, setAvailableActivities] = useState<AvailableSite[]>([]);
+  const [confirmingAddActivity, setConfirmingAddActivity] = useState(false);
+  const [newActivityId, setNewActivityId] = useState('');
+  const [activityStartDate, setActivityStartDate] = useState('');
+  const [activityEndDate, setActivityEndDate] = useState('');
+  const [activityStartTime, setActivityStartTime] = useState('');
+  const [activityEndTime, setActivityEndTime] = useState('');
+  const [activityNumberPeople, setActivityNumberPeople] = useState('');
+  const [activityNote, setActivityNote] = useState('');
 
   useEffect(() => {
     const fetchBooking = async () => {
@@ -102,6 +118,14 @@ export default function BookingDetail() {
       .catch(() => setAvailableSites([]));
   }, [id]);
 
+  useEffect(() => {
+    if (!id) return;
+    // Activities for the add-activity dropdown; best-effort (empty list disables the form).
+    bookingsApi.getAvailableActivities(parseInt(id))
+      .then(setAvailableActivities)
+      .catch(() => setAvailableActivities([]));
+  }, [id]);
+
   const handlePostComment = async () => {
     if (!newComment.trim() || !id) return;
     setPosting(true);
@@ -139,6 +163,14 @@ export default function BookingDetail() {
       setActiveItemAction(null);
       setConfirmingItemAction(false);
       setNote('');
+      setConfirmingAddActivity(false);
+      setNewActivityId('');
+      setActivityStartDate('');
+      setActivityEndDate('');
+      setActivityStartTime('');
+      setActivityEndTime('');
+      setActivityNumberPeople('');
+      setActivityNote('');
     }
   };
 
@@ -159,6 +191,7 @@ export default function BookingDetail() {
     setNewStartTime('');
     setNewEndTime('');
     setNewSiteId('');
+    setNewNumberPeople('');
     setNote('');
   };
 
@@ -179,6 +212,56 @@ export default function BookingDetail() {
     if (selectedSite) req.newSiteName = selectedSite.name;
     if (note.trim()) req.note = note.trim();
     runAction(() => bookingsApi.changeSite(parseInt(id), req));
+  };
+
+  // Remove is a hard delete with no fields to fill in first, so it skips the intermediate
+  // panel that move-activity/change-site use and opens straight into the confirm gate.
+  const openRemoveActivity = (itemId: string) => {
+    setActiveItemAction({ itemId, kind: 'remove-activity' });
+    setConfirmingItemAction(true);
+    setNote('');
+  };
+
+  const handleRemoveActivity = (itemId: string) => {
+    if (!id) return;
+    const req: RemoveActivityRequest = { itemId };
+    if (note.trim()) req.note = note.trim();
+    runAction(() => bookingsApi.removeActivity(parseInt(id), req));
+  };
+
+  // Parsed once and reused by both the "Update" button's disabled check and the submit
+  // handler, rather than re-parsing newNumberPeople in three separate places.
+  const parsedNewNumberPeople = parseInt(newNumberPeople, 10);
+  const isNewNumberPeopleValid = !Number.isNaN(parsedNewNumberPeople) && parsedNewNumberPeople > 0;
+
+  const handleChangeNumbers = (itemId: string) => {
+    if (!id || !isNewNumberPeopleValid) return;
+    const req: ChangeNumbersRequest = { itemId, newNumberPeople: parsedNewNumberPeople };
+    if (note.trim()) req.note = note.trim();
+    runAction(() => bookingsApi.changeNumbers(parseInt(id), req));
+  };
+
+  // Parsed once and reused by both the "Add activity" button's disabled check and the submit
+  // handler, mirroring parsedNewNumberPeople/isNewNumberPeopleValid above.
+  const parsedActivityNumberPeople = parseInt(activityNumberPeople, 10);
+  const isActivityNumberPeopleValid =
+    !Number.isNaN(parsedActivityNumberPeople) && parsedActivityNumberPeople > 0;
+
+  const canAddActivity =
+    !!newActivityId && !!activityStartDate && !!activityEndDate && isActivityNumberPeopleValid;
+
+  const handleAddActivity = () => {
+    if (!id || !canAddActivity) return;
+    const req: AddActivityRequest = {
+      activityId: newActivityId,
+      startDate: activityStartDate,
+      endDate: activityEndDate,
+      numberPeople: parsedActivityNumberPeople,
+    };
+    if (activityStartTime) req.startTime = activityStartTime;
+    if (activityEndTime) req.endTime = activityEndTime;
+    if (activityNote.trim()) req.note = activityNote.trim();
+    runAction(() => bookingsApi.addActivity(parseInt(id), req));
   };
 
   if (loading) {
@@ -438,6 +521,81 @@ export default function BookingDetail() {
                         Change site
                       </button>
                     )}
+                    <button
+                      onClick={() => openItemAction(item.itemId, 'change-numbers')}
+                      disabled={actionInProgress}
+                      className="ml-2 px-3 py-1 text-sm bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50"
+                    >
+                      Change numbers
+                    </button>
+                    <button
+                      onClick={() => openRemoveActivity(item.itemId)}
+                      disabled={actionInProgress}
+                      className="ml-2 px-3 py-1 text-sm bg-red-600 text-white rounded hover:bg-red-700 disabled:opacity-50"
+                    >
+                      Remove
+                    </button>
+                  </div>
+                )}
+
+                {/* Remove form — irreversible, so it opens straight into the confirm gate. */}
+                {activeItemAction?.itemId === item.itemId && activeItemAction.kind === 'remove-activity' && (
+                  <div className="mt-3 border-t pt-3 space-y-2">
+                    <div className="text-sm text-gray-700 space-y-2">
+                      <p>Permanently remove '{item.label}' from this booking? This cannot be undone.</p>
+                      <div>
+                        <label htmlFor={`remove-note-${item.itemId}`} className="block text-sm font-medium text-gray-700">Add a note (optional)</label>
+                        <textarea id={`remove-note-${item.itemId}`} value={note}
+                          onChange={(e) => setNote(e.target.value)} disabled={actionInProgress}
+                          className="w-full p-2 border border-gray-300 rounded resize-none" rows={2} />
+                      </div>
+                      <div>
+                        <button onClick={() => handleRemoveActivity(item.itemId)} disabled={actionInProgress}
+                          className="px-3 py-1 bg-red-600 text-white rounded hover:bg-red-700 disabled:opacity-50">
+                          {actionInProgress ? 'Working…' : 'Confirm'}</button>
+                        <button onClick={() => setActiveItemAction(null)} disabled={actionInProgress}
+                          className="ml-2 px-3 py-1 bg-gray-300 text-gray-800 rounded hover:bg-gray-400">Cancel</button>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Change-numbers form */}
+                {activeItemAction?.itemId === item.itemId && activeItemAction.kind === 'change-numbers' && (
+                  <div className="mt-3 border-t pt-3 space-y-2">
+                    <div>
+                      <label htmlFor={`np-${item.itemId}`} className="block text-sm font-medium text-gray-700">New number of people</label>
+                      <input id={`np-${item.itemId}`} type="number" min={1} value={newNumberPeople}
+                        onChange={(e) => setNewNumberPeople(e.target.value)} disabled={actionInProgress}
+                        className="w-24 p-2 border border-gray-300 rounded" />
+                    </div>
+                    {!confirmingItemAction ? (
+                      <div>
+                        <button
+                          onClick={() => { if (isNewNumberPeopleValid) setConfirmingItemAction(true); }}
+                          disabled={actionInProgress || !isNewNumberPeopleValid}
+                          className="px-3 py-1 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50">Update</button>
+                        <button onClick={() => setActiveItemAction(null)} disabled={actionInProgress}
+                          className="ml-2 px-3 py-1 bg-gray-300 text-gray-800 rounded hover:bg-gray-400">Cancel</button>
+                      </div>
+                    ) : (
+                      <div className="text-sm text-gray-700 space-y-2">
+                        <p>Recreate this item with {newNumberPeople} people, then delete the original?</p>
+                        <div>
+                          <label htmlFor={`note-${item.itemId}`} className="block text-sm font-medium text-gray-700">Add a note (optional)</label>
+                          <textarea id={`note-${item.itemId}`} value={note}
+                            onChange={(e) => setNote(e.target.value)} disabled={actionInProgress}
+                            className="w-full p-2 border border-gray-300 rounded resize-none" rows={2} />
+                        </div>
+                        <div>
+                          <button onClick={() => handleChangeNumbers(item.itemId)} disabled={actionInProgress}
+                            className="px-3 py-1 bg-red-600 text-white rounded hover:bg-red-700 disabled:opacity-50">
+                            {actionInProgress ? 'Working…' : 'Confirm'}</button>
+                          <button onClick={() => setConfirmingItemAction(false)} disabled={actionInProgress}
+                            className="ml-2 px-3 py-1 bg-gray-300 text-gray-800 rounded hover:bg-gray-400">Cancel</button>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 )}
 
@@ -548,6 +706,87 @@ export default function BookingDetail() {
           </div>
         ) : (
           <p className="text-gray-500">No items on this booking.</p>
+        )}
+      </div>
+
+      {/* Add Activity — a brand-new item, so it's its own section rather than per-item. */}
+      <div className="bg-white rounded-lg shadow p-6 mb-6">
+        <h2 className="text-xl font-semibold text-gray-800 mb-4">Add Activity</h2>
+
+        {availableActivities.length === 0 ? (
+          <p className="text-gray-500">No activities available to add.</p>
+        ) : (
+          <div className="space-y-2">
+            <div>
+              <label htmlFor="activityId" className="block text-sm font-medium text-gray-700">Activity</label>
+              <select id="activityId" value={newActivityId}
+                onChange={(e) => setNewActivityId(e.target.value)} disabled={actionInProgress}
+                className="p-2 border border-gray-300 rounded">
+                <option value="">Select an activity…</option>
+                {availableActivities.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
+              </select>
+            </div>
+            <div>
+              <label htmlFor="activityStartDate" className="block text-sm font-medium text-gray-700">Start date</label>
+              <input id="activityStartDate" type="date" value={activityStartDate}
+                onChange={(e) => setActivityStartDate(e.target.value)} disabled={actionInProgress}
+                className="p-2 border border-gray-300 rounded" />
+            </div>
+            <div>
+              <label htmlFor="activityEndDate" className="block text-sm font-medium text-gray-700">End date</label>
+              <input id="activityEndDate" type="date" value={activityEndDate}
+                onChange={(e) => setActivityEndDate(e.target.value)} disabled={actionInProgress}
+                className="p-2 border border-gray-300 rounded" />
+            </div>
+            <div>
+              <label htmlFor="activityStartTime" className="block text-sm font-medium text-gray-700">Start time (optional)</label>
+              <input id="activityStartTime" type="time" value={activityStartTime}
+                onChange={(e) => setActivityStartTime(e.target.value)} disabled={actionInProgress}
+                className="p-2 border border-gray-300 rounded" />
+            </div>
+            <div>
+              <label htmlFor="activityEndTime" className="block text-sm font-medium text-gray-700">End time (optional)</label>
+              <input id="activityEndTime" type="time" value={activityEndTime}
+                onChange={(e) => setActivityEndTime(e.target.value)} disabled={actionInProgress}
+                className="p-2 border border-gray-300 rounded" />
+            </div>
+            <div>
+              <label htmlFor="activityNumberPeople" className="block text-sm font-medium text-gray-700">Number of people</label>
+              <input id="activityNumberPeople" type="number" min={1} value={activityNumberPeople}
+                onChange={(e) => setActivityNumberPeople(e.target.value)} disabled={actionInProgress}
+                className="w-24 p-2 border border-gray-300 rounded" />
+            </div>
+
+            {!confirmingAddActivity ? (
+              <button
+                onClick={() => { if (canAddActivity) setConfirmingAddActivity(true); }}
+                disabled={actionInProgress || !canAddActivity}
+                className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50"
+              >
+                Add activity
+              </button>
+            ) : (
+              <div className="text-sm text-gray-700 space-y-2">
+                <p>Add this activity to the booking?</p>
+                <div>
+                  <label htmlFor="activityNote" className="block text-sm font-medium text-gray-700">Add a note (optional)</label>
+                  <textarea id="activityNote" value={activityNote}
+                    onChange={(e) => setActivityNote(e.target.value)} disabled={actionInProgress}
+                    className="w-full p-2 border border-gray-300 rounded resize-none" rows={2} />
+                </div>
+                <div>
+                  <button onClick={handleAddActivity} disabled={actionInProgress}
+                    className="px-3 py-1 bg-red-600 text-white rounded hover:bg-red-700 disabled:opacity-50">
+                    {actionInProgress ? 'Working…' : 'Confirm'}
+                  </button>
+                  <button onClick={() => setConfirmingAddActivity(false)} disabled={actionInProgress}
+                    className="ml-2 px-3 py-1 bg-gray-300 text-gray-800 rounded hover:bg-gray-400 disabled:opacity-50">
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
         )}
       </div>
 

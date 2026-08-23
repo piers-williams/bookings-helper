@@ -8,8 +8,8 @@ import type { BookingActionResult, BookingItem } from '../types';
 
 vi.mock('../services/apiClient', () => ({
   bookingsApi: {
-    getById: vi.fn(), getItems: vi.fn(), getAvailableSites: vi.fn(),
-    moveDates: vi.fn(), moveActivity: vi.fn(), changeSite: vi.fn(),
+    getById: vi.fn(), getItems: vi.fn(), getAvailableSites: vi.fn(), getAvailableActivities: vi.fn(),
+    moveDates: vi.fn(), moveActivity: vi.fn(), changeSite: vi.fn(), addActivity: vi.fn(),
   },
 }));
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -40,6 +40,7 @@ beforeEach(() => {
   api.getAvailableSites.mockResolvedValue([
     { id: '1387', name: 'Hayvern' }, { id: '1404', name: 'Birch' },
   ]);
+  api.getAvailableActivities.mockResolvedValue([]);
 });
 
 describe('audit-trail note field', () => {
